@@ -12,7 +12,7 @@ GitHub (dieses Repo)  ──►  NAS: Container «zugkarte»  ──►  Tailsca
 
 - **Updates:** Alles, was auf `main` landet, übernimmt das NAS automatisch innerhalb von etwa 5 Minuten. Startet eine neue Version nicht, läuft die alte weiter.
 - **Zurücknehmen:** Einen Commit auf GitHub rückgängig machen (Revert) – das NAS holt die Korrektur genauso automatisch.
-- **Geheimnisse:** Der API-Schlüssel steht in `data/schluessel.txt` im Projektordner auf dem NAS (oder in `OTD_API_KEY`), der Tailscale-Key in der Docker-Konfiguration – nie in diesem Repo.
+- **Geheimnisse:** Beide Schlüssel liegen als Textdateien im Projektordner auf dem NAS – `data/schluessel.txt` (opentransportdata) und `data/tailscale-key.txt` (Tailscale) – nie in diesem Repo.
 
 ## Aufbau
 

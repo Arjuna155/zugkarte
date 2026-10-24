@@ -1,19 +1,19 @@
-# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)
+# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 2
 #
-# Vor dem Start den Tailscale-Key unten ersetzen:
-#   TS_AUTHKEY   = Auth-Key aus der Tailscale-Admin-Konsole (für die öffentliche Adresse)
+# Hier muss NICHTS ersetzt werden. Beide Schlüssel kommen als Textdateien in den Ordner «data»
+# im Projektordner (mit der Dateien-App von UGOS bearbeiten, jeweils nur den Schlüssel, eine Zeile):
 #
-# API-Schlüssel von opentransportdata.swiss (SIRI-ET), eine der beiden Varianten:
-#   a) einfacher: nach dem ersten Start die Datei  data/schluessel.txt  im Projektordner
-#      mit der Dateien-App öffnen und den Schlüssel hineinschreiben (kein Neustart nötig)
-#   b) unten bei OTD_API_KEY eintragen (dann muss das Projekt neu bereitgestellt werden)
+#   data/schluessel.txt       → Schlüssel von opentransportdata.swiss (SIRI-ET)
+#   data/tailscale-key.txt    → Auth-Key aus der Tailscale-Admin-Konsole (beginnt mit «tskey-auth-»)
+#
+# Beide Dateien legt der Container «zugkarte» beim Start leer an. Nach dem Eintragen ist kein
+# Neustart nötig: die Karte liest ihren Schlüssel bei jeder Abfrage, Tailscale versucht es alle paar Sekunden neu.
 #
 # Danach ist die Karte erreichbar:
 #   im Heimnetz:  http://<IP-des-NAS>:8080
 #   öffentlich:   https://zugkarte.<dein-tailnet>.ts.net   (über Tailscale Funnel)
 #
 # Updates: Der Container «zugkarte» holt neue Versionen selbst von GitHub (alle 5 Minuten).
-# Nichts manuell hochladen nötig.
 
 services:
   zugkarte:
@@ -29,7 +29,7 @@ services:
         && mv /data/launcher.neu /data/launcher.js;
         exec node /data/launcher.js
     environment:
-      - OTD_API_KEY=HIER_DEINEN_OPENTRANSPORTDATA_SCHLUESSEL_EINTRAGEN
+      - ZK_COMPOSE=2
       - REPO=Arjuna155/zugkarte
       - BRANCH=main
       - CHECK_MINUTES=5
@@ -48,12 +48,13 @@ services:
     depends_on:
       - zugkarte
     environment:
-      - TS_AUTHKEY=HIER_DEINEN_TAILSCALE_AUTHKEY_EINTRAGEN
+      - TS_AUTHKEY=file:/zkdata/tailscale-key.txt
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/config/serve.json
       - TS_USERSPACE=true
     volumes:
       - ./tailscale:/var/lib/tailscale
+      - ./data:/zkdata:ro
     configs:
       - source: tailscale-serve
         target: /config/serve.json

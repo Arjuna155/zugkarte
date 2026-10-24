@@ -13,8 +13,11 @@ const DATA_DIR = process.env.ZK_DATA || "/data";
 const KEY_FILE = path.join(DATA_DIR, "schluessel.txt");
 const clean = k => (k || "").trim().replace(/^["']+|["']+$/g, "").replace(/^Bearer\s+/i, "").trim();
 const isPlaceholder = k => /^HIER_/i.test(k);
-// Leere Datei anlegen und für alle beschreibbar machen, damit sie sich mit der Dateien-App des NAS bearbeiten lässt
-try { if (fs.existsSync(DATA_DIR) && !fs.existsSync(KEY_FILE)) fs.writeFileSync(KEY_FILE, ""); fs.chmodSync(KEY_FILE, 0o666); } catch {}
+// Leere Schlüsseldateien anlegen und für alle beschreibbar machen, damit sie sich mit der Dateien-App des NAS
+// bearbeiten lassen: schluessel.txt (opentransportdata) und tailscale-key.txt (liest der Tailscale-Container).
+for (const f of [KEY_FILE, path.join(DATA_DIR, "tailscale-key.txt")]) {
+  try { if (fs.existsSync(DATA_DIR) && !fs.existsSync(f)) fs.writeFileSync(f, ""); fs.chmodSync(f, 0o666); } catch {}
+}
 let KEY = "", KEY_RAW = "", KEY_SRC = "";
 function loadKey() {
   let fileRaw = ""; try { fileRaw = fs.readFileSync(KEY_FILE, "utf8"); } catch {}
@@ -129,5 +132,5 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404, { ...SEC, "Content-Type": "text/plain; charset=utf-8" }); res.end("Nicht gefunden.");
 });
 server.keepAliveTimeout = 65000;
-server.listen(PORT, "0.0.0.0", () => log("ZugKarte", VERSION, "läuft auf Port", PORT, "| API-Schlüssel:", keyInfo()));
+server.listen(PORT, "0.0.0.0", () => log("ZugKarte", VERSION, "läuft auf Port", PORT, "| Konfiguration:", process.env.ZK_COMPOSE ? "Version " + process.env.ZK_COMPOSE : "alt (Version 1)", "| API-Schlüssel:", keyInfo()));
 for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { server.close(); setTimeout(() => process.exit(0), 2000).unref(); });
