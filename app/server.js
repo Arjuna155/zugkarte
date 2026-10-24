@@ -18,6 +18,15 @@ const isPlaceholder = k => /^HIER_/i.test(k);
 for (const f of [KEY_FILE, path.join(DATA_DIR, "tailscale-key.txt")]) {
   try { if (fs.existsSync(DATA_DIR) && !fs.existsSync(f)) fs.writeFileSync(f, ""); fs.chmodSync(f, 0o666); } catch {}
 }
+// Funnel-Einstellung für den Tailscale-Container (liest data/tailscale-serve.json und beobachtet Änderungen).
+// ${TS_CERT_DOMAIN} ersetzt Tailscale selbst durch die eigene Adresse (z. B. zugkarte.<tailnet>.ts.net).
+const SERVE_FILE = path.join(DATA_DIR, "tailscale-serve.json");
+const SERVE = JSON.stringify({
+  TCP: { "443": { HTTPS: true } },
+  Web: { "${TS_CERT_DOMAIN}:443": { Handlers: { "/": { Proxy: "http://zugkarte:" + PORT } } } },
+  AllowFunnel: { "${TS_CERT_DOMAIN}:443": true }
+}, null, 2) + "\n";
+try { if (fs.existsSync(DATA_DIR) && (!fs.existsSync(SERVE_FILE) || fs.readFileSync(SERVE_FILE, "utf8") !== SERVE)) { fs.writeFileSync(SERVE_FILE, SERVE); fs.chmodSync(SERVE_FILE, 0o644); } } catch {}
 let KEY = "", KEY_RAW = "", KEY_SRC = "";
 function loadKey() {
   let fileRaw = ""; try { fileRaw = fs.readFileSync(KEY_FILE, "utf8"); } catch {}

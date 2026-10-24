@@ -1,4 +1,4 @@
-# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 2
+# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 3
 #
 # Hier muss NICHTS ersetzt werden. Beide Schlüssel kommen als Textdateien in den Ordner «data»
 # im Projektordner (mit der Dateien-App von UGOS bearbeiten, jeweils nur den Schlüssel, eine Zeile):
@@ -6,7 +6,8 @@
 #   data/schluessel.txt       → Schlüssel von opentransportdata.swiss (SIRI-ET)
 #   data/tailscale-key.txt    → Auth-Key aus der Tailscale-Admin-Konsole (beginnt mit «tskey-auth-»)
 #
-# Beide Dateien legt der Container «zugkarte» beim Start leer an. Nach dem Eintragen ist kein
+# Beide Dateien legt der Container «zugkarte» beim Start leer an (dazu data/tailscale-serve.json
+# mit der Funnel-Einstellung – die nicht bearbeiten, sie wird bei Updates automatisch gepflegt). Nach dem Eintragen ist kein
 # Neustart nötig: die Karte liest ihren Schlüssel bei jeder Abfrage, Tailscale versucht es alle paar Sekunden neu.
 #
 # Danach ist die Karte erreichbar:
@@ -29,7 +30,7 @@ services:
         && mv /data/launcher.neu /data/launcher.js;
         exec node /data/launcher.js
     environment:
-      - ZK_COMPOSE=2
+      - ZK_COMPOSE=3
       - REPO=Arjuna155/zugkarte
       - BRANCH=main
       - CHECK_MINUTES=5
@@ -50,20 +51,8 @@ services:
     environment:
       - TS_AUTHKEY=file:/zkdata/tailscale-key.txt
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_SERVE_CONFIG=/zkdata/tailscale-serve.json
       - TS_USERSPACE=true
     volumes:
       - ./tailscale:/var/lib/tailscale
       - ./data:/zkdata:ro
-    configs:
-      - source: tailscale-serve
-        target: /config/serve.json
-
-configs:
-  tailscale-serve:
-    content: |
-      {
-        "TCP": { "443": { "HTTPS": true } },
-        "Web": { "$${TS_CERT_DOMAIN}:443": { "Handlers": { "/": { "Proxy": "http://zugkarte:8080" } } } },
-        "AllowFunnel": { "$${TS_CERT_DOMAIN}:443": true }
-      }
