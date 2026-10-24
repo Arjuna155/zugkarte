@@ -6,7 +6,18 @@ const http = require("http"), fs = require("fs"), path = require("path"), zlib =
 
 const VERSION = process.env.ZK_VERSION || "dev";
 const PORT = +process.env.PORT || 8080;
-const KEY = (process.env.OTD_API_KEY || "").trim();
+// Schlüssel säubern: Leerzeichen, Zeilenumbrüche, Anführungszeichen und ein versehentliches «Bearer » entfernen
+const KEY_RAW = process.env.OTD_API_KEY || "";
+const KEY = KEY_RAW.trim().replace(/^["']+|["']+$/g, "").replace(/^Bearer\s+/i, "").trim();
+function keyInfo() {
+  if (!KEY) return "fehlt";
+  const notes = [];
+  if (KEY !== KEY_RAW) notes.push("Leerzeichen/Anführungszeichen entfernt");
+  if (/\s/.test(KEY)) notes.push("enthält Leerzeichen in der Mitte");
+  if (/^HIER_/.test(KEY)) notes.push("Platzhalter wurde nicht ersetzt");
+  if (/^tskey-/.test(KEY)) notes.push("das ist ein Tailscale-Key, nicht der opentransportdata-Schlüssel");
+  return KEY.length + " Zeichen, endet auf …" + KEY.slice(-4) + (notes.length ? " (" + notes.join(", ") + ")" : "");
+}
 const URL_ET = process.env.OTD_SIRI_ET_URL || "https://api.opentransportdata.swiss/la/siri-et";
 const MIN_INTERVAL_MS = 60000;               // höchstens 1 Abfrage pro Minute (Limit 2/min, 3000/Tag)
 const UICS = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, "uics.json"), "utf8")));
@@ -46,7 +57,10 @@ async function fetchFeed() {
   if (!KEY) throw new KeyError("Auf dem Server ist kein API-Schlüssel hinterlegt.");
   const t0 = Date.now(); lastAttempt = t0;
   const res = await fetch(URL_ET, { headers: { Authorization: "Bearer " + KEY, "User-Agent": "ZugKarte/" + VERSION, "Accept-Encoding": "gzip, deflate, br" }, redirect: "follow", signal: AbortSignal.timeout(120000) });
-  if (res.status === 401 || res.status === 403) throw new KeyError("Der API-Schlüssel wurde abgelehnt (HTTP " + res.status + ").");
+  if (res.status === 401 || res.status === 403) {
+    const body = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 200);
+    throw new KeyError("Der API-Schlüssel wurde abgelehnt (HTTP " + res.status + "). Schlüssel: " + keyInfo() + ". Antwort: " + (body || "leer"));
+  }
   if (res.status === 429) throw new Error("Abfragelimit von opentransportdata.swiss erreicht.");
   if (!res.ok) throw new Error("opentransportdata.swiss antwortet mit HTTP " + res.status + ".");
   const nowMin = Date.now() / 60000, win = [nowMin - 120, nowMin + 240];
@@ -98,5 +112,5 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404, { ...SEC, "Content-Type": "text/plain; charset=utf-8" }); res.end("Nicht gefunden.");
 });
 server.keepAliveTimeout = 65000;
-server.listen(PORT, "0.0.0.0", () => log("ZugKarte", VERSION, "läuft auf Port", PORT, "| API-Schlüssel:", KEY ? "vorhanden" : "fehlt (nur Fahrplan)"));
+server.listen(PORT, "0.0.0.0", () => log("ZugKarte", VERSION, "läuft auf Port", PORT, "| API-Schlüssel:", keyInfo()));
 for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { server.close(); setTimeout(() => process.exit(0), 2000).unref(); });
