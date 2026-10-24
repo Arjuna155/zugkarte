@@ -1,8 +1,12 @@
 # ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)
 #
-# Vor dem Start die zwei Werte unten ersetzen:
-#   OTD_API_KEY  = Schlüssel von opentransportdata.swiss (SIRI-ET)
+# Vor dem Start den Tailscale-Key unten ersetzen:
 #   TS_AUTHKEY   = Auth-Key aus der Tailscale-Admin-Konsole (für die öffentliche Adresse)
+#
+# API-Schlüssel von opentransportdata.swiss (SIRI-ET), eine der beiden Varianten:
+#   a) einfacher: nach dem ersten Start die Datei  data/schluessel.txt  im Projektordner
+#      mit der Dateien-App öffnen und den Schlüssel hineinschreiben (kein Neustart nötig)
+#   b) unten bei OTD_API_KEY eintragen (dann muss das Projekt neu bereitgestellt werden)
 #
 # Danach ist die Karte erreichbar:
 #   im Heimnetz:  http://<IP-des-NAS>:8080

@@ -6,17 +6,32 @@ const http = require("http"), fs = require("fs"), path = require("path"), zlib =
 
 const VERSION = process.env.ZK_VERSION || "dev";
 const PORT = +process.env.PORT || 8080;
-// Schlüssel säubern: Leerzeichen, Zeilenumbrüche, Anführungszeichen und ein versehentliches «Bearer » entfernen
-const KEY_RAW = process.env.OTD_API_KEY || "";
-const KEY = KEY_RAW.trim().replace(/^["']+|["']+$/g, "").replace(/^Bearer\s+/i, "").trim();
+// API-Schlüssel: aus der Datei «schluessel.txt» im Datenordner (bevorzugt, wird bei jeder Abfrage neu gelesen,
+// also ohne Neustart änderbar) oder aus der Umgebungsvariable OTD_API_KEY.
+// Gesäubert werden Leerzeichen, Zeilenumbrüche, Anführungszeichen und ein versehentliches «Bearer ».
+const DATA_DIR = process.env.ZK_DATA || "/data";
+const KEY_FILE = path.join(DATA_DIR, "schluessel.txt");
+const clean = k => (k || "").trim().replace(/^["']+|["']+$/g, "").replace(/^Bearer\s+/i, "").trim();
+const isPlaceholder = k => /^HIER_/i.test(k);
+// Leere Datei anlegen und für alle beschreibbar machen, damit sie sich mit der Dateien-App des NAS bearbeiten lässt
+try { if (fs.existsSync(DATA_DIR) && !fs.existsSync(KEY_FILE)) fs.writeFileSync(KEY_FILE, ""); fs.chmodSync(KEY_FILE, 0o666); } catch {}
+let KEY = "", KEY_RAW = "", KEY_SRC = "";
+function loadKey() {
+  let fileRaw = ""; try { fileRaw = fs.readFileSync(KEY_FILE, "utf8"); } catch {}
+  const envRaw = process.env.OTD_API_KEY || "";
+  const fromFile = clean(fileRaw.split(/\r?\n/).find(l => l.trim() && !l.trim().startsWith("#")) || "");
+  if (fromFile && !isPlaceholder(fromFile)) { KEY = fromFile; KEY_RAW = fromFile; KEY_SRC = "Datei schluessel.txt"; }
+  else { KEY = clean(envRaw); KEY_RAW = envRaw; KEY_SRC = "Umgebungsvariable OTD_API_KEY"; }
+  return KEY;
+}
+loadKey();
 function keyInfo() {
-  if (!KEY) return "fehlt";
+  if (!KEY || isPlaceholder(KEY)) return "fehlt – trage ihn in die Datei data/schluessel.txt im Projektordner ein" + (KEY ? " (in OTD_API_KEY steht noch der Platzhalter)" : "");
   const notes = [];
-  if (KEY !== KEY_RAW) notes.push("Leerzeichen/Anführungszeichen entfernt");
+  if (KEY !== KEY_RAW.trim()) notes.push("Anführungszeichen entfernt");
   if (/\s/.test(KEY)) notes.push("enthält Leerzeichen in der Mitte");
-  if (/^HIER_/.test(KEY)) notes.push("Platzhalter wurde nicht ersetzt");
   if (/^tskey-/.test(KEY)) notes.push("das ist ein Tailscale-Key, nicht der opentransportdata-Schlüssel");
-  return KEY.length + " Zeichen, endet auf …" + KEY.slice(-4) + (notes.length ? " (" + notes.join(", ") + ")" : "");
+  return "aus " + KEY_SRC + ", " + KEY.length + " Zeichen, endet auf …" + KEY.slice(-4) + (notes.length ? " (" + notes.join(", ") + ")" : "");
 }
 const URL_ET = process.env.OTD_SIRI_ET_URL || "https://api.opentransportdata.swiss/la/siri-et";
 const MIN_INTERVAL_MS = 60000;               // höchstens 1 Abfrage pro Minute (Limit 2/min, 3000/Tag)
@@ -54,7 +69,9 @@ function parseJourney(block, win, out, stats) {
 }
 class KeyError extends Error {}
 async function fetchFeed() {
-  if (!KEY) throw new KeyError("Auf dem Server ist kein API-Schlüssel hinterlegt.");
+  const prevKey = KEY; loadKey();
+  if (KEY !== prevKey) log("API-Schlüssel geändert:", keyInfo());
+  if (!KEY || isPlaceholder(KEY)) throw new KeyError("Kein API-Schlüssel: " + keyInfo() + ".");
   const t0 = Date.now(); lastAttempt = t0;
   const res = await fetch(URL_ET, { headers: { Authorization: "Bearer " + KEY, "User-Agent": "ZugKarte/" + VERSION, "Accept-Encoding": "gzip, deflate, br" }, redirect: "follow", signal: AbortSignal.timeout(120000) });
   if (res.status === 401 || res.status === 403) {
@@ -79,7 +96,7 @@ async function fetchFeed() {
 async function getData() {
   if (cache && Date.now() - cache.abgerufen < MIN_INTERVAL_MS) return cache;
   if (inflight) return inflight;
-  if (lastErr && Date.now() - lastAttempt < 30000) throw lastErr;
+  if (lastErr && Date.now() - lastAttempt < (lastErr instanceof KeyError ? 10000 : 30000)) throw lastErr;
   inflight = fetchFeed().then(r => { cache = r; cacheGz = zlib.gzipSync(JSON.stringify(r)); lastErr = null; return r; })
     .catch(e => { lastErr = e; log("Fehler Echtzeit:", e.message); throw e; }).finally(() => { inflight = null; });
   return inflight;
@@ -104,7 +121,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE.raw);
   }
   if (url.pathname === "/api/ping") return json(req, res, 200, { app: "ZugKarte", version: VERSION });
-  if (url.pathname === "/api/status") return json(req, res, 200, { version: VERSION, schluessel: !!KEY, letzteAbfrage: cache ? cache.abgerufen : null, fehler: lastErr ? lastErr.message : null });
+  if (url.pathname === "/api/status") return json(req, res, 200, { version: VERSION, schluessel: !!KEY && !isPlaceholder(KEY), letzteAbfrage: cache ? cache.abgerufen : null, fehler: lastErr ? lastErr.message : null });
   if (url.pathname === "/api/verspaetungen") {
     try { const d = await getData(); return json(req, res, 200, d, d === cache ? cacheGz : null); }
     catch (e) { return json(req, res, e instanceof KeyError ? 401 : 502, { fehler: e instanceof KeyError ? "Echtzeit ist auf diesem Server nicht eingerichtet." : e.message }); }
