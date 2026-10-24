@@ -39,6 +39,9 @@ main{display:grid;grid-template-columns:1fr 320px;min-height:0}
 .mapwrap.drag{cursor:grabbing}
 svg{display:block;width:100%;height:100%}
 .ch{fill:var(--land);stroke:var(--muted);stroke-width:1.2;vector-effect:non-scaling-stroke}
+.de{fill:var(--land);stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.85}
+.debl{fill:none;stroke:var(--canton);stroke-width:1;vector-effect:non-scaling-stroke}
+.delbl{fill:var(--muted);font-family:var(--f-ui);font-weight:600;letter-spacing:.04em;text-anchor:middle;pointer-events:none;opacity:.8}
 .cant{fill:none;stroke:var(--canton);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
 .lake{fill:var(--lake);stroke:none}
 .ln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
@@ -168,6 +171,9 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
   <div class="mapwrap" id="wrap">
     <svg id="map" viewBox="0 0 3500 2220" preserveAspectRatio="xMidYMid meet" aria-label="Karte des Schweizer Bahnnetzes">
       <g id="vp">
+        <path class="de" id="de"></path>
+        <path class="debl" id="debl"></path>
+        <g id="delbl"></g>
         <path class="ch" id="ch"></path>
         <g id="lakes"></g>
         <path class="cant" id="cant"></path>
@@ -182,6 +188,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <button id="zin" aria-label="Hineinzoomen">+</button>
       <button id="zout" aria-label="Herauszoomen">−</button>
       <button id="zreset" aria-label="Ganze Schweiz anzeigen" style="font-size:13px">CH</button>
+      <button id="zde" aria-label="Ganz Deutschland anzeigen" style="font-size:13px">DE</button>
     </div>
     <div class="readout">
       <div class="scale" id="scale"><span id="scaleTxt">20 km</span><i id="scaleBar" style="width:60px"></i></div>
@@ -207,13 +214,14 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <div class="legend" id="tlegend"></div>
     </section>
     <section id="detail"></section>
-    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON). Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
   </aside>
 </main>
 </div>
 
 <script>
 const TT=__TT__;
+const DE=__DE__;
 const GEO=__GEO__, ST=__ST__, LINES=__LINES__, TIER0=__TIER0__, TIER1=__TIER1__;
 const TYPES={fv:{name:"Fernverkehrsachsen",short:"Fernverkehr"},rv:{name:"Regionalstrecken",short:"Regional"},sm:{name:"Schmalspur & Privatbahnen",short:"Schmalspur"}};
 const NS="http://www.w3.org/2000/svg";
@@ -225,10 +233,13 @@ const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");
 // Geografie
 $("ch").setAttribute("d",GEO.country);
 $("cant").setAttribute("d",GEO.cantons);
+$("de").setAttribute("d",DE.country);$("debl").setAttribute("d",DE.states);
+const deLbls=DE.labels.map(b=>{const t=el("text",{x:b.x,y:b.y,class:"delbl"},$("delbl"));t.textContent=b.name;return t});
 GEO.lakes.forEach(l=>el("path",{d:l.d,class:"lake"},$("lakes")));
 
 // Index Bahnhof -> Strecken, Nachbarn
 const LEFT=new Set(["Luzern","Visp","Olten","Locarno","Emmenbrücke","Rotkreuz","Spiez","Zürich Altstetten","Genève","Pfäffikon SZ","Biel/Bienne","Hendschiken"]);
+const BIG=new Set(["Zürich HB","Bern","Basel SBB","Genève","Lausanne","Luzern","Lugano"]);
 const tier=n=>TIER0.includes(n)?0:TIER1.includes(n)?1:2;
 const byStation={};
 LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{
@@ -266,22 +277,24 @@ names.forEach(n=>{
 });
 
 // Ansicht (Pan/Zoom über viewBox-Einheiten)
-const W=3500,H=2220; let k=1,tx=0,ty=0; const KMIN=0.9,KMAX=14;
+const W=3500,H=2220; let k=1,tx=0,ty=0; const KMIN=0.15,KMAX=14;
 function svgPt(cx,cy){const r=$("map").getBoundingClientRect();const s=Math.min(r.width/W,r.height/H);
   const ox=(r.width-W*s)/2, oy=(r.height-H*s)/2; return [(cx-r.left-ox)/s,(cy-r.top-oy)/s,s]}
 function apply(){
   $("vp").setAttribute("transform",`translate(${tx},${ty}) scale(${k})`);
   const s=svgPt(0,0)[2]*k; // Bildschirm-Pixel pro Karteneinheit
-  const show2=k>=3.2, show1=k>=1.7;
+  const show2=k>=3.2, show1=k>=1.7, far=k<0.55; // far: Deutschland-Ansicht, Schweiz nur noch grob
   names.forEach(n=>{
     const t=tier(n), c=stEls[n], L=lbEls[n];
     const r=[5.5,4,3][t]/s; c.setAttribute("r",r);
-    c.style.display=(t===2&&k<1.6)?"none":"";
-    const vis=t===0||(t===1&&show1)||(t===2&&show2)||n===selSt;
+    c.style.display=((t===2&&k<1.6)||(far&&t>0&&n!==selSt))?"none":"";
+    if(far)c.setAttribute("r",r*0.6);
+    const vis=(t===0&&(!far||BIG.has(n)))||(t===1&&show1)||(t===2&&show2)||n===selSt;
     L.style.display=vis?"":"none";
     if(vis){const fs=[13,11.5,10.5][t]/s;L.setAttribute("font-size",fs);L.setAttribute("stroke-width",3/s);
       const lf=LEFT.has(n);L.setAttribute("text-anchor",lf?"end":"start");L.setAttribute("x",X(ST[n])+(lf?-1:1)*(r+3/s));L.setAttribute("y",Y(ST[n])+fs*0.35);}
   });
+  deLbls.forEach(t=>{t.setAttribute("font-size",11/s);t.style.display=(k<3&&s>=0.05)?"":"none"});
   // Massstab: 1 Karteneinheit = 100 m
   const target=90/s*100; const steps=[500,1000,2000,5000,10000,20000,50000,100000];
   const m=steps.find(v=>v>=target*0.6)||100000; $("scaleBar").style.width=(m/100*s).toFixed(0)+"px";
@@ -303,7 +316,7 @@ wrap.addEventListener("pointerdown",e=>{ptrs.set(e.pointerId,[e.clientX,e.client
   if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch=Math.hypot(a[0]-b[0],a[1]-b[1]);}});
 wrap.addEventListener("pointermove",e=>{
   const [px,py]=svgPt(e.clientX,e.clientY); const mx=(px-tx)/k,my=(py-ty)/k;
-  if(mx>0&&mx<W&&my>0&&my<H)$("coord").textContent=`LV95  E ${fmt(Math.round(2480000+mx*100))}  N ${fmt(Math.round(1300000-my*100))}`;
+  $("coord").textContent=`LV95  E ${fmt(Math.round(2480000+mx*100))}  N ${fmt(Math.round(1300000-my*100))}`;
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -318,6 +331,7 @@ wrap.addEventListener("click",e=>{if(moved){moved=false;return}if(e.target.close
 $("zin").onclick=()=>{const r=wrap.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2)};
 $("zout").onclick=()=>{const r=wrap.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2)};
 $("zreset").onclick=()=>{k=1;tx=0;ty=0;apply()};
+$("zde").onclick=()=>fit(DE.box,0.03);
 
 function showTip(t,e){const r=wrap.getBoundingClientRect();const tp=$("tip");tp.textContent=t;tp.style.left=(e.clientX-r.left)+"px";tp.style.top=(e.clientY-r.top)+"px";tp.hidden=false}
 function hideTip(){$("tip").hidden=true}
