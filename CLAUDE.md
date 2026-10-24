@@ -6,7 +6,7 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Statische Einzelseite `app/public/index.html`, gebaut von `tools/build.py` aus `src/template.html` + `data/`. Nach jeder Änderung an Vorlage oder Daten **immer** `python3 tools/build.py` laufen lassen und das Ergebnis mitcommitten.
 - `app/server.js` (Node 22, keine Abhängigkeiten) liefert die Seite aus, injiziert `window.ZK_LOCAL={mode:"server"}` und stellt `/api/verspaetungen` bereit (SIRI-ET, gecacht 60 s, nur auf Anfrage).
 - Auf dem NAS (UGREEN, UGOS Pro, Docker) läuft `deploy/launcher.js` im Container `node:22-alpine`. Er prüft alle 5 Min. `main` auf GitHub, lädt `app/` als Tarball, startet die neue Version und prüft `/api/ping`. Schlägt das fehl, bleibt die alte Version aktiv.
-- Öffentlich erreichbar über Tailscale Funnel (Container `zugkarte-tailscale`).
+- Öffentlich erreichbar über Tailscale Funnel (Container `zugkarte-tailscale`, https://zugkarte.numbat-pike.ts.net). Funnel braucht im Tailnet-ACL `nodeAttrs` mit `"attr": ["funnel"]`. Ab Compose v4 teilt Tailscale das Netzwerk mit `zugkarte` (`network_mode: service:zugkarte`) und leitet auf `127.0.0.1:8080` – über den Containernamen gab es im Userspace-Modus 502.
 - Schlüssel liegen als Dateien in `data/` auf dem NAS (`schluessel.txt`, `tailscale-key.txt`). Umgebungsvariablen in UGOS Pro kamen bei Arjuna nicht im Container an – deshalb Dateien. `ZK_COMPOSE` in der Compose-Datei zeigt im Protokoll, welche Konfigurationsversion läuft.
 
 ## Deployment = push auf main

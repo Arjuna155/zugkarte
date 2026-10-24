@@ -1,4 +1,4 @@
-# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 3
+# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 4
 #
 # Hier muss NICHTS ersetzt werden. Beide Schlüssel kommen als Textdateien in den Ordner «data»
 # im Projektordner (mit der Dateien-App von UGOS bearbeiten, jeweils nur den Schlüssel, eine Zeile):
@@ -20,6 +20,7 @@ services:
   zugkarte:
     image: node:22-alpine
     container_name: zugkarte
+    hostname: zugkarte
     restart: unless-stopped
     working_dir: /data
     command:
@@ -30,7 +31,7 @@ services:
         && mv /data/launcher.neu /data/launcher.js;
         exec node /data/launcher.js
     environment:
-      - ZK_COMPOSE=3
+      - ZK_COMPOSE=4
       - REPO=Arjuna155/zugkarte
       - BRANCH=main
       - CHECK_MINUTES=5
@@ -44,11 +45,13 @@ services:
   tailscale:
     image: tailscale/tailscale:stable
     container_name: zugkarte-tailscale
-    hostname: zugkarte
+    # teilt das Netzwerk mit «zugkarte» → Tailscale erreicht die Karte über 127.0.0.1
+    network_mode: service:zugkarte
     restart: unless-stopped
     depends_on:
       - zugkarte
     environment:
+      - TS_HOSTNAME=zugkarte
       - TS_AUTHKEY=file:/zkdata/tailscale-key.txt
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/zkdata/tailscale-serve.json

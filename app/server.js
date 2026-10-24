@@ -21,9 +21,12 @@ for (const f of [KEY_FILE, path.join(DATA_DIR, "tailscale-key.txt")]) {
 // Funnel-Einstellung für den Tailscale-Container (liest data/tailscale-serve.json und beobachtet Änderungen).
 // ${TS_CERT_DOMAIN} ersetzt Tailscale selbst durch die eigene Adresse (z. B. zugkarte.<tailnet>.ts.net).
 const SERVE_FILE = path.join(DATA_DIR, "tailscale-serve.json");
+// Ab Konfiguration 4 teilt Tailscale das Netzwerk mit diesem Container (network_mode: service:zugkarte),
+// dann ist die Karte über 127.0.0.1 erreichbar. Der Name «zugkarte» lässt sich im Userspace-Modus nicht auflösen (502).
+const SERVE_TARGET = (Number(process.env.ZK_COMPOSE) >= 4 ? "http://127.0.0.1:" : "http://zugkarte:") + PORT;
 const SERVE = JSON.stringify({
   TCP: { "443": { HTTPS: true } },
-  Web: { "${TS_CERT_DOMAIN}:443": { Handlers: { "/": { Proxy: "http://zugkarte:" + PORT } } } },
+  Web: { "${TS_CERT_DOMAIN}:443": { Handlers: { "/": { Proxy: SERVE_TARGET } } } },
   AllowFunnel: { "${TS_CERT_DOMAIN}:443": true }
 }, null, 2) + "\n";
 try { if (fs.existsSync(DATA_DIR) && (!fs.existsSync(SERVE_FILE) || fs.readFileSync(SERVE_FILE, "utf8") !== SERVE)) { fs.writeFileSync(SERVE_FILE, SERVE); fs.chmodSync(SERVE_FILE, 0o644); } } catch {}
