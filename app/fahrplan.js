@@ -133,7 +133,7 @@ function heuteZH() { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: 
 function fpJahr(iso) { const y = +iso.slice(0, 4); const d1 = new Date(Date.UTC(y, 11, 1)); const ersterSo = 1 + (7 - d1.getUTCDay()) % 7; const wechsel = `${y}-12-${String(ersterSo + 7).padStart(2, "0")}`; return iso >= wechsel ? y + 1 : y; }
 
 // ---------- Umrechnung GTFS → Kartenfahrplan ----------
-const TRAM_JA = new Set(["37/19"]);   // Agentur/Linie: Waldenburgerbahn (in GTFS als Tram geführt)
+const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt)
 // tage: ["JJJJ-MM-TT", …]; zips: [Pfad, …]; liefert {datum: {ziele:[…], zeilen:[…], feed}}
 async function umrechnen(B, zips, tage, log) {
   const weg = graph(B), tageSet = new Set(tage.map(ymd)), erg = {};
@@ -149,7 +149,7 @@ async function umrechnen(B, zips, tage, log) {
     meine.forEach(d => { erledigt.add(d); erg[isoAus(d)].feed = fVersion; });
     const meineSet = new Set(meine);
     log("Fahrplan:", path.basename(file), "(Ausgabe " + fVersion + ") für", meine.length, "Tage");
-    // Linien: nur Bahn (100–199); von den Trams (900) nur die Waldenburgerbahn (BLT 19) – Stadttrams nicht
+    // Linien: nur Bahn (100–199); von den Trams (900) nur Waldenburgerbahn (BLT 19) und Forchbahn (FB 18) – Stadttrams nicht
     const linien = new Map();
     await lesen(file, zip, "routes.txt", (f, k) => { const t = +f[k.route_type];
       if ((t >= 100 && t < 200) || (t === 900 && TRAM_JA.has(f[k.agency_id] + "/" + f[k.route_short_name]))) {
