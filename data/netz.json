@@ -152,6 +152,7 @@
    "typ": "fv",
    "halte": [
     "Thalwil",
+    "Sihlbrugg",
     "Baar",
     "Zug"
    ]
@@ -1112,6 +1113,403 @@
     "Cadenazzo",
     "Magadino-Vira",
     "Ranzo-S. Abbondio"
+   ]
+  },
+  {
+   "name": "RhB Arosa",
+   "typ": "sm",
+   "halte": [
+    "Chur",
+    "Langwies GR",
+    "Arosa"
+   ]
+  },
+  {
+   "name": "RhB Samedan–Pontresina",
+   "typ": "sm",
+   "halte": [
+    "Samedan",
+    "Pontresina"
+   ]
+  },
+  {
+   "name": "Gornergratbahn",
+   "typ": "sm",
+   "halte": [
+    "Zermatt GGB",
+    "Riffelalp",
+    "Gornergrat"
+   ]
+  },
+  {
+   "name": "Wengernalpbahn",
+   "typ": "sm",
+   "halte": [
+    "Lauterbrunnen",
+    "Wengen",
+    "Kleine Scheidegg",
+    "Grindelwald Grund",
+    "Grindelwald"
+   ]
+  },
+  {
+   "name": "Jungfraubahn",
+   "typ": "sm",
+   "halte": [
+    "Kleine Scheidegg",
+    "Eigergletscher",
+    "Jungfraujoch"
+   ]
+  },
+  {
+   "name": "Rigi (Vitznau)",
+   "typ": "sm",
+   "halte": [
+    "Vitznau",
+    "Rigi Kaltbad-First",
+    "Rigi Kulm"
+   ]
+  },
+  {
+   "name": "Rigi (Arth-Goldau)",
+   "typ": "sm",
+   "halte": [
+    "Arth-Goldau",
+    "Rigi Klösterli",
+    "Rigi Kulm"
+   ]
+  },
+  {
+   "name": "zb Meiringen–Innertkirchen",
+   "typ": "sm",
+   "halte": [
+    "Meiringen",
+    "Innertkirchen Grimseltor"
+   ]
+  },
+  {
+   "name": "RBS Bern–Solothurn",
+   "typ": "sm",
+   "halte": [
+    "Bern",
+    "Worblaufen",
+    "Jegenstorf",
+    "Bätterkinden",
+    "Solothurn"
+   ]
+  },
+  {
+   "name": "RBS Worb",
+   "typ": "sm",
+   "halte": [
+    "Worblaufen",
+    "Boll-Utzigen",
+    "Worb Dorf"
+   ]
+  },
+  {
+   "name": "RBS Unterzollikofen",
+   "typ": "sm",
+   "halte": [
+    "Worblaufen",
+    "Unterzollikofen"
+   ]
+  },
+  {
+   "name": "ASm Solothurn–Langenthal",
+   "typ": "sm",
+   "halte": [
+    "Solothurn",
+    "Wiedlisbach",
+    "Niederbipp",
+    "Langenthal"
+   ]
+  },
+  {
+   "name": "ASm Biel–Ins",
+   "typ": "sm",
+   "halte": [
+    "Biel/Bienne",
+    "Nidau",
+    "Täuffelen",
+    "Ins"
+   ]
+  },
+  {
+   "name": "CJ La Chaux-de-Fonds–Glovelier",
+   "typ": "sm",
+   "halte": [
+    "La Chaux-de-Fonds",
+    "Le Noirmont",
+    "Saignelégier",
+    "Glovelier"
+   ]
+  },
+  {
+   "name": "CJ Le Noirmont–Tavannes",
+   "typ": "sm",
+   "halte": [
+    "Le Noirmont",
+    "Tramelan",
+    "Tavannes"
+   ]
+  },
+  {
+   "name": "CJ Porrentruy–Bonfol",
+   "typ": "rv",
+   "halte": [
+    "Porrentruy",
+    "Alle",
+    "Bonfol"
+   ]
+  },
+  {
+   "name": "TRN Le Locle–Les Brenets",
+   "typ": "sm",
+   "halte": [
+    "Le Locle",
+    "Les Brenets"
+   ]
+  },
+  {
+   "name": "TRN Les Ponts-de-Martel",
+   "typ": "sm",
+   "halte": [
+    "La Chaux-de-Fonds",
+    "Les Ponts-de-Martel"
+   ]
+  },
+  {
+   "name": "LEB Lausanne–Bercher",
+   "typ": "sm",
+   "halte": [
+    "Lausanne-Flon",
+    "Cheseaux",
+    "Echallens",
+    "Bercher"
+   ]
+  },
+  {
+   "name": "MBC Morges–Bière",
+   "typ": "sm",
+   "halte": [
+    "Morges",
+    "Apples",
+    "Bière"
+   ]
+  },
+  {
+   "name": "MBC Apples–L'Isle",
+   "typ": "sm",
+   "halte": [
+    "Apples",
+    "L'Isle"
+   ]
+  },
+  {
+   "name": "NStCM Nyon–La Cure",
+   "typ": "sm",
+   "halte": [
+    "Nyon",
+    "Genolier",
+    "St-Cergue",
+    "La Cure"
+   ]
+  },
+  {
+   "name": "Yverdon–Ste-Croix",
+   "typ": "sm",
+   "halte": [
+    "Yverdon-les-Bains",
+    "Baulmes",
+    "Ste-Croix"
+   ]
+  },
+  {
+   "name": "MVR Vevey–Les Pléiades",
+   "typ": "sm",
+   "halte": [
+    "Vevey",
+    "Blonay",
+    "Les Pléiades"
+   ]
+  },
+  {
+   "name": "Rochers-de-Naye",
+   "typ": "sm",
+   "halte": [
+    "Montreux",
+    "Glion",
+    "Rochers-de-Naye"
+   ]
+  },
+  {
+   "name": "AOMC Aigle–Champéry",
+   "typ": "sm",
+   "halte": [
+    "Aigle",
+    "Monthey-Ville",
+    "Troistorrents",
+    "Champéry"
+   ]
+  },
+  {
+   "name": "ASD Aigle–Les Diablerets",
+   "typ": "sm",
+   "halte": [
+    "Aigle",
+    "Le Sépey",
+    "Les Diablerets"
+   ]
+  },
+  {
+   "name": "BVB Bex–Villars",
+   "typ": "sm",
+   "halte": [
+    "Bex",
+    "Gryon",
+    "Villars-sur-Ollon"
+   ]
+  },
+  {
+   "name": "Mont-Blanc Express",
+   "typ": "sm",
+   "halte": [
+    "Martigny",
+    "Vernayaz",
+    "Salvan",
+    "Finhaut",
+    "Le Châtelard VS"
+   ]
+  },
+  {
+   "name": "FLP Lugano–Ponte Tresa",
+   "typ": "sm",
+   "halte": [
+    "Lugano FLP",
+    "Bioggio",
+    "Ponte Tresa"
+   ]
+  },
+  {
+   "name": "Centovallibahn",
+   "typ": "sm",
+   "halte": [
+    "Locarno",
+    "Intragna",
+    "Camedo"
+   ]
+  },
+  {
+   "name": "AB Gossau–Appenzell",
+   "typ": "sm",
+   "halte": [
+    "Gossau SG",
+    "Herisau",
+    "Urnäsch",
+    "Appenzell"
+   ]
+  },
+  {
+   "name": "AB St. Gallen–Trogen",
+   "typ": "sm",
+   "halte": [
+    "St. Gallen",
+    "Speicher",
+    "Trogen"
+   ]
+  },
+  {
+   "name": "AB Altstätten–Gais",
+   "typ": "sm",
+   "halte": [
+    "Altstätten SG",
+    "Altstätten Stadt",
+    "Gais"
+   ]
+  },
+  {
+   "name": "Rorschach–Heiden",
+   "typ": "sm",
+   "halte": [
+    "Rorschach",
+    "Wienacht-Tobel",
+    "Heiden"
+   ]
+  },
+  {
+   "name": "Rheineck–Walzenhausen",
+   "typ": "sm",
+   "halte": [
+    "Rheineck",
+    "Walzenhausen"
+   ]
+  },
+  {
+   "name": "Frauenfeld–Wil",
+   "typ": "sm",
+   "halte": [
+    "Frauenfeld",
+    "Matzingen",
+    "Münchwilen TG",
+    "Wil SG"
+   ]
+  },
+  {
+   "name": "Waldenburgerbahn",
+   "typ": "sm",
+   "halte": [
+    "Liestal",
+    "Hölstein",
+    "Waldenburg"
+   ]
+  },
+  {
+   "name": "WSB Aarau–Menziken",
+   "typ": "sm",
+   "halte": [
+    "Aarau",
+    "Suhr",
+    "Gränichen",
+    "Unterkulm",
+    "Menziken"
+   ]
+  },
+  {
+   "name": "WSB Suhr–Schöftland",
+   "typ": "sm",
+   "halte": [
+    "Suhr",
+    "Schöftland"
+   ]
+  },
+  {
+   "name": "SZU Sihltal",
+   "typ": "rv",
+   "halte": [
+    "Zürich HB",
+    "Zürich Selnau",
+    "Adliswil",
+    "Langnau-Gattikon",
+    "Sihlbrugg"
+   ]
+  },
+  {
+   "name": "SZU Uetlibergbahn",
+   "typ": "rv",
+   "halte": [
+    "Zürich Selnau",
+    "Zürich Triemli",
+    "Uetliberg"
+   ]
+  },
+  {
+   "name": "Forchbahn",
+   "typ": "sm",
+   "halte": [
+    "Zürich Stadelhofen",
+    "Forch",
+    "Esslingen"
    ]
   }
  ],

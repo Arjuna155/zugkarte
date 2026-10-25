@@ -33,8 +33,10 @@ def jload(p): return json.loads((gzip.open(p).read() if str(p).endswith(".gz") e
 B = Q / "basis"
 ST = jload(B / "stations.json"); NETZ = jload(B / "netz.json"); GEO = jload(B / "geo_lines.json"); STUIC = jload(B / "stuic.json")
 id2n = jload(Q / "ch_id2n.json"); halte = jload(Q / "ch_halte.json.gz")
-SBX = jload(Q / "ch_sb_neu.json.gz"); SB = SBX["sb"]
-for sid, h in SBX["halte"].items(): halte.setdefault(sid, h)
+SB = {}
+for f in ("ch_sb_neu.json.gz", "ch_sb_neu2.json.gz"):     # 1: Normalspur-Regionalstrecken, 2: Schmalspur/Privatbahnen
+    SBX = jload(Q / f); SB.update(SBX["sb"])
+    for sid, h in SBX["halte"].items(): halte.setdefault(sid, h)
 
 # ---- neue Bahnhöfe: Name/Koordinate/ID aus den stationboards ----
 n2id_board = {}
@@ -49,15 +51,15 @@ for n, typ, hs in NEU:
         if sid in id2n: alias[s] = id2n[sid]; continue            # schon Kartenbahnhof unter anderem Namen
         if not sid: print("kein stationboard:", s); continue
         E, N = lv95(la, lo)
-        nm = s.replace(" (Suisse)", "")
+        nm = s.replace(" (Suisse)", "").replace(", Station", "")
         ST[nm] = dict(n=nm, lat=round(la, 5), lon=round(lo, 5), E=round(E), N=round(N)); alias[s] = nm
         id2n[sid] = nm; STUIC.append([sid])
 print(len(ST), "Kartenbahnhöfe")
 names = list(ST); XY = {n: ((s["E"] - 2480000) / 100, (1300000 - s["N"]) / 100) for n, s in ST.items()}
 
 # ---- OSM-Gleisnetz als Graph (Raster 50 m) für die Laufwege der neuen Strecken ----
-osm = jload(Q / "osm_ch_export.json.gz")
-R = 0.5; GR = nx.Graph()
+osm = jload(Q / "osm_ch_export.json.gz") + jload(Q / "osm_ch_ergaenzung.json.gz")   # Ergänzung: Meterspur als light_rail/tram (ASm, Forchbahn, WB, AB …)
+R = 0.5; GRS = {"r": nx.Graph(), "n": nx.Graph()}   # Normalspur / Schmalspur getrennt
 def P(lon, lat):
     E, N = lv95(lat, lon); return (E - 2480000) / 100, (1300000 - N) / 100
 def key(x, y): return (round(x / R), round(y / R))
@@ -66,8 +68,7 @@ def osm_pts(e):
     for i, q in enumerate(e.split(";")):
         a, b = map(int, q.split(",")); x, y = (x + a, y + b) if i else (a, b); yield x / 1e5, y / 1e5
 for _, rw, usage, gauge, rack, e in osm:
-    if rw != "r": continue                      # Normalspur
-    prev = None
+    GR = GRS[rw]; prev = None
     for lon, lat in osm_pts(e):
         p = P(lon, lat)
         if prev is not None:
@@ -76,20 +77,27 @@ for _, rw, usage, gauge, rack, e in osm:
                 k1 = key(prev[0] + (p[0] - prev[0]) * j / n, prev[1] + (p[1] - prev[1]) * j / n)
                 if k1 != k0: GR.add_edge(k0, k1, w=math.hypot(k1[0] - k0[0], k1[1] - k0[1])); k0 = k1
         prev = p
-for k in list(GR.nodes):
-    for dx in (-1, 0, 1):
-        for dy in (-1, 0, 1):
-            n2 = (k[0] + dx, k[1] + dy)
-            if (dx or dy) and n2 in GR and not GR.has_edge(k, n2): GR.add_edge(k, n2, w=math.hypot(dx, dy) * 1.5)
-nodes = list(GR.nodes); tree = cKDTree(np.array(nodes) * R)
-def route(A, B):
+TREES = {}
+for g, GR in GRS.items():
+    for k in list(GR.nodes):
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                n2 = (k[0] + dx, k[1] + dy)
+                if (dx or dy) and n2 in GR and not GR.has_edge(k, n2): GR.add_edge(k, n2, w=math.hypot(dx, dy) * 1.5)
+    nodes = list(GR.nodes); TREES[g] = (nodes, cKDTree(np.array(nodes) * R))
+def route(A, B, typ):
+    for g in (("n", "r") if typ == "sm" else ("r", "n")):   # Schmalspurstrecken zuerst auf Schmalspurgleisen
+        r = route1(A, B, g)
+        if r: return r
+def route1(A, B, g):
+    GR = GRS[g]; nodes, tree = TREES[g]
     da, ia = tree.query(XY[A]); db, ib = tree.query(XY[B])
-    if da > 6 or db > 6: return None
+    if da > 10 or db > 10: return None
     try: path = nx.shortest_path(GR, nodes[ia], nodes[ib], weight="w")
     except nx.NetworkXNoPath: return None
     ls = LineString([XY[A]] + [(k[0] * R, k[1] * R) for k in path] + [XY[B]]).simplify(0.15)
     direct = math.hypot(XY[A][0] - XY[B][0], XY[A][1] - XY[B][1])
-    if ls.length > 2.5 * direct + 30: print("  Umweg", A, B, round(ls.length / 10), "km statt", round(direct / 10)); return None
+    if ls.length > 3.5 * direct + 30: print("  Umweg", A, B, round(ls.length / 10), "km statt", round(direct / 10)); return None
     return list(ls.coords)
 
 def enc(pts):   # wie geo_lines.json: LV95 in 10-m-Einheiten, Differenzen
@@ -108,9 +116,13 @@ def dec(p):
 # ---- neue Bahnhöfe, die auf bestehenden Strecken liegen, als Zwischenhalt einfügen ----
 strecken = [dict(s) for s in NETZ["strecken"]]; parts = [g.split("/") for g in GEO]
 neue = set(ST) - set(jload(B / "stations.json"))
+typen = {}
+for name, typ, hs in NEU:
+    for h in hs: typen.setdefault(alias.get(h, h), set()).add("sm" if typ == "sm" else "nb")
 for n in sorted(neue):
     p = Point(XY[n])
     for si, s in enumerate(strecken):
+        if ("sm" if s["typ"] == "sm" else "nb") not in typen.get(n, {"nb"}): continue   # Spurweite muss passen
         for j, part in enumerate(parts[si]):
             ls = LineString(dec(part))
             if ls.distance(p) < 2 and s["halte"][j] != n and s["halte"][j + 1] != n:
@@ -135,11 +147,19 @@ for name, typ, hs in NEU:
     if any(h not in ST for h in hs): print("übersprungen (Bahnhof fehlt):", name); continue
     geo = []
     for A, B2 in zip(hs, hs[1:]):
-        r = route(A, B2)
+        r = route(A, B2, typ)
         if not r: print("  kein Laufweg", A, "–", B2, "→ gerade Linie"); r = [XY[A], XY[B2]]
         geo.append(enc(r))
     strecken.append(dict(name=name, typ=typ, halte=hs)); parts.append(geo)
 print(len(strecken), "Strecken")
+
+# ---- Haltestellen «Ort, Bahnhof/Station» (z. B. Forchbahn, Waldenburgerbahn) dem nahen Kartenbahnhof zuordnen ----
+for sid, h in halte.items():
+    if sid in id2n or not h or not h[0] or h[1] is None: continue
+    if h[0].endswith((", Bahnhof", ", Station")):
+        E, N = lv95(h[1], h[2]); x, y = (E - 2480000) / 100, (1300000 - N) / 100
+        n = min(names, key=lambda m: (XY[m][0] - x) ** 2 + (XY[m][1] - y) ** 2)
+        if math.hypot(XY[n][0] - x, XY[n][1] - y) < 4: id2n[sid] = n
 
 # ---- Fahrplan: Rohdaten + stationboards der neuen Bahnhöfe zusammenführen ----
 adj = {}

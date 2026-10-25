@@ -31,7 +31,9 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 ## Netz erweitern
 - `tools/netz_neu.py` (neue Strecken als Bahnhofsketten) + `tools/netz_ausbau.py` bauen aus `data/quellen/basis/` (Hauptnetz 23.10.) Stationen, Netz, Gleisverlauf (OSM, `osm_ch_export.json.gz`) und den Fahrplan (Rohdaten `ch_raw_*` + stationboards der neuen Bahnhöfe `ch_sb_neu.json.gz`) neu. Danach `tools/build.py`.
 - transport.opendata.ch stationboard: `limit` max. ~400 (500 → HTTP 400); im ersten passList-Eintrag steht eine falsche Halt-ID (wird durch die ID der Tafel ersetzt).
-- Neue Bahnhöfe, die auf bestehenden Strecken liegen (< 200 m), werden automatisch als Zwischenhalt eingefügt.
+- Neue Bahnhöfe, die auf bestehenden Strecken liegen (< 200 m, gleiche Spurweite), werden automatisch als Zwischenhalt eingefügt.
+- Schmalspur/Privatbahnen (25.10.): stationboards in `ch_sb_neu2.json.gz` (ohne Verkehrsmittelfilter, Busse entfernt; Forchbahn/Waldenburgerbahn laufen als «T»). Meterspur, die in OSM als light_rail/tram erfasst ist: `osm_ch_ergaenzung.json.gz`. Haltestellen «Ort, Bahnhof/Station» werden dem nahen Kartenbahnhof zugeordnet.
+- Ohne Daten bei transport.opendata.ch (Linie nur gezeichnet): zb Engelberg, MGB Visp–Zermatt, WAB Grindelwald Grund, BVB, Salvan, CJ Tavannes.
 
 ## Offene Punkte
 - Fahrplan vor dem Fahrplanwechsel am 13.12.2026 neu laden (Quelle: transport.opendata.ch stationboard, nur aus dem Browser erreichbar).
