@@ -40,7 +40,13 @@ for k, txt in fahrplan.items():
         rows.append(f"{kat},{nr},{head.index(ziel)}|{stops}")
     fahrplan[k] = "|".join(head) + "\n" + "\n".join(rows)
 
+# Grundlage für den automatischen GTFS-Fahrplan des Servers (app/fahrplan.js); die Kennung kommt auch in die Seite
+import sys; sys.path.insert(0, str(ROOT / "tools")); import fahrplan_basis
+fb = fahrplan_basis.build(lines, stations, load("stuic.json"))
+(ROOT / "app" / "fahrplan_basis.json").write_text(json.dumps(fb, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
 values = {
+    "__FPV__": fb["v"],
     "__TT__": fahrplan,
     "__STX__": stx,
     "__KANTEN__": grenze["kanten"],
@@ -71,9 +77,10 @@ out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(head + html + "</body></html>", encoding="utf-8")
 (ROOT / "app" / "uics.json").write_text((D / "uics.json").read_text(encoding="utf-8"), encoding="utf-8")
 # Grundlage für die tägliche Sperrungsprüfung des Servers (nur Schweizer Netz)
-import sys; sys.path.insert(0, str(ROOT / "tools")); import sperren_daten
+import sperren_daten
 sp = sperren_daten.build(lines, load("stations.json"), load("stuic.json"),
                          {k: (D / "fahrplan" / f).read_text(encoding="utf-8") for k, f in [("wd", "mo-fr.txt"), ("sa", "samstag.txt"), ("su", "sonntag.txt")]})
 (ROOT / "app" / "sperren.json").write_text(json.dumps(sp, separators=(",", ":")), encoding="utf-8")
+print(f"app/fahrplan_basis.json: Kennung {fb['v']}, {len(fb['kanten'])} Streckenteile")
 print(f"app/sperren.json: {len(sp['teile'])} Streckenteile, {len(sp['abfrage'])} Abfrage-Bahnhöfe")
 print(f"{out.relative_to(ROOT)}: {out.stat().st_size/1e6:.2f} MB")

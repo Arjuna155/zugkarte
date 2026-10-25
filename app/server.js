@@ -119,7 +119,12 @@ async function getData() {
 }
 
 
+// ---- Fahrplan nach Datum (GTFS, app/fahrplan.js) ----
+const FP = require("./fahrplan.js").start({ DATA_DIR, log });
+
 // ---- Sperrungen (Bahnersatz) ----
+// Bevorzugt aus dem GTFS-Tagesfahrplan (enthält geplante Sperrungen, braucht keine Abfragen);
+// gibt es den nicht, wie bisher über die Abfahrtstafeln von transport.opendata.ch.
 // Einmal pro Tag (ab 03:30 Schweizer Zeit) die Abfahrten ausgewählter Bahnhöfe des Tages bei transport.opendata.ch holen
 // (mit Halteliste) und daraus bestimmen, welche Streckenteile heute befahren werden. Teile, die laut Fahrplan Verkehr
 // haben, heute aber von keiner Fahrt benutzt werden, gelten als gesperrt. Grundlage: sperren.json (tools/sperren_daten.py).
@@ -130,6 +135,28 @@ let sperrLaeuft = false;
 const zhParts = () => { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" }).formatToParts(new Date()).forEach(x => p[x.type] = x.value); return p; };
 const BUS = /^(B|BUS|NFB|NFO|KB|EXB|BAT|FAE|GB|PB|SL|FUN|BN|NB|EV|EXT)$/;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+let sperrBuf = null;
+function sperrAusGtfs() {
+  if (!SP) return false;
+  const p = zhParts(), datum = `${p.year}-${p.month}-${p.day}`, typ = p.weekday === "Sat" ? "sa" : p.weekday === "Sun" ? "su" : "wd";
+  const buf = FP.get(datum); if (!buf) return false;
+  if (buf === sperrBuf && sperr && sperr.datum === datum) return true;   // schon ausgewertet
+  let j; try { j = JSON.parse(zlib.gunzipSync(buf)); } catch { return false; }
+  if (j.v !== FP.status().basis || !j.tt) return false;
+  const gesehen = new Uint32Array(SP.teile.length), zeilen = j.tt.split("\n").slice(1);
+  for (const l of zeilen) {
+    const st = l.slice(l.indexOf("|") + 1).split(";").map(q => parseInt(q, 16));
+    for (let i = 1; i < st.length; i++) { const a = st[i - 1], b = st[i]; const k = Math.min(a, b) + "-" + Math.max(a, b), w = SP.beine[k]; if (w) for (const t of w) gesehen[t]++;
+      const dw = SP.direkt && SP.direkt[k]; if (dw) for (const t of dw) if (!w || !w.includes(t)) gesehen[t]++; }
+  }
+  const erw = SP.erwartet[typ], teile = [];
+  SP.teile.forEach((t, i) => { const nie = !SP.erwartet.wd[i] && !SP.erwartet.sa[i] && !SP.erwartet.su[i];
+    if (gesehen[i] === 0 && (erw[i] >= 3 || nie)) teile.push(t); });
+  sperr = { datum, erstellt: Date.now(), teile, quelle: "gtfs", feed: j.feed }; sperrBuf = buf;
+  try { fs.writeFileSync(SPERR_FILE, JSON.stringify(sperr)); } catch {}
+  log("Sperrungen (GTFS " + j.feed + "):", teile.length, "gesperrte Streckenteile,", zeilen.length, "Zugläufe");
+  return true;
+}
 async function sperrPruefen() {
   if (!SP || sperrLaeuft) return; sperrLaeuft = true;
   const p = zhParts(), datum = `${p.year}-${p.month}-${p.day}`, typ = p.weekday === "Sat" ? "sa" : p.weekday === "Sun" ? "su" : "wd";
@@ -153,7 +180,8 @@ async function sperrPruefen() {
           (e.passList || []).forEach((q, i) => { const id = i === 0 ? uic : q.station && q.station.id; const st = SP.uic[id];
             if (st !== undefined && seq[seq.length - 1] !== st) seq.push(st); });
           if (seq[0] !== si) seq.unshift(si);
-          for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i]; const w = SP.beine[Math.min(a, b) + "-" + Math.max(a, b)]; if (w) for (const t of w) gesehen[t]++; }
+          for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i]; const k = Math.min(a, b) + "-" + Math.max(a, b), w = SP.beine[k]; if (w) for (const t of w) gesehen[t]++;
+      const dw = SP.direkt && SP.direkt[k]; if (dw) for (const t of dw) if (!w || !w.includes(t)) gesehen[t]++; }
         }
         if (sb.length < 300 || !last) break; von = last.slice(11, 16);
       }
@@ -164,15 +192,17 @@ async function sperrPruefen() {
     const erw = SP.erwartet[typ], teile = [];
     SP.teile.forEach((t, i) => { const nie = !SP.erwartet.wd[i] && !SP.erwartet.sa[i] && !SP.erwartet.su[i];
       if (gesehen[i] === 0 && (erw[i] >= 3 || nie)) teile.push(t); });   // «nie»: Strecke ohne Fahrplandaten (an den Stichtagen gesperrt)
-    sperr = { datum, erstellt: Date.now(), teile, abfragen, fehler };
+    sperr = { datum, erstellt: Date.now(), teile, abfragen, fehler, quelle: "transport.opendata.ch" };
     fs.writeFileSync(SPERR_FILE, JSON.stringify(sperr));
     log("Sperrungen:", teile.length, "gesperrte Streckenteile,", abfragen, "Abfragen,", Math.round((Date.now() - t0) / 1000), "s");
   } catch (e) { log("Sperrungen: Fehler", e.message); }
   finally { sperrLaeuft = false; }
 }
 function sperrTick() { const p = zhParts(), datum = `${p.year}-${p.month}-${p.day}`, min = +p.hour * 60 + +p.minute;
-  if ((!sperr || sperr.datum !== datum) && min >= 210) sperrPruefen(); }
-setTimeout(sperrTick, 20000); setInterval(sperrTick, 10 * 60000).unref();
+  const heute = sperr && sperr.datum === datum;
+  if (sperrAusGtfs()) return;                                   // GTFS-Tagesfahrplan vorhanden (auch neu erzeugt)
+  if (!heute && min >= 270) sperrPruefen(); }                  // sonst ab 04:30 über die Abfahrtstafeln
+setTimeout(sperrTick, 20000); setInterval(sperrTick, 5 * 60000).unref();
 
 // ---- HTTP ----
 const SEC = { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "SAMEORIGIN",
@@ -200,6 +230,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/status") return json(req, res, 200, { version: VERSION, schluessel: !!KEY && !isPlaceholder(KEY), letzteAbfrage: cache ? cache.abgerufen : null, fehler: lastErr ? lastErr.message : null });
   if (url.pathname === "/api/sperrungen") { const p = zhParts(), d = `${p.year}-${p.month}-${p.day}`;
     return json(req, res, 200, sperr && sperr.datum === d ? { datum: sperr.datum, erstellt: sperr.erstellt, teile: sperr.teile } : { datum: null, teile: [] }); }
+  if (url.pathname === "/api/fahrplan") {
+    const buf = FP.get(url.searchParams.get("d") || "");
+    if (!buf) return json(req, res, 404, { fehler: "Für dieses Datum gibt es keinen aufbereiteten Fahrplan." });
+    const h = { ...SEC, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=900", Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : buf); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : zlib.gunzipSync(buf));
+  }
+  if (url.pathname === "/api/fahrplan/status") return json(req, res, 200, FP.status());
   if (url.pathname === "/api/verspaetungen") {
     try { const d = await getData(); return json(req, res, 200, d, d === cache ? cacheGz : null); }
     catch (e) { return json(req, res, e instanceof KeyError ? 401 : 502, { fehler: e instanceof KeyError ? "Echtzeit ist auf diesem Server nicht eingerichtet." : e.message }); }

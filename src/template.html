@@ -233,7 +233,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <p class="sperrinfo" id="sperrInfo" hidden></p>
     </section>
     <section id="detail"></section>
-    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Reliefschattierung © swisstopo (DHM25). <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage sind nicht berücksichtigt. Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Reliefschattierung © swisstopo (DHM25). <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem offiziellen Fahrplan der Schweiz (GTFS, opentransportdata.swiss), den der Server zweimal pro Woche neu lädt und für jeden Tag einzeln aufbereitet – mit Feiertagen, Baustellen und dem Fahrplanwechsel im Dezember; Zeiten in Schweizer Zeit. Ist er nicht erreichbar, gilt ein eingebauter Fahrplan je für Montag–Freitag, Samstag und Sonntag (transport.opendata.ch). Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
   </aside>
 </main>
 </div>
@@ -458,6 +458,17 @@ function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
     const st=body.split(";").map(x=>{const a=x.split(",");const t1=+a[1],t2=a.length>2?+a[2]:t1;return {i:parseInt(a[0],16),a:t1,d:t2}});
     return {cat,label:cat==="S"?"S"+num:cat+" "+num,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
 const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
+// Fahrplan nach Datum (Website): der Server rechnet täglich den offiziellen GTFS-Fahrplan für die nächsten Tage um
+// (mit Baustellen, Feiertagen und Fahrplanwechsel). Fehlt er, gilt der eingebaute Fahrplan nach Wochentag.
+const FPV=__FPV__,DATED={},fpStatus={};let fpFeed=null,RID=0;
+const tagRuns=z=>DATED[z.date]||DAYS[dayType(z.wd)];
+async function fpLaden(datum){const s=fpStatus[datum];if(s&&(s.ok||s.lauf||Date.now()-s.t<10*60000))return;fpStatus[datum]={lauf:true,t:Date.now()};
+  try{const r=await fetch("/api/fahrplan?d="+datum);if(!r.ok)throw 0;const j=await r.json();if(j.v!==FPV||!j.tt)throw 0;
+    const runs=parseDay(j.tt);runs.forEach(x=>x.id=RID++);DATED[datum]=runs;if(datum===zh(Date.now()).date)fpFeed=j.feed;fpStatus[datum]={ok:true};
+    if(rtLetzt)applyRT(rtLetzt)}
+  catch(e){fpStatus[datum]={t:Date.now()}}}
+const fpAn=!!(window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server");
+function fpBrauche(ms){if(!fpAn)return;for(const d of [-1,0,1]){const z=zh(ms+d*86400000);if(!DATED[z.date])fpLaden(z.date)}}
 // Graph aus den Streckenteilen (Kartenkoordinaten)
 const G={};
 LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1],id=i+":"+(j-1);let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
@@ -516,7 +527,7 @@ function zh(ms){const key=Math.floor(ms/60000);let z=zCache[key];
 const dayType=wd=>wd==="Sat"?"sa":wd==="Sun"?"su":"wd";
 const PREV={Mon:"Sun",Tue:"Mon",Wed:"Tue",Thu:"Wed",Fri:"Thu",Sat:"Fri",Sun:"Sat"};
 // Aktive Betriebstage: heute (Versatz 0) und gestern (Versatz +1440, Züge nach Mitternacht)
-function services(ms){const z=zh(ms);return [{runs:DAYS[dayType(PREV[z.wd])],o:1440,type:dayType(PREV[z.wd]),t:z.t+1440},{runs:DAYS[dayType(z.wd)],o:0,type:dayType(z.wd),t:z.t}]}
+function services(ms){const z=zh(ms),zg=zh(ms-86400000);return [{runs:tagRuns(zg),o:1440,type:dayType(zg.wd),t:z.t+1440},{runs:tagRuns(z),o:0,type:dayType(z.wd),t:z.t}]}
 let speed=1, simMs=Date.now(), lastReal=performance.now();
 const pad=n=>String(n).padStart(2,"0");
 function clock(ms){const z=zh(ms);const m=Math.floor(z.t);return pad(Math.floor(m/60)%24)+":"+pad(m%60)}
@@ -572,7 +583,7 @@ function frame(now){const dt=Math.min(now-lastReal,1000);lastReal=now;simMs+=dt*
   if(now-slowT>500){slowT=now;lastCounts=counts;
     $("live").textContent=`· ${counts.fv+counts.rv+counts.s} unterwegs`+(rtStats.on?` · ${lateN} verspätet · ${cancN} fallen aus`:"");
     lastD=dcount;document.querySelectorAll("#tlegend .n").forEach((n,j)=>n.textContent=colMode==="vsp"?dcount[["d0","d1","d2","dn"][j]]:counts[["fv","rv","s"][j]]);
-    const z=zh(simMs);$("daytype").textContent=`Fahrplan ${DAYNAME[dayType(z.wd)]}`;
+    const z=zh(simMs);fpBrauche(simMs);$("daytype").textContent=DATED[z.date]?`Fahrplan vom ${+z.date.slice(8)}.${+z.date.slice(5,7)}.${z.date.slice(0,4)}`:`Fahrplan ${DAYNAME[dayType(z.wd)]}`;
     if(sel)showTrain(sel.tr,sel.o,false);else if(selSt&&$("deps"))renderDeps(selSt)}
   requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
@@ -592,7 +603,7 @@ function showTrain(tr,o,center){sel={tr,o};selSt=null;selLn=null;Object.values(s
   if(center&&p){k=Math.max(k,4);tx=W/2-p.x*k;ty=H/2-p.y*k;apply()}}
 // Abfahrten an einem Bahnhof (nächste 45 Minuten, auch über Mitternacht)
 function renderDeps(n){const box=$("deps");if(!box)return;const i=SN.indexOf(n);const out=[];
-  const z=zh(simMs);const svs=[...services(simMs),{runs:DAYS[dayType(({Sun:"Mon",Mon:"Tue",Tue:"Wed",Wed:"Thu",Thu:"Fri",Fri:"Sat",Sat:"Sun"})[z.wd])],o:-1440,t:z.t-1440}];
+  const z=zh(simMs);const svs=[...services(simMs),{runs:tagRuns(zh(simMs+86400000)),o:-1440,t:z.t-1440}];
   for(const sv of svs)for(const tr of sv.runs){if(tr.t1<sv.t||tr.t0>sv.t+45)continue;
     const rt=rtFor(tr,sv.o);tr.st.forEach((S,j)=>{if(S.i!==i||j===tr.st.length-1)return;const dm=S.d-sv.t;const dl=rt?rt.dd[j]:0;if(dm+dl/60<-0.5||dm>45)return;out.push({dm,tr,dl,cx:rt&&(rt.canc||rt.sc[j])})})}
   out.sort((a,b)=>a.dm-b.dm);{const u=new Set();for(let j=out.length-1;j>=0;j--){const key=out[j].tr.label+'|'+Math.round(out[j].dm);if(u.has(key))out.splice(j,1);else u.add(key)}}
@@ -604,12 +615,13 @@ function renderDeps(n){const box=$("deps");if(!box)return;const i=SN.indexOf(n);
 const STUIC=__STUIC__;
 const RT_SERVER="host:ZugKarte_Echtzeit";
 const UIC2IDX={};STUIC.forEach((l,i)=>l.forEach(u=>UIC2IDX[u]=i));
-let RID=0;for(const k in DAYS)DAYS[k].forEach(r=>r.id=RID++);
+for(const k in DAYS)DAYS[k].forEach(r=>r.id=RID++);
 const rtMap=new Map();let rtStats={on:false,at:0,matched:0,late:0,canc:0,total:0};
 function rtFor(tr,o){if(!rtStats.on||Math.abs(simMs-Date.now())>3*3600e3)return null;return rtMap.get(tr.id+"|"+o)||null}
-function applyRT(d){
+let rtLetzt=null;
+function applyRT(d){rtLetzt=d;
   const nowMs=Date.now(),z=zh(nowMs),mid0=Math.round(nowMs/60000-z.t),nowMin=nowMs/60000;
-  const svs=[{runs:DAYS[dayType(PREV[z.wd])],o:1440,mid:mid0-1440},{runs:DAYS[dayType(z.wd)],o:0,mid:mid0}];
+  const svs=[{runs:tagRuns(zh(nowMs-86400000)),o:1440,mid:mid0-1440},{runs:tagRuns(z),o:0,mid:mid0}];
   const idx=new Map(),ref=new Map();
   for(const sv of svs)for(const r of sv.runs){if(sv.mid+r.t1<nowMin-180||sv.mid+r.t0>nowMin+260)continue;ref.set(r.id+"|"+sv.o,{r,o:sv.o});
     const n=r.st.length;r.st.forEach((S,j)=>{const last=j===n-1;const key=S.i+"|"+Math.round(sv.mid+(last?S.a:S.d))+(last?"a":"d");let a=idx.get(key);if(!a)idx.set(key,a=[]);a.push(r.id+"|"+sv.o)})}

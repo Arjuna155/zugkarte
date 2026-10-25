@@ -8,6 +8,7 @@ Inhalt:
   teile    [[i, j], …]                     Index = Teilnummer
   erwartet {"wd"|"sa"|"su": [Anzahl je Teil]}
   beine    {"a-b": [Teilnummern]}          Weg zwischen zwei Kartenbahnhöfen (Indizes in stations.json)
+  direkt   {"a-b": [Teilnummern]}          Teile mit genau diesen Endbahnhöfen
   uic      {Halt-ID: Bahnhofsindex}
   abfrage  [[Bahnhofsindex, Halt-ID], …]   Bahnhöfe, deren Abfahrten der Server täglich holt (decken alle Teile ab)
 """
@@ -78,4 +79,10 @@ def build(lines, stations, stuic, fahrplan):
         if stuic[s]: abfrage.append([s, stuic[s][0]])
         offen -= ends[s]
     uic = {u: i for i, us in enumerate(stuic) for u in us}
-    return dict(teile=teile, erwartet=erwartet, beine=beine, uic=uic, abfrage=abfrage)
+    # Teile nach ihren Endbahnhöfen: fährt ein Zug direkt von a nach b, gilt jeder Teil a–b als befahren
+    # (wichtig bei parallel gezeichneten Strecken, die nie auf dem kürzesten Weg liegen)
+    direkt = {}
+    for t, (i, j) in enumerate(teile):
+        a, b = sorted((sidx[lines[i]["stops"][j]], sidx[lines[i]["stops"][j + 1]]))
+        direkt.setdefault(f"{a}-{b}", []).append(t)
+    return dict(teile=teile, erwartet=erwartet, beine=beine, direkt=direkt, uic=uic, abfrage=abfrage)

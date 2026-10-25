@@ -9,6 +9,13 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Öffentlich erreichbar über Tailscale Funnel (Container `zugkarte-tailscale`, https://zugkarte.numbat-pike.ts.net). Funnel braucht im Tailnet-ACL `nodeAttrs` mit `"attr": ["funnel"]`. Ab Compose v4 teilt Tailscale das Netzwerk mit `zugkarte` (`network_mode: service:zugkarte`) und leitet auf `127.0.0.1:8080` – über den Containernamen gab es im Userspace-Modus 502.
 - Schlüssel liegen als Dateien in `data/` auf dem NAS (`schluessel.txt`, `tailscale-key.txt`). Umgebungsvariablen in UGOS Pro kamen bei Arjuna nicht im Container an – deshalb Dateien. `ZK_COMPOSE` in der Compose-Datei zeigt im Protokoll, welche Konfigurationsversion läuft.
 
+## Fahrplan nach Datum (GTFS, seit 25.10.2026)
+- `app/fahrplan.js`: Server lädt den offiziellen GTFS-Fahrplan (data.opentransportdata.swiss, Datensatz `timetable-JJJJ-gtfs2020`, `/permalink` = neueste Ausgabe, ohne Schlüssel, 100–300 MB, ZIP64). Täglich ab 03:00 prüft er die Datensatzseite auf eine neue Ausgabe (ca. 2× pro Woche) und lädt nur dann. Fahrplanjahr ab dem zweiten Sonntag im Dezember → um den Fahrplanwechsel werden beide Jahre geladen.
+- Umrechnung im eigenen Prozess (`node fahrplan.js --erzeugen <DATA_DIR>`, Test mit `ZK_FP_HEUTE=JJJJ-MM-TT`) für gestern … +8 Tage nach `DATA_DIR/fahrplan/JJJJ-MM-TT.json.gz` ({v, feed, tt} im Kartenformat). Nur Bahn (route_type 100–199) + Waldenburgerbahn (Tram BLT 19). Label = Linie aus route_short_name («S 5», «IR 13»), sonst Zugnummer. Halte über `didok` → UIC → Kartenbahnhof, sonst naher Halt mit passendem Namen (Locarno FART, Arth-Goldau RB …). Gleiche Prüfungen wie netz_ausbau.py (8–240 km/h, Zwischenhalte ≤ 1,5 km vom Weg, Standzeit > 20 Min. teilt).
+- `app/fahrplan_basis.json` (von build.py, `tools/fahrplan_basis.py`): Kartenbahnhöfe, UIC, Streckenverlauf; Kennung `v` steht auch in der Seite (`FPV`). Die Seite nimmt nur Fahrpläne mit gleicher Kennung; nach Netzänderungen rechnet der Server neu.
+- Seite (nur Website): `/api/fahrplan?d=…` für gestern/heute/morgen, sonst eingebauter Wochentagsfahrplan. `/api/fahrplan/status` zeigt Stand.
+- Sperrungen kommen jetzt bevorzugt aus dem GTFS-Tagesfahrplan (keine transport.opendata-Abfragen mehr); `direkt` in sperren.json zählt parallele Streckenteile mit gleichen Endbahnhöfen als befahren.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
@@ -36,5 +43,4 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Ohne Daten bei transport.opendata.ch (Linie nur gezeichnet): zb Engelberg, MGB Visp–Zermatt, WAB Grindelwald Grund, BVB, Salvan, CJ Tavannes.
 
 ## Offene Punkte
-- Fahrplan vor dem Fahrplanwechsel am 13.12.2026 neu laden (Quelle: transport.opendata.ch stationboard, nur aus dem Browser erreichbar).
-- Engelberg-Strecke und MGB Visp–Zermatt haben keine Fahrplandaten.
+- Eingebauter Fallback-Fahrplan (data/fahrplan/*.txt) ist vom Fahrplan 2026; auf der Website ersetzt ihn der GTFS-Fahrplan. Für Artifact/Windows-Programm ggf. später aus GTFS neu erzeugen.
