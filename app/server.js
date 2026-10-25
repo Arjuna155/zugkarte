@@ -233,7 +233,9 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/fahrplan") {
     const buf = FP.get(url.searchParams.get("d") || "");
     if (!buf) return json(req, res, 404, { fehler: "Für dieses Datum gibt es keinen aufbereiteten Fahrplan." });
-    const h = { ...SEC, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=900", Vary: "Accept-Encoding" };
+    const etag = '"' + crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + '"';   // neu erzeugte Fahrpläne sofort ausliefern
+    if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ...SEC, ETag: etag }); return res.end(); }
+    const h = { ...SEC, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache", ETag: etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : buf); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : zlib.gunzipSync(buf));
   }
