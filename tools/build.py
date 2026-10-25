@@ -9,6 +9,10 @@ import json, pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 D = ROOT / "data"
 
+# Deutschland (Grundkarte, Bahnnetz, grenzüberschreitende Züge) ein-/ausschalten.
+# Arjuna möchte sich vorerst auf die Schweiz konzentrieren (25.10.2026) → aus. Daten und Werkzeuge bleiben erhalten.
+MIT_DEUTSCHLAND = False
+
 
 def load(name):
     return json.loads((D / name).read_text(encoding="utf-8"))
@@ -22,7 +26,7 @@ fahrplan = {k: (D / "fahrplan" / f).read_text(encoding="utf-8")
 
 # Grenzüberschreitende Züge (tools/grenze.py): Halte ausserhalb des Schweizer Netzes anhängen,
 # an der Grenze gekappte Schweizer Zeilen durch die ganzen Zugläufe ersetzen.
-grenze = load("grenze.json")
+grenze = load("grenze.json") if MIT_DEUTSCHLAND else {"stationen": {}, "kanten": {}, "tage": {k: {"neu": [], "weg": []} for k in ("wd", "sa", "su")}}
 stations = load("stations.json")
 stx = {n: {"n": n, "E": round(x * 100 + 2480000), "N": round(1300000 - y * 100)}
        for n, (x, y) in grenze["stationen"].items() if n not in stations}
@@ -42,8 +46,8 @@ values = {
     "__KANTEN__": grenze["kanten"],
     "__STUIC__": load("stuic.json"),
     "__GEO__": load("geo.json"),
-    "__DE__": load("deutschland.json"),
-    "__DENETZ__": load("deutschland_netz.json"),
+    "__DE__": load("deutschland.json") if MIT_DEUTSCHLAND else {"country": "", "states": "", "labels": [], "box": [0, 0, 1, 1]},
+    "__DENETZ__": load("deutschland_netz.json") if MIT_DEUTSCHLAND else {"f": "", "m": "", "b": "", "st": []},
     "__ST__": load("stations.json"),
     "__LINES__": lines,
     "__TIER0__": netz["stufe0"],

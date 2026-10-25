@@ -219,7 +219,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <div class="legend" id="tlegend"></div>
     </section>
     <section id="detail"></section>
-    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0). Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
   </aside>
 </main>
 </div>
@@ -288,7 +288,7 @@ names.forEach(n=>{
 });
 
 // Ansicht (Pan/Zoom über viewBox-Einheiten)
-const W=3500,H=2220; let k=1,tx=0,ty=0; const KMIN=0.15,KMAX=14;
+const W=3500,H=2220; let k=1,tx=0,ty=0; const KMIN=DE.country?0.15:0.9,KMAX=14;
 function svgPt(cx,cy){const r=$("map").getBoundingClientRect();const s=Math.min(r.width/W,r.height/H);
   const ox=(r.width-W*s)/2, oy=(r.height-H*s)/2; return [(cx-r.left-ox)/s,(cy-r.top-oy)/s,s]}
 function apply(){
@@ -351,6 +351,7 @@ $("zin").onclick=()=>{const r=wrap.getBoundingClientRect();zoomAt(1.6,r.left+r.w
 $("zout").onclick=()=>{const r=wrap.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2)};
 $("zreset").onclick=()=>{k=1;tx=0;ty=0;apply()};
 $("zde").onclick=()=>fit(DE.box,0.03);
+if(!DE.country){$("zde").hidden=true;$("deNote").hidden=true}
 
 function showTip(t,e){const r=wrap.getBoundingClientRect();const tp=$("tip");tp.textContent=t;tp.style.left=(e.clientX-r.left)+"px";tp.style.top=(e.clientY-r.top)+"px";tp.hidden=false}
 function hideTip(){$("tip").hidden=true}
