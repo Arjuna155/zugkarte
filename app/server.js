@@ -54,6 +54,7 @@ const UICS = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, "uics.json"
 const log = (...a) => console.log(new Date().toLocaleString("de-CH", { timeZone: "Europe/Zurich" }), ...a);
 
 // ---- Kartenseite vorbereiten (einmal beim Start, gzip vorberechnet) ----
+let RELIEF = null; try { RELIEF = fs.readFileSync(path.join(__dirname, "public", "relief.jpg")); } catch {}
 const RAW = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
   .replace("<script>", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script>");
 const PAGE = { raw: Buffer.from(RAW), gz: zlib.gzipSync(RAW, { level: 9 }), etag: '"' + crypto.createHash("sha1").update(RAW).digest("hex").slice(0, 16) + '"' };
@@ -190,6 +191,10 @@ const server = http.createServer(async (req, res) => {
     const h = { ...SEC, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE.raw);
+  }
+  if (url.pathname === "/relief.jpg") {   // Reliefschattierung (swisstopo), lange cachebar
+    if (!RELIEF) { res.writeHead(404, SEC); return res.end(); }
+    res.writeHead(200, { ...SEC, "Content-Type": "image/jpeg", "Content-Length": RELIEF.length, "Cache-Control": "public, max-age=604800" }); return res.end(req.method === "HEAD" ? undefined : RELIEF);
   }
   if (url.pathname === "/api/ping") return json(req, res, 200, { app: "ZugKarte", version: VERSION });
   if (url.pathname === "/api/status") return json(req, res, 200, { version: VERSION, schluessel: !!KEY && !isPlaceholder(KEY), letzteAbfrage: cache ? cache.abgerufen : null, fehler: lastErr ? lastErr.message : null });
