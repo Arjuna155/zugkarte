@@ -36,9 +36,15 @@ def path(coords, close):
 src = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 states = [(f["properties"]["name"], transform(proj, shape(f["geometry"])).buffer(0)) for f in src["features"]]
 land = unary_union([g for _, g in states]).buffer(0.5).buffer(-0.5)
+# Grenze an die Schweizer Grundkarte angleichen: die Quellen weichen um einige 100 m voneinander ab.
+# Deutschland wird gegen die Schweiz und den Bodensee hin um bis zu 1,5 km erweitert; was unter der
+# Schweizer Fläche bzw. den Seen liegt, wird von diesen überdeckt – so entsteht weder Spalt noch Doppellinie.
+sys.path.insert(0, str(ROOT / "tools")); import ch_geo
+nah = unary_union([ch_geo.schweiz().buffer(30), ch_geo.seen().buffer(30)])
+land_aussen = land.union(land.buffer(15).intersection(nah))
 
 country = "".join(path(p.simplify(TOL).exterior.coords, True)
-                  for p in polys(land) if p.area >= MIN_AREA)
+                  for p in polys(land_aussen) if p.area >= MIN_AREA)
 inner = unary_union([g.boundary for _, g in states]).difference(land.exterior.buffer(2) if isinstance(land, Polygon)
                                                                   else unary_union([p.exterior for p in polys(land)]).buffer(2))
 borders = "".join(path(l.simplify(TOL).coords, False) for l in lines(inner) if l.length > 3)

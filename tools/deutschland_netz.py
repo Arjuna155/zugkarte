@@ -61,14 +61,28 @@ osm = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 from shapely.ops import transform
 bl = json.loads((pathlib.Path(sys.argv[3]) if len(sys.argv) > 3 else pathlib.Path("/tmp/claude-0/de/bl.geojson")).read_text(encoding="utf-8"))
 land = unary_union([transform(lambda x, y, z=None: proj(x, y), shape(f["geometry"]).simplify(0.0005)).buffer(0) for f in bl["features"]])
-clip = land.buffer(8)   # 800 m Rand, damit Grenzbahnhöfe angebunden bleiben
+# Ausschnitt: Deutschland (+800 m) und dazu der grenznahe Streifen der Schweiz (5 km), damit Strecken wie
+# Basel Bad Bf–Basel SBB, Schaffhausen–Singen oder Konstanz–Kreuzlingen bis zum Schweizer Netz durchgehen.
+# Wo eine deutsche Linie auf weniger als 300 m einer Schweizer Strecke folgt, zeichnet die Schweizer Karte sie schon.
+sys.path.insert(0, str(ROOT / "tools")); import ch_geo
+ch = ch_geo.schweiz(); ch_netz = ch_geo.netz()
+clip = land.buffer(8).union(ch.buffer(10).intersection(land.buffer(50))).difference(ch_netz.buffer(3))
+de_kern = land.buffer(10); prepare(de_kern)
+ch_st = ch_geo.bahnhoefe()
+st_area = land.union(ch.intersection(land.buffer(50))); prepare(st_area)
 prepare(land); prepare(clip)
 
 res = {}
 for c in "fmb":
     ls = [l for g in decode(osm[c]) for l in lines(g.intersection(clip)) if not l.is_empty and l.length > 0]
     merged = lines(linemerge(ls))
-    merged = [l.simplify(0.3) for l in merged if l.length > 3]
+    # Stücke auf Schweizer Gebiet nur, wenn sie an das deutsche Netz anschliessen (sonst sind es Schweizer Strecken)
+    merged = [l for l in merged if l.length > 0.5]
+    # zusammenhängende Teilnetze (100 m Toleranz) behalten, wenn sie Deutschland berühren
+    comps = unary_union([l.buffer(1) for l in merged])
+    comps = [g for g in getattr(comps, "geoms", [comps]) if de_kern.intersects(g)]
+    keep = unary_union(comps); prepare(keep)
+    merged = [l.simplify(0.3) for l in merged if keep.intersects(l)]
     res[c] = encode(merged)
     print(c, len(merged), "Linien", round(sum(l.length for l in merged) / 10), "km", len(res[c]), "Zeichen")
 
@@ -78,7 +92,8 @@ for line in open(sys.argv[2], encoding="utf-8"):
     cat = s.get("category")
     if not cat or cat > 3 or not s.get("location"): continue
     x, y = proj(s["location"]["longitude"], s["location"]["latitude"])
-    if not land.contains(Point(x, y)): continue
+    if not st_area.contains(Point(x, y)): continue
+    if any(Point(x, y).distance(p) < 5 for p in ch_st.values()): continue   # schon als Schweizer Bahnhof da
     t = cat - 1
     if s["name"] in ("Etzenricht",): t = 2   # Güter-/Betriebsbahnhof, in den Daten fälschlich Kategorie 1
     st.append([s["name"], round(x, 1), round(y, 1), t])
