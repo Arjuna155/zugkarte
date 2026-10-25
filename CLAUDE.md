@@ -28,6 +28,11 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - gtfs.de-Download nur im Browser: Seite https://download.gtfs.de/germany/ öffnen, dann gleiche Herkunft fetchen, mit fflate (jsDelivr) entpacken und filtern.
 - OSM-Daten nur über den Browser (Overpass): overpass-api.de antwortet aus derselben Herkunft mit 406 → Abfrage von einer fremden Seite aus (z. B. data.deutschebahn.com), Kachelergebnisse in IndexedDB zwischenspeichern.
 
+## Netz erweitern
+- `tools/netz_neu.py` (neue Strecken als Bahnhofsketten) + `tools/netz_ausbau.py` bauen aus `data/quellen/basis/` (Hauptnetz 23.10.) Stationen, Netz, Gleisverlauf (OSM, `osm_ch_export.json.gz`) und den Fahrplan (Rohdaten `ch_raw_*` + stationboards der neuen Bahnhöfe `ch_sb_neu.json.gz`) neu. Danach `tools/build.py`.
+- transport.opendata.ch stationboard: `limit` max. ~400 (500 → HTTP 400); im ersten passList-Eintrag steht eine falsche Halt-ID (wird durch die ID der Tafel ersetzt).
+- Neue Bahnhöfe, die auf bestehenden Strecken liegen (< 200 m), werden automatisch als Zwischenhalt eingefügt.
+
 ## Offene Punkte
 - Fahrplan vor dem Fahrplanwechsel am 13.12.2026 neu laden (Quelle: transport.opendata.ch stationboard, nur aus dem Browser erreichbar).
 - Engelberg-Strecke und MGB Visp–Zermatt haben keine Fahrplandaten.

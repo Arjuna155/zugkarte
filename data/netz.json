@@ -17,6 +17,7 @@
    "typ": "fv",
    "halte": [
     "Lausanne",
+    "Puidoux",
     "Palézieux",
     "Romont",
     "Fribourg/Freiburg",
@@ -82,6 +83,7 @@
     "Frick",
     "Brugg AG",
     "Baden",
+    "Wettingen",
     "Dietikon",
     "Zürich Altstetten"
    ]
@@ -93,6 +95,7 @@
     "Zürich HB",
     "Zürich Oerlikon",
     "Zürich Flughafen",
+    "Effretikon",
     "Winterthur"
    ]
   },
@@ -398,6 +401,7 @@
     "Zürich Oerlikon",
     "Bülach",
     "Eglisau",
+    "Neuhausen",
     "Schaffhausen"
    ]
   },
@@ -417,6 +421,7 @@
     "Winterthur",
     "Frauenfeld",
     "Weinfelden",
+    "Sulgen",
     "Romanshorn"
    ]
   },
@@ -463,6 +468,7 @@
    "typ": "rv",
    "halte": [
     "Pfäffikon SZ",
+    "Samstagern",
     "Biberbrugg",
     "Arth-Goldau"
    ]
@@ -474,6 +480,7 @@
     "Rapperswil",
     "Uznach",
     "Wattwil",
+    "Lichtensteig",
     "Herisau",
     "St. Gallen"
    ]
@@ -493,6 +500,7 @@
    "halte": [
     "Lausanne",
     "Cossonay",
+    "Le Day",
     "Vallorbe"
    ]
   },
@@ -702,6 +710,408 @@
    "halte": [
     "Aigle",
     "Leysin-Feydey"
+   ]
+  },
+  {
+   "name": "Zürich–Uster–Rapperswil",
+   "typ": "rv",
+   "halte": [
+    "Zürich Stadelhofen",
+    "Stettbach",
+    "Dübendorf",
+    "Uster",
+    "Wetzikon ZH",
+    "Bubikon",
+    "Rüti ZH",
+    "Rapperswil"
+   ]
+  },
+  {
+   "name": "Oerlikon–Effretikon",
+   "typ": "rv",
+   "halte": [
+    "Zürich Oerlikon",
+    "Wallisellen",
+    "Dietlikon",
+    "Effretikon"
+   ]
+  },
+  {
+   "name": "Wallisellen–Dübendorf",
+   "typ": "rv",
+   "halte": [
+    "Wallisellen",
+    "Dübendorf"
+   ]
+  },
+  {
+   "name": "Effretikon–Hinwil",
+   "typ": "rv",
+   "halte": [
+    "Effretikon",
+    "Illnau",
+    "Fehraltorf",
+    "Pfäffikon ZH",
+    "Kempten",
+    "Wetzikon ZH",
+    "Hinwil"
+   ]
+  },
+  {
+   "name": "Tösstal",
+   "typ": "rv",
+   "halte": [
+    "Winterthur",
+    "Sennhof-Kyburg",
+    "Turbenthal",
+    "Wila",
+    "Bauma",
+    "Fischenthal",
+    "Wald ZH",
+    "Rüti ZH"
+   ]
+  },
+  {
+   "name": "Furttal",
+   "typ": "rv",
+   "halte": [
+    "Zürich Oerlikon",
+    "Zürich Affoltern",
+    "Regensdorf-Watt",
+    "Buchs-Dällikon",
+    "Otelfingen",
+    "Wettingen",
+    "Baden"
+   ]
+  },
+  {
+   "name": "Winterthur–Stein am Rhein",
+   "typ": "rv",
+   "halte": [
+    "Winterthur",
+    "Seuzach",
+    "Thalheim-Altikon",
+    "Stammheim",
+    "Stein am Rhein"
+   ]
+  },
+  {
+   "name": "Schaffhausen–Thayngen",
+   "typ": "rv",
+   "halte": [
+    "Schaffhausen",
+    "Herblingen",
+    "Thayngen"
+   ]
+  },
+  {
+   "name": "Klettgau",
+   "typ": "rv",
+   "halte": [
+    "Schaffhausen",
+    "Neuhausen",
+    "Beringen Bad Bf",
+    "Neunkirch",
+    "Wilchingen-Hallau",
+    "Trasadingen"
+   ]
+  },
+  {
+   "name": "Toggenburg",
+   "typ": "rv",
+   "halte": [
+    "Wil SG",
+    "Bazenheid",
+    "Lichtensteig",
+    "Wattwil",
+    "Ebnat-Kappel",
+    "Nesslau-Neu St. Johann"
+   ]
+  },
+  {
+   "name": "Gossau–Weinfelden",
+   "typ": "rv",
+   "halte": [
+    "Gossau SG",
+    "Bischofszell Stadt",
+    "Sulgen",
+    "Weinfelden"
+   ]
+  },
+  {
+   "name": "St. Gallen–Romanshorn",
+   "typ": "rv",
+   "halte": [
+    "St. Gallen St. Fiden",
+    "Wittenbach",
+    "Roggwil-Berg",
+    "Romanshorn"
+   ]
+  },
+  {
+   "name": "Uznach–Ziegelbrücke",
+   "typ": "rv",
+   "halte": [
+    "Uznach",
+    "Ziegelbrücke"
+   ]
+  },
+  {
+   "name": "Glarnerland",
+   "typ": "rv",
+   "halte": [
+    "Ziegelbrücke",
+    "Näfels-Mollis",
+    "Glarus",
+    "Schwanden GL",
+    "Linthal"
+   ]
+  },
+  {
+   "name": "Wädenswil–Einsiedeln",
+   "typ": "rv",
+   "halte": [
+    "Wädenswil",
+    "Samstagern",
+    "Biberbrugg",
+    "Einsiedeln"
+   ]
+  },
+  {
+   "name": "Stein-Säckingen–Laufenburg",
+   "typ": "rv",
+   "halte": [
+    "Stein-Säckingen",
+    "Laufenburg"
+   ]
+  },
+  {
+   "name": "Läufelfingerli",
+   "typ": "rv",
+   "halte": [
+    "Sissach",
+    "Läufelfingen",
+    "Olten"
+   ]
+  },
+  {
+   "name": "Zofingen–Lenzburg",
+   "typ": "rv",
+   "halte": [
+    "Zofingen",
+    "Suhr",
+    "Lenzburg"
+   ]
+  },
+  {
+   "name": "Bern–Biel",
+   "typ": "fv",
+   "halte": [
+    "Bern",
+    "Zollikofen",
+    "Schüpfen",
+    "Lyss",
+    "Biel/Bienne"
+   ]
+  },
+  {
+   "name": "Broye (Palézieux–Lyss)",
+   "typ": "rv",
+   "halte": [
+    "Palézieux",
+    "Moudon",
+    "Lucens",
+    "Payerne",
+    "Avenches",
+    "Murten/Morat",
+    "Kerzers",
+    "Aarberg",
+    "Lyss"
+   ]
+  },
+  {
+   "name": "Fribourg–Murten–Ins",
+   "typ": "rv",
+   "halte": [
+    "Fribourg/Freiburg",
+    "Courtepin",
+    "Murten/Morat",
+    "Sugiez",
+    "Ins"
+   ]
+  },
+  {
+   "name": "Gürbetal",
+   "typ": "rv",
+   "halte": [
+    "Bern",
+    "Belp",
+    "Toffen",
+    "Burgistein",
+    "Thun"
+   ]
+  },
+  {
+   "name": "Bern–Schwarzenburg",
+   "typ": "rv",
+   "halte": [
+    "Bern",
+    "Köniz",
+    "Schwarzenburg"
+   ]
+  },
+  {
+   "name": "Burgdorf–Thun",
+   "typ": "rv",
+   "halte": [
+    "Burgdorf",
+    "Hasle-Rüegsau",
+    "Grosshöchstetten",
+    "Konolfingen",
+    "Oberdiessbach",
+    "Thun"
+   ]
+  },
+  {
+   "name": "Emmental",
+   "typ": "rv",
+   "halte": [
+    "Hasle-Rüegsau",
+    "Ramsei",
+    "Langnau im Emmental"
+   ]
+  },
+  {
+   "name": "Ramsei–Huttwil",
+   "typ": "rv",
+   "halte": [
+    "Ramsei",
+    "Sumiswald-Grünen",
+    "Huttwil"
+   ]
+  },
+  {
+   "name": "Langenthal–Wolhusen",
+   "typ": "rv",
+   "halte": [
+    "Langenthal",
+    "Huttwil",
+    "Willisau",
+    "Wolhusen"
+   ]
+  },
+  {
+   "name": "Burgdorf–Solothurn",
+   "typ": "rv",
+   "halte": [
+    "Burgdorf",
+    "Kirchberg-Alchenflüh",
+    "Utzenstorf",
+    "Solothurn"
+   ]
+  },
+  {
+   "name": "Solothurn–Moutier",
+   "typ": "rv",
+   "halte": [
+    "Solothurn",
+    "Oberdorf SO",
+    "Gänsbrunnen",
+    "Moutier"
+   ]
+  },
+  {
+   "name": "Biel–La Chaux-de-Fonds",
+   "typ": "rv",
+   "halte": [
+    "Biel/Bienne",
+    "Sonceboz-Sombeval",
+    "St-Imier",
+    "La Chaux-de-Fonds"
+   ]
+  },
+  {
+   "name": "CEVA (Genève–Annemasse)",
+   "typ": "rv",
+   "halte": [
+    "Genève",
+    "Lancy-Pont-Rouge",
+    "Genève-Champel",
+    "Genève-Eaux-Vives",
+    "Chêne-Bourg",
+    "Annemasse"
+   ]
+  },
+  {
+   "name": "Genève–La Plaine",
+   "typ": "rv",
+   "halte": [
+    "Genève",
+    "Vernier",
+    "Satigny",
+    "La Plaine"
+   ]
+  },
+  {
+   "name": "Neuchâtel–Val-de-Travers",
+   "typ": "rv",
+   "halte": [
+    "Neuchâtel",
+    "Noiraigue",
+    "Travers"
+   ]
+  },
+  {
+   "name": "Romont–Bulle",
+   "typ": "rv",
+   "halte": [
+    "Romont",
+    "Bulle"
+   ]
+  },
+  {
+   "name": "Vevey–Puidoux",
+   "typ": "rv",
+   "halte": [
+    "Vevey",
+    "Chexbres-Village",
+    "Puidoux"
+   ]
+  },
+  {
+   "name": "St-Maurice–St-Gingolph",
+   "typ": "rv",
+   "halte": [
+    "St-Maurice",
+    "Monthey",
+    "Bouveret",
+    "St-Gingolph"
+   ]
+  },
+  {
+   "name": "Vallée de Joux",
+   "typ": "rv",
+   "halte": [
+    "Le Day",
+    "Le Pont",
+    "Le Brassus"
+   ]
+  },
+  {
+   "name": "Mendrisio–Stabio",
+   "typ": "rv",
+   "halte": [
+    "Mendrisio",
+    "Stabio"
+   ]
+  },
+  {
+   "name": "Cadenazzo–Luino",
+   "typ": "rv",
+   "halte": [
+    "Cadenazzo",
+    "Magadino-Vira",
+    "Ranzo-S. Abbondio"
    ]
   }
  ],

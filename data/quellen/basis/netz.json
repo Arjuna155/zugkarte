@@ -1,0 +1,785 @@
+{
+ "strecken": [
+  {
+   "name": "Genferseelinie",
+   "typ": "fv",
+   "halte": [
+    "Genève-Aéroport",
+    "Genève",
+    "Nyon",
+    "Morges",
+    "Renens VD",
+    "Lausanne"
+   ]
+  },
+  {
+   "name": "Lausanne–Bern",
+   "typ": "fv",
+   "halte": [
+    "Lausanne",
+    "Palézieux",
+    "Romont",
+    "Fribourg/Freiburg",
+    "Flamatt",
+    "Bern"
+   ]
+  },
+  {
+   "name": "Jurasüdfuss",
+   "typ": "fv",
+   "halte": [
+    "Renens VD",
+    "Yverdon-les-Bains",
+    "Neuchâtel",
+    "Biel/Bienne",
+    "Grenchen Süd",
+    "Solothurn",
+    "Oensingen",
+    "Olten"
+   ]
+  },
+  {
+   "name": "Bern–Olten",
+   "typ": "fv",
+   "halte": [
+    "Bern",
+    "Burgdorf",
+    "Herzogenbuchsee",
+    "Langenthal",
+    "Olten"
+   ]
+  },
+  {
+   "name": "Olten–Zürich",
+   "typ": "fv",
+   "halte": [
+    "Olten",
+    "Aarau",
+    "Lenzburg",
+    "Mellingen Heitersberg",
+    "Zürich Altstetten",
+    "Zürich HB"
+   ]
+  },
+  {
+   "name": "Basel–Olten (Hauenstein)",
+   "typ": "fv",
+   "halte": [
+    "Basel SBB",
+    "Pratteln",
+    "Liestal",
+    "Sissach",
+    "Olten"
+   ]
+  },
+  {
+   "name": "Basel–Zürich (Bözberg)",
+   "typ": "fv",
+   "halte": [
+    "Pratteln",
+    "Rheinfelden",
+    "Stein-Säckingen",
+    "Frick",
+    "Brugg AG",
+    "Baden",
+    "Dietikon",
+    "Zürich Altstetten"
+   ]
+  },
+  {
+   "name": "Zürich–Winterthur",
+   "typ": "fv",
+   "halte": [
+    "Zürich HB",
+    "Zürich Oerlikon",
+    "Zürich Flughafen",
+    "Winterthur"
+   ]
+  },
+  {
+   "name": "Winterthur–St. Gallen",
+   "typ": "fv",
+   "halte": [
+    "Winterthur",
+    "Wil SG",
+    "Uzwil",
+    "Gossau SG",
+    "St. Gallen",
+    "St. Gallen St. Fiden",
+    "Rorschach",
+    "St. Margrethen"
+   ]
+  },
+  {
+   "name": "Rheintal",
+   "typ": "rv",
+   "halte": [
+    "St. Margrethen",
+    "Heerbrugg",
+    "Altstätten SG",
+    "Buchs SG",
+    "Sargans"
+   ]
+  },
+  {
+   "name": "Sargans–Chur",
+   "typ": "fv",
+   "halte": [
+    "Sargans",
+    "Bad Ragaz",
+    "Landquart",
+    "Chur"
+   ]
+  },
+  {
+   "name": "Zürich–Sargans",
+   "typ": "fv",
+   "halte": [
+    "Zürich HB",
+    "Thalwil",
+    "Wädenswil",
+    "Pfäffikon SZ",
+    "Ziegelbrücke",
+    "Walenstadt",
+    "Sargans"
+   ]
+  },
+  {
+   "name": "Zürich–Zug",
+   "typ": "fv",
+   "halte": [
+    "Thalwil",
+    "Baar",
+    "Zug"
+   ]
+  },
+  {
+   "name": "Zug–Arth-Goldau",
+   "typ": "fv",
+   "halte": [
+    "Zug",
+    "Walchwil",
+    "Arth-Goldau"
+   ]
+  },
+  {
+   "name": "Gotthard-Basislinie",
+   "typ": "fv",
+   "halte": [
+    "Arth-Goldau",
+    "Schwyz",
+    "Brunnen",
+    "Flüelen",
+    "Altdorf",
+    "Bellinzona"
+   ]
+  },
+  {
+   "name": "Gotthard-Bergstrecke",
+   "typ": "rv",
+   "halte": [
+    "Flüelen",
+    "Erstfeld",
+    "Göschenen",
+    "Airolo",
+    "Faido",
+    "Biasca",
+    "Bellinzona"
+   ]
+  },
+  {
+   "name": "Bellinzona–Chiasso",
+   "typ": "fv",
+   "halte": [
+    "Bellinzona",
+    "Lugano",
+    "Mendrisio",
+    "Chiasso"
+   ]
+  },
+  {
+   "name": "Bellinzona–Locarno",
+   "typ": "rv",
+   "halte": [
+    "Bellinzona",
+    "Cadenazzo",
+    "Locarno"
+   ]
+  },
+  {
+   "name": "Luzern–Zug",
+   "typ": "fv",
+   "halte": [
+    "Luzern",
+    "Ebikon",
+    "Rotkreuz",
+    "Cham",
+    "Zug"
+   ]
+  },
+  {
+   "name": "Rotkreuz–Arth-Goldau",
+   "typ": "rv",
+   "halte": [
+    "Rotkreuz",
+    "Immensee",
+    "Arth-Goldau"
+   ]
+  },
+  {
+   "name": "Luzern–Küssnacht",
+   "typ": "rv",
+   "halte": [
+    "Luzern",
+    "Meggen",
+    "Küssnacht am Rigi",
+    "Immensee"
+   ]
+  },
+  {
+   "name": "Luzern–Olten",
+   "typ": "fv",
+   "halte": [
+    "Luzern",
+    "Emmenbrücke",
+    "Sursee",
+    "Zofingen",
+    "Olten"
+   ]
+  },
+  {
+   "name": "Seetal",
+   "typ": "rv",
+   "halte": [
+    "Lenzburg",
+    "Seon",
+    "Boniswil",
+    "Beinwil am See",
+    "Mosen",
+    "Hitzkirch",
+    "Hochdorf",
+    "Emmenbrücke"
+   ]
+  },
+  {
+   "name": "Freiamt",
+   "typ": "rv",
+   "halte": [
+    "Rotkreuz",
+    "Muri AG",
+    "Wohlen AG",
+    "Hendschiken",
+    "Lenzburg"
+   ]
+  },
+  {
+   "name": "Lenzburg–Brugg",
+   "typ": "rv",
+   "halte": [
+    "Hendschiken",
+    "Othmarsingen",
+    "Brugg AG"
+   ]
+  },
+  {
+   "name": "Aarau–Brugg",
+   "typ": "rv",
+   "halte": [
+    "Aarau",
+    "Wildegg",
+    "Brugg AG"
+   ]
+  },
+  {
+   "name": "Bern–Thun–Interlaken",
+   "typ": "fv",
+   "halte": [
+    "Bern",
+    "Münsingen",
+    "Thun",
+    "Spiez",
+    "Interlaken West",
+    "Interlaken Ost"
+   ]
+  },
+  {
+   "name": "Lötschberg-Basislinie",
+   "typ": "fv",
+   "halte": [
+    "Spiez",
+    "Frutigen",
+    "Visp"
+   ]
+  },
+  {
+   "name": "Lötschberg-Bergstrecke",
+   "typ": "rv",
+   "halte": [
+    "Frutigen",
+    "Kandersteg",
+    "Goppenstein",
+    "Brig"
+   ]
+  },
+  {
+   "name": "Simplonlinie",
+   "typ": "fv",
+   "halte": [
+    "Lausanne",
+    "Vevey",
+    "Montreux",
+    "Aigle",
+    "Bex",
+    "St-Maurice",
+    "Martigny",
+    "Sion",
+    "Sierre/Siders",
+    "Leuk",
+    "Visp",
+    "Brig"
+   ]
+  },
+  {
+   "name": "Jura (Biel–Basel)",
+   "typ": "fv",
+   "halte": [
+    "Biel/Bienne",
+    "Moutier",
+    "Delémont",
+    "Laufen",
+    "Aesch BL",
+    "Basel SBB"
+   ]
+  },
+  {
+   "name": "Delémont–Porrentruy",
+   "typ": "rv",
+   "halte": [
+    "Delémont",
+    "Glovelier",
+    "Porrentruy"
+   ]
+  },
+  {
+   "name": "Neuchâtel–Le Locle",
+   "typ": "rv",
+   "halte": [
+    "Neuchâtel",
+    "La Chaux-de-Fonds",
+    "Le Locle"
+   ]
+  },
+  {
+   "name": "Bern–Neuchâtel",
+   "typ": "rv",
+   "halte": [
+    "Bern",
+    "Kerzers",
+    "Ins",
+    "Neuchâtel"
+   ]
+  },
+  {
+   "name": "Bern–Luzern (Entlebuch)",
+   "typ": "rv",
+   "halte": [
+    "Bern",
+    "Konolfingen",
+    "Langnau im Emmental",
+    "Escholzmatt",
+    "Wolhusen",
+    "Luzern"
+   ]
+  },
+  {
+   "name": "Zürich–Schaffhausen",
+   "typ": "fv",
+   "halte": [
+    "Zürich Oerlikon",
+    "Bülach",
+    "Eglisau",
+    "Schaffhausen"
+   ]
+  },
+  {
+   "name": "Winterthur–Schaffhausen",
+   "typ": "rv",
+   "halte": [
+    "Winterthur",
+    "Andelfingen",
+    "Schaffhausen"
+   ]
+  },
+  {
+   "name": "Thurtal",
+   "typ": "fv",
+   "halte": [
+    "Winterthur",
+    "Frauenfeld",
+    "Weinfelden",
+    "Romanshorn"
+   ]
+  },
+  {
+   "name": "Weinfelden–Kreuzlingen",
+   "typ": "rv",
+   "halte": [
+    "Weinfelden",
+    "Kreuzlingen"
+   ]
+  },
+  {
+   "name": "Seelinie",
+   "typ": "rv",
+   "halte": [
+    "Schaffhausen",
+    "Stein am Rhein",
+    "Kreuzlingen",
+    "Romanshorn",
+    "Arbon",
+    "Rorschach"
+   ]
+  },
+  {
+   "name": "Rechtes Zürichseeufer",
+   "typ": "rv",
+   "halte": [
+    "Zürich HB",
+    "Zürich Stadelhofen",
+    "Meilen",
+    "Rapperswil"
+   ]
+  },
+  {
+   "name": "Rapperswil–Pfäffikon",
+   "typ": "rv",
+   "halte": [
+    "Rapperswil",
+    "Pfäffikon SZ"
+   ]
+  },
+  {
+   "name": "Voralpen (SOB)",
+   "typ": "rv",
+   "halte": [
+    "Pfäffikon SZ",
+    "Biberbrugg",
+    "Arth-Goldau"
+   ]
+  },
+  {
+   "name": "Rapperswil–St. Gallen (SOB)",
+   "typ": "rv",
+   "halte": [
+    "Rapperswil",
+    "Uznach",
+    "Wattwil",
+    "Herisau",
+    "St. Gallen"
+   ]
+  },
+  {
+   "name": "Säuliamt",
+   "typ": "rv",
+   "halte": [
+    "Zürich Altstetten",
+    "Affoltern am Albis",
+    "Zug"
+   ]
+  },
+  {
+   "name": "Lausanne–Vallorbe",
+   "typ": "rv",
+   "halte": [
+    "Lausanne",
+    "Cossonay",
+    "Vallorbe"
+   ]
+  },
+  {
+   "name": "Broyelinie",
+   "typ": "rv",
+   "halte": [
+    "Fribourg/Freiburg",
+    "Payerne",
+    "Yverdon-les-Bains"
+   ]
+  },
+  {
+   "name": "Simmental",
+   "typ": "rv",
+   "halte": [
+    "Spiez",
+    "Erlenbach im Simmental",
+    "Zweisimmen"
+   ]
+  },
+  {
+   "name": "Brugg–Koblenz–Winterthur",
+   "typ": "rv",
+   "halte": [
+    "Brugg AG",
+    "Turgi",
+    "Koblenz",
+    "Eglisau"
+   ]
+  },
+  {
+   "name": "RhB Albula",
+   "typ": "sm",
+   "halte": [
+    "Chur",
+    "Reichenau-Tamins",
+    "Thusis",
+    "Tiefencastel",
+    "Filisur",
+    "Bergün/Bravuogn",
+    "Samedan",
+    "St. Moritz"
+   ]
+  },
+  {
+   "name": "RhB Prättigau",
+   "typ": "sm",
+   "halte": [
+    "Landquart",
+    "Schiers",
+    "Klosters Platz",
+    "Davos Platz",
+    "Filisur"
+   ]
+  },
+  {
+   "name": "RhB Vereina",
+   "typ": "sm",
+   "halte": [
+    "Klosters Platz",
+    "Sagliains",
+    "Scuol-Tarasp"
+   ]
+  },
+  {
+   "name": "RhB Engadin",
+   "typ": "sm",
+   "halte": [
+    "Samedan",
+    "Zernez",
+    "Sagliains"
+   ]
+  },
+  {
+   "name": "RhB Surselva",
+   "typ": "sm",
+   "halte": [
+    "Reichenau-Tamins",
+    "Ilanz",
+    "Disentis/Mustér"
+   ]
+  },
+  {
+   "name": "RhB Bernina",
+   "typ": "sm",
+   "halte": [
+    "St. Moritz",
+    "Pontresina",
+    "Poschiavo",
+    "Campocologno"
+   ]
+  },
+  {
+   "name": "MGB Oberalp",
+   "typ": "sm",
+   "halte": [
+    "Disentis/Mustér",
+    "Andermatt",
+    "Göschenen"
+   ]
+  },
+  {
+   "name": "MGB Furka",
+   "typ": "sm",
+   "halte": [
+    "Andermatt",
+    "Realp",
+    "Oberwald",
+    "Fiesch",
+    "Brig"
+   ]
+  },
+  {
+   "name": "MGB Zermatt",
+   "typ": "sm",
+   "halte": [
+    "Brig",
+    "Visp",
+    "Stalden-Saas",
+    "St. Niklaus",
+    "Zermatt"
+   ]
+  },
+  {
+   "name": "Zentralbahn Brünig",
+   "typ": "sm",
+   "halte": [
+    "Luzern",
+    "Hergiswil",
+    "Sarnen",
+    "Giswil",
+    "Meiringen",
+    "Brienz",
+    "Interlaken Ost"
+   ]
+  },
+  {
+   "name": "Zentralbahn Engelberg",
+   "typ": "sm",
+   "halte": [
+    "Hergiswil",
+    "Stans",
+    "Engelberg"
+   ]
+  },
+  {
+   "name": "BOB",
+   "typ": "sm",
+   "halte": [
+    "Interlaken Ost",
+    "Wilderswil",
+    "Zweilütschinen",
+    "Lauterbrunnen"
+   ]
+  },
+  {
+   "name": "BOB Grindelwald",
+   "typ": "sm",
+   "halte": [
+    "Zweilütschinen",
+    "Grindelwald"
+   ]
+  },
+  {
+   "name": "MOB Goldenpass",
+   "typ": "sm",
+   "halte": [
+    "Montreux",
+    "Montbovon",
+    "Château-d'Oex",
+    "Gstaad",
+    "Zweisimmen"
+   ]
+  },
+  {
+   "name": "Appenzeller Bahnen",
+   "typ": "sm",
+   "halte": [
+    "St. Gallen",
+    "Teufen AR",
+    "Gais",
+    "Appenzell"
+   ]
+  },
+  {
+   "name": "Martigny–Orsières/Le Châble",
+   "typ": "rv",
+   "halte": [
+    "Martigny",
+    "Sembrancher",
+    "Le Châble"
+   ]
+  },
+  {
+   "name": "BDWM",
+   "typ": "sm",
+   "halte": [
+    "Wohlen AG",
+    "Bremgarten",
+    "Dietikon"
+   ]
+  },
+  {
+   "name": "Aigle–Leysin",
+   "typ": "sm",
+   "halte": [
+    "Aigle",
+    "Leysin-Feydey"
+   ]
+  }
+ ],
+ "stufe0": [
+  "Zürich HB",
+  "Bern",
+  "Basel SBB",
+  "Genève",
+  "Lausanne",
+  "Luzern",
+  "Lugano",
+  "St. Gallen",
+  "Chur",
+  "Winterthur",
+  "Olten",
+  "Biel/Bienne",
+  "Bellinzona",
+  "Brig",
+  "Arth-Goldau",
+  "Zürich Flughafen",
+  "Fribourg/Freiburg",
+  "Interlaken Ost",
+  "Sion",
+  "Schaffhausen",
+  "Neuchâtel",
+  "St. Moritz",
+  "Zermatt",
+  "Locarno",
+  "Aarau",
+  "Thun",
+  "Zug",
+  "Visp",
+  "Delémont",
+  "Davos Platz"
+ ],
+ "stufe1": [
+  "Spiez",
+  "Sargans",
+  "Landquart",
+  "Lenzburg",
+  "Rotkreuz",
+  "Zürich Oerlikon",
+  "Brugg AG",
+  "Baden",
+  "Zürich Altstetten",
+  "Solothurn",
+  "Pfäffikon SZ",
+  "Rapperswil",
+  "Weinfelden",
+  "Romanshorn",
+  "St. Margrethen",
+  "Rorschach",
+  "Yverdon-les-Bains",
+  "Martigny",
+  "Montreux",
+  "Samedan",
+  "Filisur",
+  "Klosters Platz",
+  "Andermatt",
+  "Göschenen",
+  "Disentis/Mustér",
+  "Zweisimmen",
+  "Hergiswil",
+  "Emmenbrücke",
+  "Wohlen AG",
+  "Thalwil",
+  "Ziegelbrücke",
+  "Flüelen",
+  "Bülach",
+  "Eglisau",
+  "Frauenfeld",
+  "Kreuzlingen",
+  "Reichenau-Tamins",
+  "Sagliains",
+  "Hendschiken",
+  "Zweilütschinen",
+  "Frutigen",
+  "Wolhusen",
+  "Immensee"
+ ]
+}
