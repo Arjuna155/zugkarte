@@ -20,8 +20,26 @@ lines = [dict(name=s["name"], type=s["typ"], stops=s["halte"], geo=g)
 fahrplan = {k: (D / "fahrplan" / f).read_text(encoding="utf-8")
             for k, f in [("wd", "mo-fr.txt"), ("sa", "samstag.txt"), ("su", "sonntag.txt")]}
 
+# Grenzüberschreitende Züge (tools/grenze.py): Halte ausserhalb des Schweizer Netzes anhängen,
+# an der Grenze gekappte Schweizer Zeilen durch die ganzen Zugläufe ersetzen.
+grenze = load("grenze.json")
+stations = load("stations.json")
+stx = {n: {"n": n, "E": round(x * 100 + 2480000), "N": round(1300000 - y * 100)}
+       for n, (x, y) in grenze["stationen"].items() if n not in stations}
+sn = list(stations) + list(stx); sidx = {n: i for i, n in enumerate(sn)}
+for k, txt in fahrplan.items():
+    zl = txt.split("\n"); head = zl[0].split("|"); rows = [l for l in zl[1:] if l]
+    weg = set(grenze["tage"][k]["weg"]); rows = [l for l in rows if l not in weg]
+    for kat, nr, ziel, seq in grenze["tage"][k]["neu"]:
+        if ziel not in head: head.append(ziel)
+        stops = ";".join(f"{sidx[n]:x},{a}" + (f",{d}" if d != a else "") for n, a, d in seq)
+        rows.append(f"{kat},{nr},{head.index(ziel)}|{stops}")
+    fahrplan[k] = "|".join(head) + "\n" + "\n".join(rows)
+
 values = {
     "__TT__": fahrplan,
+    "__STX__": stx,
+    "__KANTEN__": grenze["kanten"],
     "__STUIC__": load("stuic.json"),
     "__GEO__": load("geo.json"),
     "__DE__": load("deutschland.json"),

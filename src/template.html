@@ -225,7 +225,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
 </div>
 
 <script>
-const TT=__TT__;
+const TT=__TT__, STX=__STX__, KANTEN=__KANTEN__; // STX: Halte ausserhalb des Schweizer Netzes (grenzüberschreitende Züge)
 const DE=__DE__, DN=__DENETZ__;
 const GEO=__GEO__, ST=__ST__, LINES=__LINES__, TIER0=__TIER0__, TIER1=__TIER1__;
 const TYPES={fv:{name:"Fernverkehrsachsen",short:"Fernverkehr"},rv:{name:"Regionalstrecken",short:"Regional"},sm:{name:"Schmalspur & Privatbahnen",short:"Schmalspur"}};
@@ -431,8 +431,8 @@ q.addEventListener("blur",()=>setTimeout(()=>sg.hidden=true,100));
 // ===== Züge nach echtem Fahrplan =====
 // TT: je Tagestyp (wd = Mo–Fr, sa = Samstag, su = Sonntag) der ganze Tagesfahrplan.
 // Zeile 1 = Zielorte; danach je Zuglauf "Kat,Nr,Ziel|Halt;Halt" mit Halt = BahnhofIdx(hex),Ankunft[,Abfahrt] in Minuten ab Mitternacht
-const SN=Object.keys(ST);
-const TCLS=c=>c==="S"?"s":/^(IC|IR|EC|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
+const SN=Object.keys(ST).concat(Object.keys(STX));
+const TCLS=c=>c==="S"?"s":/^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
 const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn"};
 const DAYNAME={wd:"Montag–Freitag",sa:"Samstag",su:"Sonntag"};
 function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
@@ -444,6 +444,10 @@ const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
 const G={};
 LINES.forEach(L=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1];let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
   (G[a]=G[a]||[]).push({to:s,pts:pt,len});(G[s]=G[s]||[]).push({to:a,pts:pt.slice().reverse(),len})}));
+// Laufwege der grenzüberschreitenden Züge auf dem deutschen Netz
+for(const k in KANTEN){const [a,b]=k.split("|");let x=0,y=0;const pt=KANTEN[k].split(";").map((q,i)=>{const [u,v]=q.split(",").map(Number);if(i){x+=u;y+=v}else{x=u;y=v}return [x/10,y/10]});
+  let len=0;for(let j=1;j<pt.length;j++)len+=Math.hypot(pt[j][0]-pt[j-1][0],pt[j][1]-pt[j-1][1]);
+  (G[a]=G[a]||[]).push({to:b,pts:pt,len});(G[b]=G[b]||[]).push({to:a,pts:pt.slice().reverse(),len})}
 const pathCache={};
 function legPath(A,B){const key=A+">"+B;if(key in pathCache)return pathCache[key];
   const dist={[A]:0},prev={},done=new Set(),Q=[[0,A]];
@@ -460,7 +464,7 @@ function along(P,f){const L=P.len*f;let lo=0,hi=P.cum.length-1;while(hi-lo>1){co
 // Position eines Zuges zur Minute t seines Betriebstags
 function trainPos(r,t,rt){const T0=rt?rt.t0:r.t0,T1=rt?rt.t1:r.t1;if(t<T0||t>T1)return null;
   for(let j=0;j<r.st.length;j++){const S=rt?{i:r.st[j].i,a:rt.A[j],d:rt.D[j]}:r.st[j];
-    if(t>=S.a&&t<=S.d){const s=ST[SN[S.i]];return {x:X(s),y:Y(s),stop:j,moving:false}}
+    if(t>=S.a&&t<=S.d){const s=ST[SN[S.i]]||STX[SN[S.i]];return {x:X(s),y:Y(s),stop:j,moving:false}}
     if(j<r.st.length-1){const N=rt?{a:rt.A[j+1]}:r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P)return null;
       const u=(t-S.d)/(N.a-S.d);let f=u<.5?2*u*u:1-2*(1-u)*(1-u);f=.15*u+.85*f; // anfahren & bremsen
       const [x,y]=along(P,f);return {x,y,next:j+1,moving:true}}}}

@@ -23,7 +23,8 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Drei Betriebsarten: Claude-Artifact (mcp host:ZugKarte_Echtzeit), Windows-Programm (`ZK_LOCAL.mode` ≠ server, mit Schlüsselformular), Website (`mode:"server"`, ohne Schlüsselformular).
 
 ## Deutschland
-- `data/deutschland.json` (Umriss + Bundesländer, `tools/deutschland.py`) und `data/deutschland_netz.json` (Bahnnetz aus OSM + Bahnhöfe DB-Kategorie 1–3 aus npm `db-stations`, `tools/deutschland_netz.py`). Nur Darstellung, noch keine Züge/Fahrpläne.
+- `data/deutschland.json` (Umriss + Bundesländer, `tools/deutschland.py`) und `data/deutschland_netz.json` (Bahnnetz aus OSM + Bahnhöfe DB-Kategorie 1–3 aus npm `db-stations`, `tools/deutschland_netz.py`). Züge in Deutschland: nur grenzüberschreitende (CH↔DE) aus `data/grenze.json` (`tools/grenze.py`, Quelle gtfs.de-Auszug in `data/quellen/gtfs_de_grenze.json.gz`). build.py hängt deren Halte als `STX` an `SN` an, ersetzt die an der Grenze gekappten Schweizer Fahrplanzeilen und liefert Laufwege als `KANTEN`. GTFS (gtfs.de) hat keine Zugnummern – ohne Schweizer Gegenstück zeigt das Label die Linie (z. B. «ICE 12»).
+- gtfs.de-Download nur im Browser: Seite https://download.gtfs.de/germany/ öffnen, dann gleiche Herkunft fetchen, mit fflate (jsDelivr) entpacken und filtern.
 - OSM-Daten nur über den Browser (Overpass): overpass-api.de antwortet aus derselben Herkunft mit 406 → Abfrage von einer fremden Seite aus (z. B. data.deutschebahn.com), Kachelergebnisse in IndexedDB zwischenspeichern.
 
 ## Offene Punkte
