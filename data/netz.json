@@ -400,6 +400,10 @@
    "typ": "fv",
    "halte": [
     "Zürich Oerlikon",
+    "Glattbrugg",
+    "Rümlang",
+    "Oberglatt",
+    "Niederglatt",
     "Bülach",
     "Eglisau",
     "Neuhausen",
@@ -1510,6 +1514,65 @@
     "Zürich Stadelhofen",
     "Forch",
     "Esslingen"
+   ]
+  },
+  {
+   "name": "Oerlikon–Bülach (Glattal)",
+   "typ": "rv",
+   "halte": [
+    "Zürich Oerlikon",
+    "Glattbrugg",
+    "Rümlang",
+    "Oberglatt",
+    "Niederglatt",
+    "Bülach"
+   ]
+  },
+  {
+   "name": "Wehntal",
+   "typ": "rv",
+   "halte": [
+    "Oberglatt",
+    "Niederhasli",
+    "Dielsdorf",
+    "Schöfflisdorf-Oberweningen",
+    "Niederweningen"
+   ]
+  },
+  {
+   "name": "TPF Palézieux–Bulle–Montbovon",
+   "typ": "sm",
+   "halte": [
+    "Palézieux",
+    "Châtel-St-Denis",
+    "Bulle",
+    "Gruyères",
+    "Montbovon"
+   ]
+  },
+  {
+   "name": "TPF Bulle–Broc",
+   "typ": "sm",
+   "halte": [
+    "Bulle",
+    "Broc-Chocolatier"
+   ]
+  },
+  {
+   "name": "AB Appenzell–Wasserauen",
+   "typ": "sm",
+   "halte": [
+    "Appenzell",
+    "Weissbad",
+    "Wasserauen"
+   ]
+  },
+  {
+   "name": "BLM Grütschalp–Mürren",
+   "typ": "sm",
+   "halte": [
+    "Grütschalp",
+    "Mürren"
    ]
   }
  ],

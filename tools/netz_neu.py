@@ -89,3 +89,19 @@ NEU += [
  ("SZU Uetlibergbahn", "rv", ["Zürich Selnau", "Zürich Triemli", "Uetliberg"]),
  ("Forchbahn", "sm", ["Zürich Stadelhofen", "Forch", "Esslingen"]),
 ]
+
+# Ergänzung (25.10.2026, dritter Schritt)
+NEU += [
+ ("Oerlikon–Bülach (Glattal)", "rv", ["Zürich Oerlikon", "Glattbrugg", "Rümlang", "Oberglatt", "Niederglatt", "Bülach"]),
+ ("Wehntal", "rv", ["Oberglatt", "Niederhasli", "Dielsdorf", "Schöfflisdorf-Oberweningen", "Niederweningen"]),
+ ("TPF Palézieux–Bulle–Montbovon", "sm", ["Palézieux", "Châtel-St-Denis", "Bulle", "Gruyères", "Montbovon"]),
+ ("TPF Bulle–Broc", "sm", ["Bulle", "Broc-Chocolatier"]),
+ ("AB Appenzell–Wasserauen", "sm", ["Appenzell", "Weissbad", "Wasserauen"]),
+ ("BLM Grütschalp–Mürren", "sm", ["Grütschalp", "Mürren"]),
+]
+
+# Fahrplan von Strecken, die an den Stichtagen gesperrt waren (Bahnersatz): Daten aus einer Woche mit
+# Normalbetrieb (24./28./29.11.2026) für den jeweiligen Tagestyp. Die tagesaktuelle Sperrung zeigt der Server.
+ERSATZDATUM = {"2026-11-24": "2026-10-27", "2026-11-28": "2026-10-31", "2026-11-29": "2026-11-01"}
+# Endhalte der Ersatz-Pendelzüge an den Stichtagen (diese Fahrten werden durch die Normaldaten ersetzt)
+ERSATZ_ENDHALTE = {"Dallenwil", "Wolfenschiessen", "Les Marécottes"}

@@ -117,6 +117,62 @@ async function getData() {
   return inflight;
 }
 
+
+// ---- Sperrungen (Bahnersatz) ----
+// Einmal pro Tag (ab 03:30 Schweizer Zeit) die Abfahrten ausgewählter Bahnhöfe des Tages bei transport.opendata.ch holen
+// (mit Halteliste) und daraus bestimmen, welche Streckenteile heute befahren werden. Teile, die laut Fahrplan Verkehr
+// haben, heute aber von keiner Fahrt benutzt werden, gelten als gesperrt. Grundlage: sperren.json (tools/sperren_daten.py).
+const SPERR_FILE = path.join(DATA_DIR, "sperrungen.json");
+let SP = null; try { SP = JSON.parse(fs.readFileSync(path.join(__dirname, "sperren.json"), "utf8")); } catch (e) { log("sperren.json fehlt:", e.message); }
+let sperr = null; try { sperr = JSON.parse(fs.readFileSync(SPERR_FILE, "utf8")); } catch {}
+let sperrLaeuft = false;
+const zhParts = () => { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" }).formatToParts(new Date()).forEach(x => p[x.type] = x.value); return p; };
+const BUS = /^(B|BUS|NFB|NFO|KB|EXB|BAT|FAE|GB|PB|SL|FUN|BN|NB|EV|EXT)$/;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function sperrPruefen() {
+  if (!SP || sperrLaeuft) return; sperrLaeuft = true;
+  const p = zhParts(), datum = `${p.year}-${p.month}-${p.day}`, typ = p.weekday === "Sat" ? "sa" : p.weekday === "Sun" ? "su" : "wd";
+  const t0 = Date.now(), gesehen = new Uint32Array(SP.teile.length); let fehler = 0, abfragen = 0;
+  log("Sperrungen: prüfe", SP.abfrage.length, "Bahnhöfe für", datum);
+  try {
+    for (const [si, uic] of SP.abfrage) {
+      let von = "00:00", seiten = 0, ok = false;
+      while (seiten++ < 6) {
+        let j = null;
+        for (let k = 0; k < 3 && !j; k++) {
+          try { abfragen++; const r = await fetch(`https://transport.opendata.ch/v1/stationboard?id=${uic}&datetime=${datum}%20${von}&limit=300`, { headers: { "User-Agent": "ZugKarte (privat, 1x taeglich)" }, signal: AbortSignal.timeout(30000) });
+            if (r.ok) j = await r.json(); else await sleep(5000 * (k + 1)); } catch { await sleep(5000 * (k + 1)); }
+        }
+        if (!j) break; ok = true;
+        const sb = j.stationboard || []; let last = null;
+        for (const e of sb) {
+          const dep = e.stop && e.stop.departure; if (!dep || dep.slice(0, 10) !== datum) continue; last = dep;
+          if (BUS.test(e.category || "")) continue;
+          const seq = [];
+          (e.passList || []).forEach((q, i) => { const id = i === 0 ? uic : q.station && q.station.id; const st = SP.uic[id];
+            if (st !== undefined && seq[seq.length - 1] !== st) seq.push(st); });
+          if (seq[0] !== si) seq.unshift(si);
+          for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i]; const w = SP.beine[Math.min(a, b) + "-" + Math.max(a, b)]; if (w) for (const t of w) gesehen[t]++; }
+        }
+        if (sb.length < 300 || !last) break; von = last.slice(11, 16);
+      }
+      if (!ok) fehler++;
+      await sleep(800);
+    }
+    if (fehler > SP.abfrage.length * 0.1) { log("Sperrungen: zu viele Fehler (" + fehler + "), Ergebnis verworfen"); return; }
+    const erw = SP.erwartet[typ], teile = [];
+    SP.teile.forEach((t, i) => { const nie = !SP.erwartet.wd[i] && !SP.erwartet.sa[i] && !SP.erwartet.su[i];
+      if (gesehen[i] === 0 && (erw[i] >= 3 || nie)) teile.push(t); });   // «nie»: Strecke ohne Fahrplandaten (an den Stichtagen gesperrt)
+    sperr = { datum, erstellt: Date.now(), teile, abfragen, fehler };
+    fs.writeFileSync(SPERR_FILE, JSON.stringify(sperr));
+    log("Sperrungen:", teile.length, "gesperrte Streckenteile,", abfragen, "Abfragen,", Math.round((Date.now() - t0) / 1000), "s");
+  } catch (e) { log("Sperrungen: Fehler", e.message); }
+  finally { sperrLaeuft = false; }
+}
+function sperrTick() { const p = zhParts(), datum = `${p.year}-${p.month}-${p.day}`, min = +p.hour * 60 + +p.minute;
+  if ((!sperr || sperr.datum !== datum) && min >= 210) sperrPruefen(); }
+setTimeout(sperrTick, 20000); setInterval(sperrTick, 10 * 60000).unref();
+
 // ---- HTTP ----
 const SEC = { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "SAMEORIGIN",
   "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'" };
@@ -137,6 +193,8 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === "/api/ping") return json(req, res, 200, { app: "ZugKarte", version: VERSION });
   if (url.pathname === "/api/status") return json(req, res, 200, { version: VERSION, schluessel: !!KEY && !isPlaceholder(KEY), letzteAbfrage: cache ? cache.abgerufen : null, fehler: lastErr ? lastErr.message : null });
+  if (url.pathname === "/api/sperrungen") { const p = zhParts(), d = `${p.year}-${p.month}-${p.day}`;
+    return json(req, res, 200, sperr && sperr.datum === d ? { datum: sperr.datum, erstellt: sperr.erstellt, teile: sperr.teile } : { datum: null, teile: [] }); }
   if (url.pathname === "/api/verspaetungen") {
     try { const d = await getData(); return json(req, res, 200, d, d === cache ? cacheGz : null); }
     catch (e) { return json(req, res, e instanceof KeyError ? 401 : 502, { fehler: e instanceof KeyError ? "Echtzeit ist auf diesem Server nicht eingerichtet." : e.message }); }

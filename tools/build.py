@@ -70,4 +70,10 @@ out = ROOT / "app" / "public" / "index.html"
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(head + html + "</body></html>", encoding="utf-8")
 (ROOT / "app" / "uics.json").write_text((D / "uics.json").read_text(encoding="utf-8"), encoding="utf-8")
+# Grundlage für die tägliche Sperrungsprüfung des Servers (nur Schweizer Netz)
+import sys; sys.path.insert(0, str(ROOT / "tools")); import sperren_daten
+sp = sperren_daten.build(lines, load("stations.json"), load("stuic.json"),
+                         {k: (D / "fahrplan" / f).read_text(encoding="utf-8") for k, f in [("wd", "mo-fr.txt"), ("sa", "samstag.txt"), ("su", "sonntag.txt")]})
+(ROOT / "app" / "sperren.json").write_text(json.dumps(sp, separators=(",", ":")), encoding="utf-8")
+print(f"app/sperren.json: {len(sp['teile'])} Streckenteile, {len(sp['abfrage'])} Abfrage-Bahnhöfe")
 print(f"{out.relative_to(ROOT)}: {out.stat().st_size/1e6:.2f} MB")

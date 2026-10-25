@@ -54,6 +54,10 @@ svg{display:block;width:100%;height:100%}
 .hit{fill:none;stroke:transparent;stroke-width:14;vector-effect:non-scaling-stroke;cursor:pointer}
 .ln.dim{opacity:.18}
 .ln.hl{stroke:var(--sel);stroke-width:5}
+.sperre{fill:none;stroke:#e5484d;stroke-width:4;stroke-dasharray:7 5;stroke-linecap:butt;vector-effect:non-scaling-stroke}
+.sperrzeichen circle{fill:#e5484d;stroke:#fff;vector-effect:non-scaling-stroke}.sperrzeichen rect{fill:#fff}
+.sperrinfo{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;margin:12px 0 0;padding:8px 10px;border-radius:6px;background:color-mix(in srgb,#e5484d 10%,var(--panel));border:1px solid color-mix(in srgb,#e5484d 35%,var(--line))}
+.sperrinfo b{color:#e5484d}
 .st{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke;cursor:pointer}
 .st.t0{stroke-width:2.2}.st.t1{stroke-width:1.6}.st.t2{stroke-width:1.1}
 .st.sel{fill:var(--sel);stroke:var(--ink)}
@@ -183,6 +187,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
         <g id="denet"></g>
         <g id="dest"></g>
         <g id="lines"></g>
+        <g id="sperren"></g>
         <g id="hits"></g>
         <g id="stations"></g>
         <g id="labels"></g>
@@ -217,9 +222,10 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       </form>
       <button class="link" id="keyEdit" hidden style="margin:0 0 10px">API-Schlüssel ändern</button>
       <div class="legend" id="tlegend"></div>
+      <p class="sperrinfo" id="sperrInfo" hidden></p>
     </section>
     <section id="detail"></section>
-    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage sind nicht berücksichtigt. Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
   </aside>
 </main>
 </div>
@@ -305,6 +311,7 @@ function apply(){
     if(vis){const fs=[13,11.5,10.5][t]/s;L.setAttribute("font-size",fs);L.setAttribute("stroke-width",3/s);
       const lf=LEFT.has(n);L.setAttribute("text-anchor",lf?"end":"start");L.setAttribute("x",X(ST[n])+(lf?-1:1)*(r+3/s));L.setAttribute("y",Y(ST[n])+fs*0.35);}
   });
+  sperrZeichen.forEach(o=>{const r=7/s;o.c.setAttribute("r",r);o.c.setAttribute("stroke-width",1.5);o.r.setAttribute("x",o.x-r*0.6);o.r.setAttribute("y",o.y-r*0.18);o.r.setAttribute("width",r*1.2);o.r.setAttribute("height",r*0.36)});
   deSt.forEach(o=>{const r=[4.5,3.5,2.6][o.t]/s;o.c.setAttribute("r",r);o.c.style.display=(o.t===2&&k<0.9)||(o.t===1&&k<0.4)?"none":"";
     o.r=r;});
   const boxes=[]; // Beschriftungen ohne Überlappung (wichtigere Bahnhöfe zuerst)
@@ -443,8 +450,8 @@ function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
 const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
 // Graph aus den Streckenteilen (Kartenkoordinaten)
 const G={};
-LINES.forEach(L=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1];let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
-  (G[a]=G[a]||[]).push({to:s,pts:pt,len});(G[s]=G[s]||[]).push({to:a,pts:pt.slice().reverse(),len})}));
+LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1],id=i+":"+(j-1);let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
+  (G[a]=G[a]||[]).push({to:s,pts:pt,len,id});(G[s]=G[s]||[]).push({to:a,pts:pt.slice().reverse(),len,id})}));
 // Laufwege der grenzüberschreitenden Züge auf dem deutschen Netz
 for(const k in KANTEN){const [a,b]=k.split("|");let x=0,y=0;const pt=KANTEN[k].split(";").map((q,i)=>{const [u,v]=q.split(",").map(Number);if(i){x+=u;y+=v}else{x=u;y=v}return [x/10,y/10]});
   let len=0;for(let j=1;j<pt.length;j++)len+=Math.hypot(pt[j][0]-pt[j-1][0],pt[j][1]-pt[j-1][1]);
@@ -458,15 +465,33 @@ function legPath(A,B){const key=A+">"+B;if(key in pathCache)return pathCache[key
   const seq=[];let c=B;while(c!==A){seq.push(prev[c][1]);c=prev[c][0]}seq.reverse();
   const pts=[];seq.forEach(e=>pts.push(...(pts.length?e.pts.slice(1):e.pts)));
   const cum=[0];for(let k=1;k<pts.length;k++)cum.push(cum[k-1]+Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]));
-  return pathCache[key]={pts,cum,len:cum[cum.length-1]}}
+  return pathCache[key]={pts,cum,len:cum[cum.length-1],ids:seq.map(e=>e.id).filter(Boolean)}}
+// Gesperrte Streckenteile (Bahnersatz) des heutigen Tages, vom Server täglich ermittelt (/api/sperrungen)
+const SPERR={datum:null,teile:new Set()};let sperrHeute=false;
+const legZu=P=>sperrHeute&&!!P&&P.ids.some(id=>SPERR.teile.has(id));
+let sperrZeichen=[];
+function drawSperren(){const g=$("sperren");g.innerHTML="";sperrZeichen=[];const namen=new Set();
+  for(const id of SPERR.teile){const [i,j]=id.split(":").map(Number),L=LINES[i];if(!L||!L.parts[j])continue;const pt=L.parts[j];namen.add(L.name);
+    const tip=`Gesperrt: ${L.stops[j]} – ${L.stops[j+1]} (heute kein Zugverkehr, Bahnersatz)`;
+    const pa=el("path",{d:"M"+pt.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join("L"),class:"sperre"},g);
+    // Zeichen in der Mitte des Abschnitts
+    let tot=0;for(let k=1;k<pt.length;k++)tot+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);let acc=0,m=pt[0];
+    for(let k=1;k<pt.length;k++){const d=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);if(acc+d>=tot/2){const u=(tot/2-acc)/(d||1);m=[pt[k-1][0]+(pt[k][0]-pt[k-1][0])*u,pt[k-1][1]+(pt[k][1]-pt[k-1][1])*u];break}acc+=d}
+    const z=el("g",{class:"sperrzeichen"},g);const c=el("circle",{cx:m[0],cy:m[1]},z);const r=el("rect",{},z);sperrZeichen.push({c,r,x:m[0],y:m[1]});
+    for(const e of [pa,z]){e.addEventListener("pointerenter",ev=>showTip(tip,ev));e.addEventListener("pointermove",ev=>showTip(tip,ev));e.addEventListener("pointerleave",hideTip)}}
+  const box=$("sperrInfo");if(SPERR.teile.size&&box){box.hidden=false;box.innerHTML=`<span aria-hidden="true">⚠</span><span><b>Heute gesperrt</b> (Bahnersatz): ${[...namen].sort().join(", ")}. Auf diesen Abschnitten fahren heute keine Züge.</span>`}else if(box)box.hidden=true;
+  apply()}
+async function sperrLaden(){try{const r=await fetch("/api/sperrungen",{cache:"no-store"});if(!r.ok)return;const j=await r.json();
+  SPERR.datum=j.datum;SPERR.teile=new Set((j.teile||[]).map(([i,k])=>i+":"+k));drawSperren()}catch(e){}}
 function legs(r){if(!r.legs){r.legs=[];for(let j=1;j<r.st.length;j++){const A=r.st[j-1],B=r.st[j];r.legs.push(B.a>A.d?legPath(SN[A.i],SN[B.i]):null)}}return r.legs}
 function along(P,f){const L=P.len*f;let lo=0,hi=P.cum.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(P.cum[m]<L)lo=m;else hi=m}
   const seg=P.cum[hi]-P.cum[lo]||1,u=(L-P.cum[lo])/seg,a=P.pts[lo],b=P.pts[hi];return [a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u]}
 // Position eines Zuges zur Minute t seines Betriebstags
 function trainPos(r,t,rt){const T0=rt?rt.t0:r.t0,T1=rt?rt.t1:r.t1;if(t<T0||t>T1)return null;
   for(let j=0;j<r.st.length;j++){const S=rt?{i:r.st[j].i,a:rt.A[j],d:rt.D[j]}:r.st[j];
-    if(t>=S.a&&t<=S.d){const s=ST[SN[S.i]]||STX[SN[S.i]];return {x:X(s),y:Y(s),stop:j,moving:false}}
-    if(j<r.st.length-1){const N=rt?{a:rt.A[j+1]}:r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P)return null;
+    if(t>=S.a&&t<=S.d){if(sperrHeute){const L=legs(r);if((j===0||legZu(L[j-1]))&&(j===r.st.length-1||legZu(L[j])))return null}
+      const s=ST[SN[S.i]]||STX[SN[S.i]];return {x:X(s),y:Y(s),stop:j,moving:false}}
+    if(j<r.st.length-1){const N=rt?{a:rt.A[j+1]}:r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P||legZu(P))return null;
       const u=(t-S.d)/(N.a-S.d);let f=u<.5?2*u*u:1-2*(1-u)*(1-u);f=.15*u+.85*f; // anfahren & bremsen
       const [x,y]=along(P,f);return {x,y,next:j+1,moving:true}}}}
   return null}
@@ -501,6 +526,7 @@ readColors();try{matchMedia("(prefers-color-scheme: dark)").addEventListener("ch
 new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 let visible=[], sel=null, slowT=0;
 function frame(now){const dt=Math.min(now-lastReal,1000);lastReal=now;simMs+=dt*speed;
+  sperrHeute=SPERR.teile.size>0&&SPERR.datum===zh(simMs).date;
   $("clk").textContent=clockSec(simMs);
   const r=wrap.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
   if(cv.width!==Math.round(r.width*dpr)||cv.height!==Math.round(r.height*dpr)){cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr)}
@@ -617,6 +643,7 @@ if(window.ZK_LOCAL){
     catch(err){$("keyMsg").textContent="Das Programm ZugKarte antwortet nicht. Ist das ZugKarte-Fenster noch offen?"}
     $("keySave").disabled=false});
   setRT("wait","Hole Echtzeitdaten …");localPoll();setInterval(localPoll,60000);setInterval(rtTick,15000);
+  if(window.ZK_LOCAL.mode==="server"){sperrLaden();setInterval(sperrLaden,30*60000)}
 }else (async()=>{let mcp=null;try{mcp=window.claude&&window.claude.use?await window.claude.use("mcp"):null}catch(e){mcp=null}
   if(!mcp){setRT("off","Echtzeit gibt es nur in der Claude-Desktop-App mit der Erweiterung «ZugKarte Echtzeit». Hier zeigt die Karte den Fahrplan.");return}
   rtMcp=mcp;setRT("wait","Verbinde Echtzeit …");

@@ -19,7 +19,7 @@ from shapely.geometry import LineString, Point
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 D = ROOT / "data"; Q = D / "quellen"
-sys.path.insert(0, str(ROOT / "tools")); from netz_neu import NEU
+sys.path.insert(0, str(ROOT / "tools")); from netz_neu import NEU, ERSATZDATUM, ERSATZ_ENDHALTE
 
 def lv95(lat, lon):   # Näherungsformel swisstopo (wie beim ursprünglichen Netz)
     p = (lat * 3600 - 169028.66) / 10000; l = (lon * 3600 - 26782.5) / 10000
@@ -34,7 +34,7 @@ B = Q / "basis"
 ST = jload(B / "stations.json"); NETZ = jload(B / "netz.json"); GEO = jload(B / "geo_lines.json"); STUIC = jload(B / "stuic.json")
 id2n = jload(Q / "ch_id2n.json"); halte = jload(Q / "ch_halte.json.gz")
 SB = {}
-for f in ("ch_sb_neu.json.gz", "ch_sb_neu2.json.gz"):     # 1: Normalspur-Regionalstrecken, 2: Schmalspur/Privatbahnen
+for f in ("ch_sb_neu.json.gz", "ch_sb_neu2.json.gz", "ch_sb_neu3.json.gz"):   # 1: Normalspur-Regional, 2: Schmalspur, 3: Ergänzung + Normalbetrieb gesperrter Strecken
     SBX = jload(Q / f); SB.update(SBX["sb"])
     for sid, h in SBX["halte"].items(): halte.setdefault(sid, h)
 
@@ -54,6 +54,11 @@ for n, typ, hs in NEU:
         nm = s.replace(" (Suisse)", "").replace(", Station", "")
         ST[nm] = dict(n=nm, lat=round(la, 5), lon=round(lo, 5), E=round(E), N=round(N)); alias[s] = nm
         id2n[sid] = nm; STUIC.append([sid])
+# bestehende Kartenbahnhöfe ohne bisherige Halt-ID (an den Stichtagen gesperrt, z. B. Engelberg, St. Niklaus)
+for name, (sid, sname, la, lo) in n2id_board.items():
+    n = alias.get(name, name)
+    if n in ST and sid not in id2n:
+        id2n[sid] = n; STUIC[list(ST).index(n)].append(sid); print("  Halt-ID ergänzt:", n, sid)
 print(len(ST), "Kartenbahnhöfe")
 names = list(ST); XY = {n: ((s["E"] - 2480000) / 100, (1300000 - s["N"]) / 100) for n, s in ST.items()}
 
@@ -185,6 +190,13 @@ def path(A, B):
     cache[(A, B)] = (LineString(pts), dist[B]); return cache[(A, B)]
 
 idx = {n: i for i, n in enumerate(names)}
+def ersatzfahrt(to, stops):   # Pendelzug einer Bahnersatz-Phase an den Stichtagen?
+    if to in ERSATZ_ENDHALTE: return True
+    seq = sorted(stops.items(), key=lambda kv: max(kv[1]))
+    for sid, _ in (seq[0], seq[-1]):
+        h = halte.get(sid)
+        if h and h[0] in ERSATZ_ENDHALTE: return True
+    return False
 FILES = {"2026-10-27": "mo-fr.txt", "2026-10-31": "samstag.txt", "2026-11-01": "sonntag.txt"}
 for datum, fn in FILES.items():
     J = []; index = {}
@@ -206,10 +218,12 @@ for datum, fn in FILES.items():
         for q in body.split(";"):
             if not q: continue
             sid, a, d = q.split(":"); stops[sid] = (int(a) if a else -1, int(d) if d else -1)
+        if ersatzfahrt(to, stops): continue
         add(c, n, to, stops)
     nraw = len(J)
     for k, v in SB.items():
-        if not k.startswith(datum): continue
+        kd = k.split("|")[0]
+        if kd != datum and ERSATZDATUM.get(kd) != datum: continue
         for cat, num, to, pl in v["t"]:
             stops = {}
             for j, q in enumerate(pl.split(";")):
@@ -217,6 +231,7 @@ for datum, fn in FILES.items():
                 # transport.opendata.ch liefert im ersten passList-Eintrag (= Bahnhof der Tafel) eine falsche ID
                 if j == 0 and not a and v.get("id"): sid = v["id"]
                 stops[sid] = (int(a) if a else -1, int(d) if d else -1)
+            if kd == datum and ersatzfahrt(to, stops): continue
             add(cat, num or "", to, stops)
     # in Kartenhalte übersetzen, unplausible Abschnitte verwerfen (wie bisher)
     dests = []; di = {}; out = []; ok = bad = 0
