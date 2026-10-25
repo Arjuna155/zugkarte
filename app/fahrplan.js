@@ -133,6 +133,7 @@ function heuteZH() { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: 
 function fpJahr(iso) { const y = +iso.slice(0, 4); const d1 = new Date(Date.UTC(y, 11, 1)); const ersterSo = 1 + (7 - d1.getUTCDay()) % 7; const wechsel = `${y}-12-${String(ersterSo + 7).padStart(2, "0")}`; return iso >= wechsel ? y + 1 : y; }
 
 // ---------- Umrechnung GTFS → Kartenfahrplan ----------
+const UMRECHNUNG = 2;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
 const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt)
 // tage: ["JJJJ-MM-TT", …]; zips: [Pfad, …]; liefert {datum: {ziele:[…], zeilen:[…], feed}}
 async function umrechnen(B, zips, tage, log) {
@@ -290,7 +291,7 @@ async function erzeugenProzess(DATA_DIR) {
   }
   for (const f of fs.readdirSync(V.fp)) { const m = f.match(/^(\d{4}-\d{2}-\d{2})\.json\.gz$/); if (m && m[1] < plusTage(heute, -2)) fs.unlinkSync(path.join(V.fp, f)); }
   const s2 = lesStatus(DATA_DIR);
-  s2.erzeugt = { zeit: Date.now(), v: B.v, bis: tage[tage.length - 1], tage: Object.fromEntries(Object.entries(erg).map(([d, x]) => [d, x.zuege])), stats, dauer: Math.round((Date.now() - t0) / 1000) };
+  s2.erzeugt = { zeit: Date.now(), v: B.v, u: UMRECHNUNG, bis: tage[tage.length - 1], tage: Object.fromEntries(Object.entries(erg).map(([d, x]) => [d, x.zuege])), stats, dauer: Math.round((Date.now() - t0) / 1000) };
   schreibStatus(DATA_DIR, s2);
   log("Fahrplan: erzeugt", Object.keys(erg).length, "Tage in", s2.erzeugt.dauer, "s |", JSON.stringify(stats));
 }
@@ -327,7 +328,7 @@ function start({ DATA_DIR, log }) {
       for (const j of Object.keys(st.feeds)) if (!jahre.includes(+j) && +j < Math.min(...jahre)) { try { fs.unlinkSync(path.join(V.gtfs, `fp${j}.zip`)); } catch {} delete st.feeds[j]; schreibStatus(DATA_DIR, st); }
       letztePruefung = Date.now();
       const e = st.erzeugt;
-      const noetig = neu || !e || e.v !== B.v || !e.bis || e.bis < plusTage(heute, 5) || !fs.existsSync(path.join(V.fp, heute + ".json.gz"));
+      const noetig = neu || !e || e.v !== B.v || e.u !== UMRECHNUNG || !e.bis || e.bis < plusTage(heute, 5) || !fs.existsSync(path.join(V.fp, heute + ".json.gz"));
       if (!noetig) { log("Fahrplan: aktuell (" + grund + ")"); return; }
       log("Fahrplan: erzeuge (" + grund + (neu ? ", neue Ausgabe" : "") + ") …");
       await new Promise((res, rej) => {
