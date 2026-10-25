@@ -42,6 +42,9 @@ svg{display:block;width:100%;height:100%}
 .de{fill:var(--land);stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.85}
 .debl{fill:none;stroke:var(--canton);stroke-width:1;vector-effect:non-scaling-stroke}
 .delbl{fill:var(--muted);font-family:var(--f-ui);font-weight:600;letter-spacing:.04em;text-anchor:middle;pointer-events:none;opacity:.8}
+.dln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.dln.f{stroke:var(--fv);stroke-width:2.2}.dln.m{stroke:var(--rv);stroke-width:1.4}.dln.b{stroke:var(--rv);stroke-width:.9;opacity:.55}
+.dst{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke}
 .cant{fill:none;stroke:var(--canton);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
 .lake{fill:var(--lake);stroke:none}
 .ln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
@@ -177,6 +180,8 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
         <path class="ch" id="ch"></path>
         <g id="lakes"></g>
         <path class="cant" id="cant"></path>
+        <g id="denet"></g>
+        <g id="dest"></g>
         <g id="lines"></g>
         <g id="hits"></g>
         <g id="stations"></g>
@@ -214,14 +219,14 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <div class="legend" id="tlegend"></div>
     </section>
     <section id="detail"></section>
-    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON). Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0). Züge nach dem ganzen Tagesfahrplan (transport.opendata.ch, gültig bis zum Fahrplanwechsel am 13.12.2026), je für Montag–Freitag, Samstag und Sonntag, in Schweizer Zeit. Feiertage und Baustellen-Ersatzfahrpläne sind nicht berücksichtigt. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
   </aside>
 </main>
 </div>
 
 <script>
 const TT=__TT__;
-const DE=__DE__;
+const DE=__DE__, DN=__DENETZ__;
 const GEO=__GEO__, ST=__ST__, LINES=__LINES__, TIER0=__TIER0__, TIER1=__TIER1__;
 const TYPES={fv:{name:"Fernverkehrsachsen",short:"Fernverkehr"},rv:{name:"Regionalstrecken",short:"Regional"},sm:{name:"Schmalspur & Privatbahnen",short:"Schmalspur"}};
 const NS="http://www.w3.org/2000/svg";
@@ -234,6 +239,12 @@ const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");
 $("ch").setAttribute("d",GEO.country);
 $("cant").setAttribute("d",GEO.cantons);
 $("de").setAttribute("d",DE.country);$("debl").setAttribute("d",DE.states);
+// Deutsches Bahnnetz (OpenStreetMap) und grössere Bahnhöfe (DB-Kategorie 1–3)
+const decDN=s=>s?s.split("/").map(p=>{let x=0,y=0;return "M"+p.split(";").map((q,i)=>{const [a,b]=q.split(",").map(Number);if(i){x+=a;y+=b}else{x=a;y=b}return (x/10).toFixed(1)+","+(y/10).toFixed(1)}).join("L")}).join(""):"";
+["b","m","f"].forEach(c=>el("path",{d:decDN(DN[c]),class:"dln "+c},$("denet")));
+const deSt=DN.st.slice().reverse().map(([n,x,y,t])=>{const c=el("circle",{cx:x,cy:y,r:3,class:"dst st t"+t},$("dest"));c.addEventListener("pointerenter",e=>showTip(n,e));c.addEventListener("pointerleave",hideTip);
+  const l=el("text",{x:x,y:y,class:"lbl t"+t},$("labels"));l.textContent=n;return {c,l,t,x,y,n}});
+const deOrd=deSt.slice().reverse(); // Reihenfolge der Daten: wichtigste zuerst
 const deLbls=DE.labels.map(b=>{const t=el("text",{x:b.x,y:b.y,class:"delbl"},$("delbl"));t.textContent=b.name;return t});
 GEO.lakes.forEach(l=>el("path",{d:l.d,class:"lake"},$("lakes")));
 
@@ -294,7 +305,15 @@ function apply(){
     if(vis){const fs=[13,11.5,10.5][t]/s;L.setAttribute("font-size",fs);L.setAttribute("stroke-width",3/s);
       const lf=LEFT.has(n);L.setAttribute("text-anchor",lf?"end":"start");L.setAttribute("x",X(ST[n])+(lf?-1:1)*(r+3/s));L.setAttribute("y",Y(ST[n])+fs*0.35);}
   });
-  deLbls.forEach(t=>{t.setAttribute("font-size",11/s);t.style.display=(k<3&&s>=0.05)?"":"none"});
+  deSt.forEach(o=>{const r=[4.5,3.5,2.6][o.t]/s;o.c.setAttribute("r",r);o.c.style.display=(o.t===2&&k<0.9)||(o.t===1&&k<0.4)?"none":"";
+    o.r=r;});
+  const boxes=[]; // Beschriftungen ohne Überlappung (wichtigere Bahnhöfe zuerst)
+  deOrd.forEach(o=>{let v=o.t===0?k>=0.2:o.t===1?k>=0.9:k>=2.2;const fs=[12,11,10.5][o.t]/s;
+    const b=[o.x+o.r+2/s,o.y-fs*0.6,o.x+o.r+3/s+o.n.length*fs*0.55,o.y+fs*0.6];
+    if(v&&boxes.some(q=>b[0]<q[2]&&b[2]>q[0]&&b[1]<q[3]&&b[3]>q[1]))v=false;
+    o.l.style.display=v?"":"none";
+    if(v){boxes.push(b);o.l.setAttribute("font-size",fs);o.l.setAttribute("stroke-width",3/s);o.l.setAttribute("x",o.x+o.r+3/s);o.l.setAttribute("y",o.y+fs*0.35)}});
+  deLbls.forEach(t=>{t.setAttribute("font-size",11/s);t.style.display=(k<0.2&&s>=0.03)?"":"none"});
   // Massstab: 1 Karteneinheit = 100 m
   const target=90/s*100; const steps=[500,1000,2000,5000,10000,20000,50000,100000];
   const m=steps.find(v=>v>=target*0.6)||100000; $("scaleBar").style.width=(m/100*s).toFixed(0)+"px";

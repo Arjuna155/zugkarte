@@ -22,6 +22,10 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Echtzeit-Abgleich über (Bahnhof, Sollzeit); Verspätung wird vorwärts weitergereicht.
 - Drei Betriebsarten: Claude-Artifact (mcp host:ZugKarte_Echtzeit), Windows-Programm (`ZK_LOCAL.mode` ≠ server, mit Schlüsselformular), Website (`mode:"server"`, ohne Schlüsselformular).
 
+## Deutschland
+- `data/deutschland.json` (Umriss + Bundesländer, `tools/deutschland.py`) und `data/deutschland_netz.json` (Bahnnetz aus OSM + Bahnhöfe DB-Kategorie 1–3 aus npm `db-stations`, `tools/deutschland_netz.py`). Nur Darstellung, noch keine Züge/Fahrpläne.
+- OSM-Daten nur über den Browser (Overpass): overpass-api.de antwortet aus derselben Herkunft mit 406 → Abfrage von einer fremden Seite aus (z. B. data.deutschebahn.com), Kachelergebnisse in IndexedDB zwischenspeichern.
+
 ## Offene Punkte
 - Fahrplan vor dem Fahrplanwechsel am 13.12.2026 neu laden (Quelle: transport.opendata.ch stationboard, nur aus dem Browser erreichbar).
 - Engelberg-Strecke und MGB Visp–Zermatt haben keine Fahrplandaten.

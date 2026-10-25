@@ -25,6 +25,7 @@ values = {
     "__STUIC__": load("stuic.json"),
     "__GEO__": load("geo.json"),
     "__DE__": load("deutschland.json"),
+    "__DENETZ__": load("deutschland_netz.json"),
     "__ST__": load("stations.json"),
     "__LINES__": lines,
     "__TIER0__": netz["stufe0"],
