@@ -2,3 +2,5 @@ node_modules/
 *.tmp
 .DS_Store
 /data-local/
+__pycache__/
+*.pyc
