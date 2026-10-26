@@ -14,6 +14,7 @@ const map=new maplibregl.Map({container:"map",style:"https://vectortiles.geo.adm
   bounds:CH_BOX,fitBoundsOptions:{padding:20},pitch:mit3d?35:0,maxPitch:80,
   attributionControl:{compact:true,customAttribution:"Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff © OpenStreetMap"}});
 map.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
+try{new ResizeObserver(()=>map.resize()).observe($("map"))}catch(e){}   // Seitenleiste auf/zu, Drehen des Handys
 let mapBereit=false;
 function apply(){}   // die 2D-Karte zeichnet hier neu; MapLibre macht das selbst
 function fit(box){const a=wgs(box[0],box[3]),b=wgs(box[2],box[1]);map.fitBounds([a,b],{padding:60,maxZoom:14,duration:900})}

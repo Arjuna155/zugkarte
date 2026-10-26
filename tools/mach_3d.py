@@ -27,6 +27,7 @@ s = src
 s = ersetze(s, "<style>", '<link rel="stylesheet" href="lib/maplibre-gl.css">\n<style>')
 s = ersetze(s, ".mapwrap{position:relative;min-width:0;min-height:0;overflow:hidden;touch-action:none;cursor:grab}",
             ".mapwrap{position:relative;min-width:0;min-height:0;overflow:hidden}\n#map{position:absolute;inset:0}\n"
+            ".app{grid-template-columns:minmax(0,1fr)}header>*{min-width:0;max-width:100%}.clock{min-width:0}.rtpill{min-width:0}\n"
             ".ctrl{z-index:3}.ctrl button[aria-pressed=\"true\"]{background:var(--ink);color:var(--panel)}\n"
             ".maplibregl-ctrl-attrib{font-size:11px}.maplibregl-ctrl-bottom-left{left:env(safe-area-inset-left,0px)}")
 s = ersetze(s, '<h1>Bahnnetz Schweiz <small>Hauptnetz</small></h1>', '<h1>ÖV Schweiz <small>3D-Karte</small></h1>')
