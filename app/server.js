@@ -61,6 +61,8 @@ function seite(datei) {
   return { raw: Buffer.from(raw), gz: zlib.gzipSync(raw, { level: 9 }), etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' };
 }
 const PAGE = seite("index.html");
+// CSP der 3D-Karte – gilt auch für den Web-Worker (lädt die Kacheln selbst)
+const CSP3D = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
 let PAGE3D = null; try { PAGE3D = seite("3d.html"); } catch {}   // 3D-Karte (Prototyp, MapLibre)
 // Bibliotheken der 3D-Karte (MapLibre GL, selbst ausgeliefert)
 const LIB = {}; try { for (const f of fs.readdirSync(path.join(__dirname, "public", "lib"))) { const b = fs.readFileSync(path.join(__dirname, "public", "lib", f)); LIB[f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }) }; } } catch {}
@@ -231,7 +233,7 @@ const server = http.createServer(async (req, res) => {
   }
   if ((url.pathname === "/3d" || url.pathname === "/3d.html") && PAGE3D) {
     // 3D-Karte: Kacheln von swisstopo (Grundkarte) und Mapterhorn (Gelände)
-    const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
+    const csp = CSP3D;
     if (req.headers["if-none-match"] === PAGE3D.etag) { res.writeHead(304, { ...SEC, "Content-Security-Policy": csp, ETag: PAGE3D.etag }); return res.end(); }
     const h = { ...SEC, "Content-Security-Policy": csp, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE3D.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE3D.gz); }
@@ -239,7 +241,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname.startsWith("/lib/") && LIB[url.pathname.slice(5)]) {
     const f = LIB[url.pathname.slice(5)], ct = url.pathname.endsWith(".css") ? "text/css; charset=utf-8" : url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/plain; charset=utf-8";
-    const h = { ...SEC, "Content-Type": ct, "Cache-Control": "public, max-age=86400", Vary: "Accept-Encoding" };
+    const h = { ...SEC, "Content-Security-Policy": CSP3D, "Content-Type": ct, "Cache-Control": "public, max-age=86400", Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : f.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : f.raw);
   }
