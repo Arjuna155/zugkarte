@@ -25,7 +25,9 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 ## 3D-Karte (Etappe 2, Prototyp seit 26.10.2026)
 - `src/template3d.html` → `app/public/3d.html` (build.py, gleiche Platzhalter), Server liefert sie unter `/3d` mit eigener CSP aus. MapLibre GL 5.6.0 (CSP-Build) liegt selbst ausgeliefert in `app/public/lib/` (`/lib/…`).
 - Grundkarte: swisstopo-Vektorkacheln (`vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json`), Gelände: Mapterhorn (`tiles.mapterhorn.com/{z}/{x}/{y}.webp`, terrarium, 512 px), beide ohne Schlüssel.
-- Fahrzeuge: gleiche Fahrplan-/Positionslogik wie die 2D-Karte (Code kopiert), Kartenkoordinaten → WGS84 per swisstopo-Näherung, GeoJSON-Quelle ~15×/s aktualisiert. Linien mit Chaikin geglättet (Raster der Gleisdaten).
+- `src/template3d.html` wird von `tools/mach_3d.py` aus `src/template.html` ERZEUGT (nicht von Hand ändern): ganze Logik der 2D-Karte (Fahrplan, Echtzeit, Sperrungen, Abfahrten, Suche, Seitenleiste) bleibt, die Darstellung (SVG/Canvas) wird durch `src/karte3d.js` (MapLibre, Ebenen, Klicks) und `src/karte3d_frame.js` (Fahrzeuge als GeoJSON ~15×/s) ersetzt. Nach Änderungen an der 2D-Vorlage: `python3 tools/mach_3d.py && python3 tools/build.py`.
+- Kartenkoordinaten → WGS84 per swisstopo-Näherung; Linien mit Chaikin geglättet. `/2d` = alte Karte.
+- Schriften der swisstopo-Grundkarte nur bis U+00FF: Zeichen wie «–» oder «′» in Symbol-Ebenen lassen die ganze Quelle ausfallen (Labels werden bereinigt).
 
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:

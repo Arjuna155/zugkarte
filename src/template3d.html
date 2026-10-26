@@ -1,62 +1,463 @@
+<title>Bahnnetz Schweiz</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="lib/maplibre-gl.css">
 <style>
+/* Layout: Karte füllt den Bildschirm, Seitenleiste rechts (Desktop) bzw. unten (Handy) */
 :root{
-  --ink:#16222b; --muted:#5d6d77; --line:#dbe2e5; --panel:rgba(255,255,255,.94);
-  --tfv:#e5484d; --trv:#7b4fd6; --ts:#2f6fe0; --ttr:#0f9488; --tsch:#0369a1; --sel:#e3a008;
-  --f-ui:system-ui,-apple-system,"Segoe UI",sans-serif; --f-mono:ui-monospace,Menlo,Consolas,monospace;
+  --ground:#e6ecee; --land:#fbfcfb; --lake:#b9d5e5; --canton:#cfd8dc;
+  --ink:#16222b; --muted:#5d6d77; --line:#dbe2e5; --panel:#ffffff;
+  --fv:#16222b; --rv:#22808f; --sm:#b5612a; --sel:#e3a008;
+  --tfv:#e5484d; --trv:#7b4fd6; --ts:#2f6fe0; --ttr:#0f9488; --tsch:#0369a1; --oevln:#7d8f99; --schln:#5b9cc8; --tring:#ffffff; --late:#d97706; --ok:#16a34a;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
 }
-@media (prefers-color-scheme: dark){:root{--ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:rgba(18,26,31,.92)}}
-html,body{height:100%;margin:0;background:#e6ecee}
-#map{position:fixed;inset:0}
-.panel{position:fixed;left:12px;top:12px;z-index:2;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;
-  padding:10px 12px;font:13px var(--f-ui);box-shadow:0 4px 16px rgba(0,0,0,.12);max-width:min(330px,calc(100vw - 48px))}
-.panel h1{font-size:15px;margin:0 0 2px}.panel h1 small{font-weight:500;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-left:4px}
-.panel .row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
-.panel time{font:600 18px var(--f-mono);font-variant-numeric:tabular-nums}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.seg button{border:0;background:transparent;color:var(--ink);font:600 12px var(--f-ui);padding:5px 9px;cursor:pointer}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#0d1317; --land:#172026; --lake:#1d3a4c; --canton:#2a363d;
+  --ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:#121a1f;
+  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --ttr:#2dd4bf; --tsch:#38bdf8; --oevln:#5d6f78; --schln:#4f8fb8; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ground:#0d1317; --land:#172026; --lake:#1d3a4c; --canton:#2a363d;
+  --ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:#121a1f;
+  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --ttr:#2dd4bf; --tsch:#38bdf8; --oevln:#5d6f78; --schln:#4f8fb8; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:14px;overflow:hidden}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--panel);border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:18px;font-weight:700;font-stretch:80%;letter-spacing:.01em;display:flex;align-items:baseline;gap:10px}
+h1 small{font-size:12px;font-weight:500;color:var(--muted);font-stretch:100%;letter-spacing:.04em;text-transform:uppercase}
+.search{margin-left:auto;position:relative;flex:0 1 280px;min-width:0}
+.search input{width:100%;box-sizing:border-box;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--ground);color:var(--ink)}
+.search input:focus{outline:2px solid var(--rv);outline-offset:1px}
+.sugg{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;z-index:20;max-height:260px;overflow:auto;box-shadow:0 8px 24px rgb(0 0 0/.15)}
+.sugg button{display:block;width:100%;text-align:left;font:inherit;padding:8px 12px;border:0;background:none;color:var(--ink);cursor:pointer}
+.sugg button:hover,.sugg button.on{background:var(--ground)}
+main{display:grid;grid-template-columns:1fr 320px;min-height:0}
+.mapwrap{position:relative;min-width:0;min-height:0;overflow:hidden}
+#map{position:absolute;inset:0}
+.ctrl{z-index:3}.ctrl button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.maplibregl-ctrl-attrib{font-size:11px}.maplibregl-ctrl-bottom-left{left:env(safe-area-inset-left,0px)}
+.mapwrap.drag{cursor:grabbing}
+svg{display:block;width:100%;height:100%}
+.relief{mix-blend-mode:multiply;opacity:.42;pointer-events:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .relief{filter:invert(1);mix-blend-mode:screen;opacity:.16}}
+:root[data-theme="dark"] .relief{filter:invert(1);mix-blend-mode:screen;opacity:.16}
+.ch{fill:var(--land);stroke:var(--muted);stroke-width:1.2;vector-effect:non-scaling-stroke}
+.de{fill:var(--land);stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.85}
+.debl{fill:none;stroke:var(--canton);stroke-width:1;vector-effect:non-scaling-stroke}
+.delbl{fill:var(--muted);font-family:var(--f-ui);font-weight:600;letter-spacing:.04em;text-anchor:middle;pointer-events:none;opacity:.8}
+.oev{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.oev.t{stroke:var(--oevln);stroke-width:1.1;opacity:.8}.oev.s{stroke:var(--schln);stroke-width:1.2;stroke-dasharray:5 4}
+.dln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.dln.f{stroke:var(--fv);stroke-width:2.2}.dln.m{stroke:var(--rv);stroke-width:1.4}.dln.b{stroke:var(--rv);stroke-width:.9;opacity:.55}
+.dst{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke}
+.cant{fill:none;stroke:var(--canton);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.lake{fill:var(--lake);stroke:none}
+.ln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.ln.fv{stroke:var(--fv);stroke-width:3.2}
+.ln.rv{stroke:var(--rv);stroke-width:2.4}
+.ln.sm{stroke:var(--sm);stroke-width:2.2;stroke-dasharray:1 0}
+.hit{fill:none;stroke:transparent;stroke-width:14;vector-effect:non-scaling-stroke;cursor:pointer}
+.ln.dim{opacity:.18}
+.ln.hl{stroke:var(--sel);stroke-width:5}
+.sperre{fill:none;stroke:#e5484d;stroke-width:4;stroke-dasharray:7 5;stroke-linecap:butt;vector-effect:non-scaling-stroke}
+.sperrzeichen circle{fill:#e5484d;stroke:#fff;vector-effect:non-scaling-stroke}.sperrzeichen rect{fill:#fff}
+.sperrinfo{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;margin:12px 0 0;padding:8px 10px;border-radius:6px;background:color-mix(in srgb,#e5484d 10%,var(--panel));border:1px solid color-mix(in srgb,#e5484d 35%,var(--line))}
+.sperrinfo b{color:#e5484d}
+.st{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke;cursor:pointer}
+.st.t0{stroke-width:2.2}.st.t1{stroke-width:1.6}.st.t2{stroke-width:1.1}
+.st.sel{fill:var(--sel);stroke:var(--ink)}
+.lbl{fill:var(--ink);paint-order:stroke;stroke:var(--land);stroke-linejoin:round;font-family:var(--f-ui);pointer-events:none}
+.lbl.t0{font-weight:700;font-stretch:85%}.lbl.t1{font-weight:600;font-stretch:80%}.lbl.t2{font-weight:500;font-stretch:78%;fill:var(--muted)}
+.ctrl{position:absolute;right:calc(12px + env(safe-area-inset-right,0px));top:12px;display:flex;flex-direction:column;gap:6px}
+.ctrl button{width:36px;height:36px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 18px var(--f-ui);cursor:pointer;display:grid;place-items:center}
+.ctrl button:hover{border-color:var(--muted)}
+.ctrl button:focus-visible,.legend button:focus-visible,.chip:focus-visible{outline:2px solid var(--rv);outline-offset:2px}
+.readout{position:absolute;left:calc(12px + env(safe-area-inset-left,0px));bottom:12px;display:flex;gap:12px;align-items:flex-end;pointer-events:none}
+.coord{font:500 11px var(--f-mono);color:var(--muted);background:color-mix(in srgb,var(--panel) 85%,transparent);padding:4px 8px;border-radius:4px;font-variant-numeric:tabular-nums}
+.scale{font:500 11px var(--f-mono);color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.scale i{display:block;height:5px;border:1.5px solid var(--ink);border-top:0}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--panel);font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;white-space:nowrap;transform:translate(-50%,-140%)}
+aside{background:var(--panel);border-left:1px solid var(--line);overflow:auto;min-height:0;display:flex;flex-direction:column;gap:20px;
+  padding-block:16px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.legend{display:flex;flex-direction:column;gap:4px}
+.legend button{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;font:inherit;text-align:left;padding:8px 8px;border:1px solid transparent;border-radius:6px;background:none;color:var(--ink);cursor:pointer}
+.legend button:hover{background:var(--ground)}
+.legend button[aria-pressed="false"]{opacity:.4}
+.legend b{font-weight:600}
+.legend span.n{font:500 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.sw{height:0;border-top:3px solid}
+.sw.fv{border-color:var(--fv);border-top-width:3.5px}.sw.rv{border-color:var(--rv)}.sw.sm{border-color:var(--sm)}
+.card h2{margin:0 0 2px;font-size:22px;font-weight:700;font-stretch:82%;text-wrap:balance}
+.card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:0 0 16px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.chip{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--ground);color:var(--ink);cursor:pointer}
+.chip:hover{border-color:var(--muted)}
+.chip i{width:14px;height:0;border-top:3px solid}
+.chip i.fv{border-color:var(--fv)}.chip i.rv{border-color:var(--rv)}.chip i.sm{border-color:var(--sm)}
+ol.stops{list-style:none;margin:0 0 12px;padding:0;position:relative}
+ol.stops li{position:relative;padding:5px 0 5px 22px}
+ol.stops li::before{content:"";position:absolute;left:5px;top:0;bottom:0;border-left:3px solid var(--c)}
+ol.stops li:first-child::before{top:50%}ol.stops li:last-child::before{bottom:50%}
+ol.stops li::after{content:"";position:absolute;left:1px;top:50%;width:8px;height:8px;margin-top:-6px;border-radius:50%;background:var(--panel);border:2px solid var(--c)}
+ol.stops button{font:inherit;background:none;border:0;padding:0;color:var(--ink);cursor:pointer;text-align:left}
+ol.stops button:hover{text-decoration:underline}
+ol.stops li{display:flex;justify-content:space-between;gap:8px}
+.km{font:500 11px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hint{color:var(--muted);font-size:13px;line-height:1.5;margin:0}
+.note{margin-top:auto;font-size:12px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:12px}
+.link{font:inherit;font-size:13px;background:none;border:0;padding:0;color:var(--rv);cursor:pointer;text-decoration:underline}
+#trains{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.clock{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.clock time{font:500 20px var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:.02em;min-width:6.2ch}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:600 12px var(--f-ui);padding:6px 9px;border:0;background:var(--panel);color:var(--muted);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
-.leg{display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;margin-top:8px;align-items:center}
-.leg label{display:contents;cursor:pointer}
-.leg i{width:10px;height:10px;border-radius:50%;display:inline-block}
-.leg .n{font:12px var(--f-mono);color:var(--muted);text-align:right}
-.sub{color:var(--muted);font-size:12px;margin-top:6px}
-a{color:inherit}
-.maplibregl-popup-content{font:13px var(--f-ui);color:#16222b;padding:8px 10px}
-.maplibregl-popup-content b{font-weight:700}
-@media (max-width:600px){.panel{left:8px;top:8px;padding:8px 10px}.leg{display:none}}
+.seg button:focus-visible{outline:2px solid var(--rv);outline-offset:-2px}
+.rtpill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);padding:5px 10px;border:1px solid var(--line);border-radius:999px;max-width:22em;min-width:0}
+.rtpill i{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.rtpill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rtpill[data-state="on"]{color:var(--ink)}.rtpill[data-state="on"] i{background:var(--ok)}
+.rtpill[data-state="stale"] i,.rtpill[data-state="wait"] i{background:var(--late)}
+.rtpill[data-state="err"] i{background:var(--tfv)}
+.keyform{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--ground)}
+.keyform label{font-size:12px;font-weight:600}
+.keyrow{display:flex;gap:6px}
+.keyrow input{flex:1;min-width:0;font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.keyrow button{font:600 13px var(--f-ui);padding:7px 12px;border:0;border-radius:5px;background:var(--ink);color:var(--panel);cursor:pointer}
+.keyrow input:focus-visible,.keyrow button:focus-visible{outline:2px solid var(--rv);outline-offset:1px}
+.rtnote{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0 0 8px}
+.rtnote:empty{display:none}
+.late{color:var(--late);font-weight:700;font-variant-numeric:tabular-nums}
+.cx{text-decoration:line-through;opacity:.6}
+.cxl{color:var(--tfv);font-weight:700}
+.live{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--tring);box-shadow:0 0 0 1px var(--line);justify-self:center}
+.dot.fv{background:var(--tfv)}.dot.rv{background:var(--trv)}.dot.s{background:var(--ts)}.dot.tr{background:var(--ttr)}.dot.sch{background:var(--tsch)}
+.dot.d0{background:var(--ok)}.dot.d1{background:var(--late)}.dot.d2{background:#e5484d}.dot.dn{background:#9aa5ab}
+.colmode{margin:2px 0 10px}
+.deps{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:2px}
+.deps li{display:grid;grid-template-columns:3.4em auto 1fr;gap:8px;align-items:baseline;font-size:13px;padding:4px 0;border-bottom:1px solid var(--line)}
+.deps li:last-child{border-bottom:0}
+.deps time{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
+.badge{display:inline-block;white-space:nowrap;font:700 11px var(--f-ui);padding:1px 5px;border-radius:3px;color:#fff;text-align:center}
+.badge.fv{background:var(--tfv)}.badge.rv{background:var(--trv)}.badge.s{background:var(--ts)}.badge.tr{background:var(--ttr)}.badge.sch{background:var(--tsch)}
+.deps .to{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip{list-style:none;margin:0 0 14px;padding:0}
+.trip li{display:grid;grid-template-columns:3.2em 1fr;gap:10px;font-size:13px;padding:3px 0;color:var(--muted)}
+.trip li.done{opacity:.5}
+.trip li.next{color:var(--ink);font-weight:600}
+.trip time{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
+.sidetoggle{display:none;font:600 12px var(--f-ui);border:1px solid var(--line);background:var(--ground);color:var(--ink);border-radius:999px;padding:5px 12px;align-self:center;cursor:pointer;flex:none}
+@media (max-width:760px){
+  main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  aside{border-left:0;border-top:1px solid var(--line);max-height:38vh;gap:14px;padding-left:max(16px,env(safe-area-inset-left,0px))}
+  .search{flex-basis:100%;margin-left:0}
+  .legend{flex-direction:row;flex-wrap:wrap}
+  .legend button{grid-template-columns:22px auto auto;padding:6px 8px}
+  .note{display:none}
+  .app{grid-template-columns:minmax(0,1fr)}header>*{min-width:0;max-width:100%}.rtpill span{min-width:0}
+  main{grid-template-columns:minmax(0,1fr)}.clock{max-width:100%;min-width:0}.rtpill{min-width:0}
+  header{gap:6px 10px;padding-block:6px}h1{font-size:16px}h1 small{display:none}.clock{gap:6px}.clock time{font-size:16px;min-width:5.6ch}
+  .seg button{padding:5px 7px}.rtpill{max-width:100%;padding:3px 8px;font-size:11px}.search input{padding:6px 10px}
+  aside{max-height:42vh;transition:max-height .2s}
+  aside.zu{max-height:44px;overflow:hidden}
+  .sidetoggle{display:block}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-<div id="map"></div>
-<div class="panel">
-  <h1>ZugKarte 3D <small>Prototyp</small></h1>
-  <div class="row"><time id="clk">--:--:--</time>
-    <div class="seg" id="speed"><button data-v="1" aria-pressed="true">1×</button><button data-v="10" aria-pressed="false">10×</button><button data-v="60" aria-pressed="false">60×</button></div>
+
+<div class="app">
+<header>
+  <h1>ÖV Schweiz <small>3D-Karte</small></h1>
+  <div class="clock" aria-label="Simulierte Uhrzeit">
+    <time id="clk">--:--:--</time>
+    <div class="seg" id="speed" role="group" aria-label="Geschwindigkeit">
+      <button data-v="0" aria-pressed="false" title="Anhalten">❚❚</button>
+      <button data-v="1" aria-pressed="true">1×</button>
+      <button data-v="10" aria-pressed="false">10×</button>
+      <button data-v="60" aria-pressed="false">60×</button>
+    </div>
+    <button class="link" id="now">Jetzt</button>
+    <span class="rtpill" id="rt" data-state="off" role="status"><i></i><span id="rtTxt">Nur Fahrplan</span></span>
   </div>
-  <div class="row"><div class="seg" id="ansicht"><button data-v="3d" aria-pressed="true">3D</button><button data-v="2d" aria-pressed="false">Flach</button></div>
-    <a href="/">Zur normalen Karte</a></div>
-  <div class="leg" id="leg"></div>
-  <div class="sub" id="info">Fahrplan wird geladen …</div>
+  <div class="search">
+    <input id="q" type="search" placeholder="Bahnhof suchen, z. B. Lenzburg" autocomplete="off" aria-label="Bahnhof suchen">
+    <div class="sugg" id="sugg" hidden></div>
+  </div>
+</header>
+<main>
+  <div class="mapwrap" id="wrap">
+    <div id="map"></div>
+    <div class="ctrl">
+      <button id="zin" aria-label="Hineinzoomen">+</button>
+      <button id="zout" aria-label="Herauszoomen">−</button>
+      <button id="zreset" aria-label="Ganze Schweiz anzeigen" style="font-size:13px">CH</button>
+      <button id="z3d" aria-label="3D-Gelände ein/aus" aria-pressed="true" style="font-size:12px">3D</button>
+      <a href="/2d" id="z2d" aria-label="Zur flachen 2D-Karte" title="Zur 2D-Karte" style="font:600 12px var(--f-ui);width:36px;height:36px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center;text-decoration:none">2D</a>
+    </div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+  <aside id="side"><button class="sidetoggle" id="sideToggle" aria-expanded="true">Details ausblenden</button>
+    <section>
+      <p class="eyebrow">Strecken</p>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section>
+      <p class="eyebrow">Züge <span class="live" id="live"></span></p>
+      <p class="hint" id="daytype" style="margin:-4px 0 8px"></p>
+      <p class="rtnote" id="rtNote"></p><button class="link" id="rtBtn" hidden style="margin:0 0 10px"></button>
+      <form class="keyform" id="keyForm" hidden>
+        <label for="keyIn">API-Schlüssel von opentransportdata.swiss (SIRI-ET)</label>
+        <div class="keyrow"><input id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="Schlüssel einfügen"><button type="submit" id="keySave">Speichern</button></div>
+        <p class="hint" id="keyMsg">Den Schlüssel bekommst du gratis im API-Manager unter api-manager.opentransportdata.swiss. Er wird nur auf diesem Computer gespeichert.</p>
+      </form>
+      <button class="link" id="keyEdit" hidden style="margin:0 0 10px">API-Schlüssel ändern</button>
+      <div class="seg colmode" id="colmode" role="group" aria-label="Zugfarbe"><button data-v="art" aria-pressed="true">Farbe: Zugart</button><button data-v="vsp" aria-pressed="false">Farbe: Verspätung</button></div>
+      <div class="legend" id="tlegend"></div>
+      <p class="sperrinfo" id="sperrInfo" hidden></p>
+    </section>
+    <section id="detail"></section>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Grundkarte © swisstopo, Gelände © Mapterhorn (offene Höhendaten, u. a. swisstopo), dargestellt mit MapLibre GL. Züge nach dem offiziellen Fahrplan der Schweiz (GTFS, opentransportdata.swiss), den der Server zweimal pro Woche neu lädt und für jeden Tag einzeln aufbereitet – mit Feiertagen, Baustellen und dem Fahrplanwechsel im Dezember; Zeiten in Schweizer Zeit. Auf der Website fahren auch Trams, Metro und Schiffe mit (Tramgleise und Schiffslinien © OpenStreetMap-Mitwirkende, ODbL). Ist der Fahrplan nicht erreichbar, gilt ein eingebauter Fahrplan je für Montag–Freitag, Samstag und Sonntag (transport.opendata.ch). Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+  </aside>
+</main>
 </div>
+
 <script src="lib/maplibre-gl-csp.js"></script>
 <script>
-const TT=__TT__, STX=__STX__, KANTEN=__KANTEN__, OEV=__OEV__, ST=__ST__, LINES=__LINES__, FPV=__FPV__;
+const TT=__TT__, STX=__STX__, KANTEN=__KANTEN__, OEV=__OEV__; // STX: Halte ausserhalb des Schweizer Netzes (grenzüberschreitende Züge)
+const DE=__DE__, DN=__DENETZ__;
+const GEO=__GEO__, ST=__ST__, LINES=__LINES__, TIER0=__TIER0__, TIER1=__TIER1__;
+const TYPES={fv:{name:"Fernverkehrsachsen",short:"Fernverkehr"},rv:{name:"Regionalstrecken",short:"Regional"},sm:{name:"Schmalspur & Privatbahnen",short:"Schmalspur"}};
+const NS="http://www.w3.org/2000/svg";
 const $=id=>document.getElementById(id);
-// ---- Koordinaten: Kartenkoordinaten (LV95/100) → WGS84 (Näherungsformeln swisstopo) ----
+const el=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const X=s=>(s.E-2480000)/100, Y=s=>(1300000-s.N)/100;
+const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");
+
+const MIT_OEV=OEV.t.length+OEV.s.length>0;
+const decK=v=>{let x=0,y=0;return glatt(v.split(";").map((q,i)=>{const [a,b]=q.split(",").map(Number);if(i){x+=a;y+=b}else{x=a;y=b}return [x/10,y/10]}))};
+// Verlauf glätten (Chaikin): die Gleisdaten stammen aus einem 20–50-m-Raster
+function glatt(p,n=3){for(let r=0;r<n&&p.length>2;r++){const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];
+  q.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}q.push(p[p.length-1]);p=q}return p}
+
+// Index Bahnhof -> Strecken, Nachbarn
+const LEFT=new Set(["Luzern","Visp","Olten","Locarno","Emmenbrücke","Rotkreuz","Spiez","Zürich Altstetten","Genève","Pfäffikon SZ","Biel/Bienne","Hendschiken"]);
+const BIG=new Set(["Zürich HB","Bern","Basel SBB","Genève","Lausanne","Luzern","Lugano"]);
+const tier=n=>TIER0.includes(n)?0:TIER1.includes(n)?1:2;
+const byStation={};
+LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{
+  const o=byStation[s]||(byStation[s]={lines:new Set(),nb:new Set()});
+  o.lines.add(i); if(j>0)o.nb.add(L.stops[j-1]); if(j<L.stops.length-1)o.nb.add(L.stops[j+1]);
+}));
+
+// Gleisverlauf dekodieren (10-m-Raster, LV95, Delta-kodiert); Teilstücke je Bahnhofspaar
+LINES.forEach(L=>{L.parts=L.geo.split("/").map(p=>{let x=0,y=0;return glatt(p.split(";").map((q,k)=>{const [a,b]=q.split(",").map(Number);if(k){x+=a;y+=b}else{x=a;y=b}return [x/10-24800,13000-y/10]}))});
+  L.pts=L.parts.flatMap((p,j)=>j?p.slice(1):p);
+  L.km=L.parts.map(p=>{let m=0;for(let k=1;k<p.length;k++)m+=Math.hypot(p[k][0]-p[k-1][0],p[k][1]-p[k-1][1]);return m/10});});
+// ===== Karte: MapLibre GL mit swisstopo-Grundkarte und 3D-Gelände (Mapterhorn) =====
+// Kartenkoordinaten (LV95/100) → WGS84 (Näherungsformeln swisstopo)
 function wgs(x,y){const E=x*100+2480000,N=1300000-y*100,yy=(E-2600000)/1e6,xx=(N-1200000)/1e6;
   const l=2.6779094+4.728982*yy+0.791484*yy*xx+0.1306*yy*xx*xx-0.0436*yy*yy*yy;
   const p=16.9023892+3.238272*xx-0.270978*yy*yy-0.002528*xx*xx-0.0447*yy*yy*xx-0.0140*xx*xx*xx;
   return [Math.round(l*100/36*1e6)/1e6,Math.round(p*100/36*1e6)/1e6]}
+const wrap=$("wrap");
+let moved=false;
+const names=Object.keys(ST).sort((a,b)=>tier(b)-tier(a));
+const CH_BOX=[[5.95,45.82],[10.49,47.81]];
+maplibregl.setWorkerUrl("lib/maplibre-gl-csp-worker.js?v="+((window.ZK_LOCAL&&window.ZK_LOCAL.version)||"1"));
+let mit3d=true;try{mit3d=localStorage.getItem("zk3d")!=="aus"}catch(e){}
+const map=new maplibregl.Map({container:"map",style:"https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json",
+  bounds:CH_BOX,fitBoundsOptions:{padding:20},pitch:mit3d?35:0,maxPitch:80,
+  attributionControl:{compact:true,customAttribution:"Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff © OpenStreetMap"}});
+map.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
+let mapBereit=false;
+function apply(){}   // die 2D-Karte zeichnet hier neu; MapLibre macht das selbst
+function fit(box){const a=wgs(box[0],box[3]),b=wgs(box[2],box[1]);map.fitBounds([a,b],{padding:60,maxZoom:14,duration:900})}
+function hinZu(x,y,z){map.easeTo({center:wgs(x,y),zoom:Math.max(map.getZoom(),z),duration:900})}
+function setze3d(an){mit3d=an;try{localStorage.setItem("zk3d",an?"an":"aus")}catch(e){}$("z3d").setAttribute("aria-pressed",an);if(!mapBereit)return;
+  if(an){map.setTerrain({source:"dem",exaggeration:1.3});if(map.getPitch()<20)map.easeTo({pitch:55,duration:900})}else{map.setTerrain(null);map.easeTo({pitch:0,bearing:0,duration:900})}}
+$("zin").onclick=()=>map.zoomIn();$("zout").onclick=()=>map.zoomOut();
+$("zreset").onclick=()=>map.fitBounds(CH_BOX,{padding:20,pitch:mit3d?35:0,bearing:0,duration:1000});
+$("z3d").setAttribute("aria-pressed",mit3d);$("z3d").onclick=()=>setze3d(!mit3d);
+// Ebenen-Daten
+const fc=f=>({type:"FeatureCollection",features:f});
+const bahnFC=fc(LINES.map((L,i)=>({type:"Feature",id:i,properties:{i,t:L.type,n:L.name},geometry:{type:"MultiLineString",coordinates:L.parts.map(p=>p.map(q=>wgs(q[0],q[1])))}})));
+const stFC=fc(names.map((n,j)=>({type:"Feature",id:j,properties:{n,t:tier(n)},geometry:{type:"Point",coordinates:wgs(X(ST[n]),Y(ST[n]))}})));
+const oevFC=a=>fc(OEV[a].map(k=>({type:"Feature",properties:{n:k.replace("|"," – ")},geometry:{type:"LineString",coordinates:decK(KANTEN[k]).map(q=>wgs(q[0],q[1]))}})));
+const FARBE_LN={fv:"#16222b",rv:"#22808f",sm:"#b5612a"};
+const SCHRIFT="Frutiger Neue Condensed Bold", SCHRIFT_M="Frutiger Neue Condensed Medium";
+map.on("load",()=>{
+  map.addSource("dem",{type:"raster-dem",tiles:["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],encoding:"terrarium",tileSize:512,maxzoom:14});
+  try{map.setSky({"sky-color":"#bcd7ea","horizon-color":"#e8eef2","fog-color":"#e8eef2","sky-horizon-blend":0.6,"horizon-fog-blend":0.4,"fog-ground-blend":0.6})}catch(e){}
+  map.addSource("schiff",{type:"geojson",data:MIT_OEV?oevFC("s"):fc([])});
+  map.addSource("tram",{type:"geojson",data:MIT_OEV?oevFC("t"):fc([])});
+  map.addSource("bahn",{type:"geojson",data:bahnFC});
+  map.addSource("sperren",{type:"geojson",data:fc([])});
+  map.addSource("st",{type:"geojson",data:stFC});
+  map.addSource("fz",{type:"geojson",data:fc([])});
+  map.addLayer({id:"schiff",type:"line",source:"schiff",paint:{"line-color":"#3d86b8","line-width":1.4,"line-dasharray":[3,2],"line-opacity":.8}});
+  map.addLayer({id:"tram",type:"line",source:"tram",minzoom:11,paint:{"line-color":"#5f7380","line-width":["interpolate",["linear"],["zoom"],11,.8,16,2.5],"line-opacity":.75}});
+  map.addLayer({id:"bahn-hl",type:"line",source:"bahn",filter:["==",["get","i"],-1],layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#e3a008","line-width":["interpolate",["linear"],["zoom"],7,6,14,10]}});
+  map.addLayer({id:"bahn",type:"line",source:"bahn",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":["match",["get","t"],"fv",FARBE_LN.fv,"sm",FARBE_LN.sm,FARBE_LN.rv],
+    "line-width":["interpolate",["linear"],["zoom"],7,["match",["get","t"],"fv",2,1.4],14,["match",["get","t"],"fv",4.5,3.2]],
+    "line-opacity":["case",["boolean",["feature-state","dim"],false],.18,1]}});
+  map.addLayer({id:"sperren",type:"line",source:"sperren",filter:["==",["geometry-type"],"LineString"],paint:{"line-color":"#e5484d","line-width":["interpolate",["linear"],["zoom"],7,3,14,6],"line-dasharray":[2,1.5]}});
+  map.addLayer({id:"sperren-z",type:"circle",source:"sperren",filter:["==",["geometry-type"],"Point"],paint:{"circle-color":"#e5484d","circle-radius":7,"circle-stroke-color":"#ffffff","circle-stroke-width":1.5,"circle-pitch-alignment":"viewport"}});
+  map.addLayer({id:"sperren-zt",type:"symbol",source:"sperren",filter:["==",["geometry-type"],"Point"],layout:{"text-field":"-","text-font":[SCHRIFT],"text-size":18,"text-allow-overlap":true,"text-ignore-placement":true},paint:{"text-color":"#ffffff"}});
+  // Achtung: Schriften der Grundkarte nur für Zeichen bis U+00FF – andere Zeichen lassen ganze Ebenen ausfallen
+  // Bahnhöfe in drei Stufen (wichtige zuerst sichtbar)
+  for(const t of [2,1,0])map.addLayer({id:"st"+t,type:"circle",source:"st",filter:["==",["get","t"],t],minzoom:[10,8,0][t],paint:{
+    "circle-color":["case",["boolean",["feature-state","sel"],false],"#e3a008","#ffffff"],"circle-stroke-color":"#16222b",
+    "circle-radius":["interpolate",["linear"],["zoom"],7,[4.5,3.5,2.5][t],13,[7,5.5,4.5][t]],"circle-stroke-width":[2,1.6,1.2][t],"circle-pitch-alignment":"viewport"}});
+  for(const t of [2,1,0])map.addLayer({id:"stl"+t,type:"symbol",source:"st",filter:["==",["get","t"],t],minzoom:[11.5,9,6.5][t],layout:{"text-field":["get","n"],
+    "text-font":[t===0?SCHRIFT:SCHRIFT_M],"text-size":[14,12.5,11.5][t],"text-anchor":"left","text-offset":[0.8,0],"text-optional":true},
+    paint:{"text-color":"#16222b","text-halo-color":"#ffffff","text-halo-width":1.6}});
+  // Fahrzeuge (Daten aus frame())
+  map.addLayer({id:"fz",type:"circle",source:"fz",paint:{"circle-color":["get","f"],"circle-stroke-color":["get","r"],"circle-stroke-width":["get","w"],"circle-pitch-alignment":"viewport",
+    "circle-radius":["interpolate",["linear"],["zoom"],7,["*",["get","g"],2.6],11,["*",["get","g"],4.4],15,["*",["get","g"],7]]}});
+  map.addLayer({id:"fz-l",type:"symbol",source:"fz",minzoom:12.5,filter:["any",["!=",["get","c"],"tr"],[">=",["zoom"],14.5]],layout:{"text-field":["get","l"],"text-font":[SCHRIFT],"text-size":11,
+    "text-anchor":"bottom-left","text-offset":[0.6,-0.4],"text-optional":true},paint:{"text-color":"#16222b","text-halo-color":"#ffffff","text-halo-width":1.5}});
+  // Bedienung: Hinweise beim Überfahren, Klick wählt Fahrzeug, Bahnhof oder Strecke
+  const tipAn=(L,txt)=>{map.on("mousemove",L,e=>{map.getCanvas().style.cursor="pointer";showTip(txt(e.features[0]),e.originalEvent)});map.on("mouseleave",L,()=>{map.getCanvas().style.cursor="";hideTip()})};
+  for(const t of [0,1,2])tipAn("st"+t,f=>f.properties.n);
+  tipAn("bahn",f=>f.properties.n);tipAn("fz",f=>f.properties.l+" → "+f.properties.z);tipAn("tram",f=>"Tram: "+f.properties.n);tipAn("schiff",f=>"Schiff: "+f.properties.n);
+  for(const L of ["sperren","sperren-z"])tipAn(L,()=>"Gesperrt: heute kein Zugverkehr (Bahnersatz)");
+  map.on("click",e=>{const p=e.point,box=[[p.x-8,p.y-8],[p.x+8,p.y+8]];
+    const f=map.queryRenderedFeatures(box,{layers:["fz"]})[0];if(f){const v=visible[f.properties.k];if(v)showTrain(v.tr,v.o,false);return}
+    const s=map.queryRenderedFeatures(box,{layers:["st0","st1","st2"]})[0];if(s){selectStation(s.properties.n);return}
+    const l=map.queryRenderedFeatures(box,{layers:["bahn"]})[0];if(l){selectLine(l.properties.i);return}
+    sel=null;clearSel()});
+  map.on("movestart",hideTip);
+  mapBereit=true;setze3d(mit3d);kartenAuswahl();sperrenKarte();
+});
+let stSel=null;
+function markSt(n){if(mapBereit&&stSel!==null&&stSel>=0)map.setFeatureState({source:"st",id:stSel},{sel:false});stSel=n===null?null:names.indexOf(n);
+  if(mapBereit&&stSel!==null&&stSel>=0)map.setFeatureState({source:"st",id:stSel},{sel:true})}
+// Auswahl und Filter der Strecken auf die Karte übertragen (ersetzt refreshLines der 2D-Karte)
+function kartenAuswahl(){if(!mapBereit)return;
+  map.setFilter("bahn",["in",["get","t"],["literal",Object.keys(onT).filter(t=>onT[t])]]);
+  map.setFilter("bahn-hl",["==",["get","i"],selLn===null?-1:selLn]);
+  LINES.forEach((L,i)=>map.setFeatureState({source:"bahn",id:i},{dim:(selLn!==null&&selLn!==i)||(!!selSt&&!byStation[selSt].lines.has(i))}))}
+// Gesperrte Abschnitte (Bahnersatz): rote Linie mit Zeichen in der Mitte
+function sperrenKarte(){const namen=new Set(),fs=[];
+  for(const id of SPERR.teile){const [i,j]=id.split(":").map(Number),L=LINES[i];if(!L||!L.parts[j])continue;const pt=L.parts[j];namen.add(L.name);
+    fs.push({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:pt.map(q=>wgs(q[0],q[1]))}});
+    let tot=0;for(let q=1;q<pt.length;q++)tot+=Math.hypot(pt[q][0]-pt[q-1][0],pt[q][1]-pt[q-1][1]);let acc=0,m=pt[0];
+    for(let q=1;q<pt.length;q++){const d=Math.hypot(pt[q][0]-pt[q-1][0],pt[q][1]-pt[q-1][1]);if(acc+d>=tot/2){const u=(tot/2-acc)/(d||1);m=[pt[q-1][0]+(pt[q][0]-pt[q-1][0])*u,pt[q-1][1]+(pt[q][1]-pt[q-1][1])*u];break}acc+=d}
+    fs.push({type:"Feature",properties:{},geometry:{type:"Point",coordinates:wgs(m[0],m[1])}})}
+  if(mapBereit)map.getSource("sperren").setData(fc(fs));
+  const box=$("sperrInfo");if(SPERR.teile.size&&box){box.hidden=false;box.innerHTML=`<span aria-hidden="true">⚠</span><span><b>Heute gesperrt</b> (Bahnersatz): ${[...namen].sort().join(", ")}. Auf diesen Abschnitten fahren heute keine Züge.</span>`}else if(box)box.hidden=true}
+
+function showTip(t,e){const r=wrap.getBoundingClientRect();const tp=$("tip");tp.textContent=t;tp.style.left=(e.clientX-r.left)+"px";tp.style.top=(e.clientY-r.top)+"px";tp.hidden=false}
+function hideTip(){$("tip").hidden=true}
+
+// Legende mit Filter
+const onT={fv:true,rv:true,sm:true};
+function legend(){
+  $("legend").innerHTML="";
+  Object.entries(TYPES).forEach(([t,v])=>{
+    const n=LINES.filter(L=>L.type===t).length;
+    const b=document.createElement("button");b.setAttribute("aria-pressed",onT[t]);
+    b.innerHTML=`<i class="sw ${t}"></i><b>${v.name}</b><span class="n">${n}</span>`;
+    b.onclick=()=>{onT[t]=!onT[t];legend();refreshLines()};$("legend").appendChild(b);
+  });
+}
+function refreshLines(){kartenAuswahl()}
+
+// Auswahl
+let selSt=null, selLn=null;
+function clearSel(){selSt=null;selLn=null;markSt(null);refreshLines();apply();intro()}
+function selectStation(n,zoom){
+  sel=null;selLn=null;selSt=n;markSt(n);
+  const s=ST[n], o=byStation[n];
+  const lines=[...o.lines].sort((a,b)=>"fvrvsm".indexOf(LINES[a].type)-"fvrvsm".indexOf(LINES[b].type));
+  $("detail").innerHTML=`<div class="card"><p class="eyebrow">Bahnhof</p><h2>${n}</h2>
+    <p class="sub">${lines.length} ${lines.length===1?"Strecke":"Strecken"} · ${o.nb.size} Nachbarbahnhöfe im Hauptnetz</p>
+    <p class="eyebrow">Abfahrten</p><ul class="deps" id="deps"></ul>
+    <p class="eyebrow">Strecken</p><div class="chips">${lines.map(i=>`<button class="chip" data-l="${i}"><i class="${LINES[i].type}"></i>${LINES[i].name}</button>`).join("")}</div>
+    <p class="eyebrow">Nächste Bahnhöfe</p><div class="chips">${[...o.nb].sort().map(b=>`<button class="chip" data-s="${b}">${b}</button>`).join("")}</div>
+    <dl class="kv"><dt>LV95 E</dt><dd>${fmt(s.E)}</dd><dt>LV95 N</dt><dd>${fmt(s.N)}</dd><dt>WGS84</dt><dd>${s.lat.toFixed(4)}° N, ${s.lon.toFixed(4)}° E</dd></dl>
+    <button class="link" id="back">Auswahl aufheben</button></div>`;
+  bindDetail();refreshLines();renderDeps(n);
+  if(zoom)hinZu(X(s),Y(s),12.5);
+  apply();
+}
+function selectLine(i){
+  sel=null;selSt=null;selLn=i;markSt(null);
+  const L=LINES[i]; const c=`var(--${L.type})`;
+  const km=L.km.reduce((a,b)=>a+b,0);
+  $("detail").innerHTML=`<div class="card"><p class="eyebrow">${TYPES[L.type].short}</p><h2>${L.name}</h2>
+    <p class="sub">${L.stops[0]} – ${L.stops[L.stops.length-1]} · ${L.stops.length} Bahnhöfe · ca. ${Math.round(km)} km Strecke</p>
+    <ol class="stops" style="--c:${c}">${L.stops.map((s,j)=>`<li><button data-s="${s}">${s}</button>${j?`<span class="km">+${L.km[j-1].toFixed(1)} km</span>`:""}</li>`).join("")}</ol>
+    <button class="link" id="back">Auswahl aufheben</button></div>`;
+  bindDetail();refreshLines();
+  const xs=L.stops.map(s=>X(ST[s])),ys=L.stops.map(s=>Y(ST[s]));
+  fit([Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)],0.18);
+}
+function bindDetail(){
+  $("detail").querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>selectStation(b.dataset.s,true));
+  $("detail").querySelectorAll("[data-l]").forEach(b=>b.onclick=()=>selectLine(+b.dataset.l));
+  const bk=$("back");bk&&(bk.onclick=clearSel);
+}
+function intro(){
+  $("detail").innerHTML=`<p class="eyebrow">Bedienung</p><p class="hint">Mit Mausrad oder zwei Fingern zoomen, ziehen zum Verschieben. Neigen und Drehen mit der rechten Maustaste oder zwei Fingern (auf und ab bzw. drehen). Ein Fahrzeug, einen Bahnhof oder eine Strecke anklicken, um Details zu sehen. Trams erscheinen beim Hineinzoomen in die Städte.</p>`;
+}
+
+// Suche
+const q=$("q"), sg=$("sugg"); let hits=[], hi=0;
+const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+function renderSugg(){
+  sg.innerHTML="";hits.forEach((n,j)=>{const b=document.createElement("button");b.textContent=n;if(j===hi)b.className="on";
+    b.onmousedown=e=>{e.preventDefault();pick(n)};sg.appendChild(b)});sg.hidden=!hits.length;
+}
+function pick(n){q.value=n;sg.hidden=true;q.blur();selectStation(n,true)}
+q.addEventListener("input",()=>{const v=norm(q.value.trim());hi=0;
+  hits=v?Object.keys(ST).filter(n=>norm(n).includes(v)).sort((a,b)=>norm(a).indexOf(v)-norm(b).indexOf(v)||tier(a)-tier(b)).slice(0,8):[];renderSugg()});
+q.addEventListener("keydown",e=>{if(sg.hidden)return;
+  if(e.key==="ArrowDown"){hi=Math.min(hits.length-1,hi+1);renderSugg();e.preventDefault()}
+  else if(e.key==="ArrowUp"){hi=Math.max(0,hi-1);renderSugg();e.preventDefault()}
+  else if(e.key==="Enter"&&hits[hi])pick(hits[hi]);else if(e.key==="Escape")sg.hidden=true});
+q.addEventListener("blur",()=>setTimeout(()=>sg.hidden=true,100));
+
+// ===== Züge nach echtem Fahrplan =====
+// TT: je Tagestyp (wd = Mo–Fr, sa = Samstag, su = Sonntag) der ganze Tagesfahrplan.
+// Zeile 1 = Zielorte; danach je Zuglauf "Kat,Nr,Ziel|Halt;Halt" mit Halt = BahnhofIdx(hex),Ankunft[,Abfahrt] in Minuten ab Mitternacht
 const SN=Object.keys(ST).concat(Object.keys(STX));
-const XY=n=>{const s=ST[n]||STX[n];return [(s.E-2480000)/100,(1300000-s.N)/100]};
-// ---- Netz (wie in der 2D-Karte), Verlauf geglättet (Chaikin): die Gleise stammen aus einem 20–50-m-Raster ----
-function glatt(p,n=3){for(let r=0;r<n&&p.length>2;r++){const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];
-  q.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}q.push(p[p.length-1]);p=q}return p}
-LINES.forEach(L=>{L.parts=L.geo.split("/").map(p=>{let x=0,y=0;return glatt(p.split(";").map((q,k)=>{const [a,b]=q.split(",").map(Number);if(k){x+=a;y+=b}else{x=a;y=b}return [x/10-24800,13000-y/10]}))})});
-const decK=v=>{let x=0,y=0;return glatt(v.split(";").map((q,i)=>{const [a,b]=q.split(",").map(Number);if(i){x+=a;y+=b}else{x=a;y=b}return [x/10,y/10]}))};
+const TCLS=c=>c==="S"?"s":c==="Tram"||c==="M"?"tr":c==="BAT"||c==="FAE"?"sch":/^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
+const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn",tr:"Tram & Metro",sch:"Schiff"};
+const KLASSEN=MIT_OEV&&window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server"?["fv","rv","s","tr","sch"]:["fv","rv","s"];
+const DAYNAME={wd:"Montag–Freitag",sa:"Samstag",su:"Sonntag"};
+function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
+  return L.map(l=>{const [h,body]=l.split("|");const [cat,num,di]=h.split(",");
+    const st=body.split(";").map(x=>{const a=x.split(",");const t1=+a[1],t2=a.length>2?+a[2]:t1;return {i:parseInt(a[0],16),a:t1,d:t2}});
+    return {cat,label:cat==="S"?"S"+num:num?cat+" "+num:cat,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
+const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
+// Fahrplan nach Datum (Website): der Server rechnet täglich den offiziellen GTFS-Fahrplan für die nächsten Tage um
+// (mit Baustellen, Feiertagen und Fahrplanwechsel). Fehlt er, gilt der eingebaute Fahrplan nach Wochentag.
+const FPV=__FPV__,DATED={},fpStatus={};let fpFeed=null,RID=0;
+const tagRuns=z=>DATED[z.date]||DAYS[dayType(z.wd)];
+async function fpLaden(datum){const s=fpStatus[datum];if(s&&(s.ok||s.lauf||Date.now()-s.t<10*60000))return;fpStatus[datum]={lauf:true,t:Date.now()};
+  try{const r=await fetch("/api/fahrplan?d="+datum);if(!r.ok)throw 0;const j=await r.json();if(j.v!==FPV||!j.tt)throw 0;
+    const runs=parseDay(j.tt);runs.forEach(x=>x.id=RID++);DATED[datum]=runs;if(datum===zh(Date.now()).date)fpFeed=j.feed;fpStatus[datum]={ok:true};
+    if(rtLetzt)applyRT(rtLetzt)}
+  catch(e){fpStatus[datum]={t:Date.now()}}}
+const fpAn=!!(window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server");
+function fpBrauche(ms){if(!fpAn)return;for(const d of [-1,0,1]){const z=zh(ms+d*86400000);if(!DATED[z.date])fpLaden(z.date)}}
+// Graph aus den Streckenteilen (Kartenkoordinaten)
 const G={};
-LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1];let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
-  (G[a]=G[a]||[]).push({to:s,pts:pt,len});(G[s]=G[s]||[]).push({to:a,pts:pt.slice().reverse(),len})}));
-for(const k in KANTEN){const [a,b]=k.split("|");const pt=decK(KANTEN[k]);let len=0;for(let j=1;j<pt.length;j++)len+=Math.hypot(pt[j][0]-pt[j-1][0],pt[j][1]-pt[j-1][1]);
+LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1],id=i+":"+(j-1);let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
+  (G[a]=G[a]||[]).push({to:s,pts:pt,len,id});(G[s]=G[s]||[]).push({to:a,pts:pt.slice().reverse(),len,id})}));
+// Laufwege der grenzüberschreitenden Züge auf dem deutschen Netz
+for(const k in KANTEN){const [a,b]=k.split("|");let x=0,y=0;const pt=KANTEN[k].split(";").map((q,i)=>{const [u,v]=q.split(",").map(Number);if(i){x+=u;y+=v}else{x=u;y=v}return [x/10,y/10]});
+  let len=0;for(let j=1;j<pt.length;j++)len+=Math.hypot(pt[j][0]-pt[j-1][0],pt[j][1]-pt[j-1][1]);
   (G[a]=G[a]||[]).push({to:b,pts:pt,len});(G[b]=G[b]||[]).push({to:a,pts:pt.slice().reverse(),len})}
 const pathCache={};
 function legPath(A,B){const key=A+">"+B;if(key in pathCache)return pathCache[key];
@@ -67,90 +468,201 @@ function legPath(A,B){const key=A+">"+B;if(key in pathCache)return pathCache[key
   const seq=[];let c=B;while(c!==A){seq.push(prev[c][1]);c=prev[c][0]}seq.reverse();
   const pts=[];seq.forEach(e=>pts.push(...(pts.length?e.pts.slice(1):e.pts)));
   const cum=[0];for(let k=1;k<pts.length;k++)cum.push(cum[k-1]+Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]));
-  return pathCache[key]={pts,cum,len:cum[cum.length-1]}}
+  return pathCache[key]={pts,cum,len:cum[cum.length-1],ids:seq.map(e=>e.id).filter(Boolean)}}
+// Gesperrte Streckenteile (Bahnersatz) des heutigen Tages, vom Server täglich ermittelt (/api/sperrungen)
+const SPERR={datum:null,teile:new Set()};let sperrHeute=false;
+const legZu=P=>sperrHeute&&!!P&&P.ids.some(id=>SPERR.teile.has(id));
+let sperrZeichen=[];
+function drawSperren(){sperrenKarte()}
+async function sperrLaden(){try{const r=await fetch("/api/sperrungen",{cache:"no-store"});if(!r.ok)return;const j=await r.json();
+  SPERR.datum=j.datum;SPERR.teile=new Set((j.teile||[]).map(([i,k])=>i+":"+k));drawSperren()}catch(e){}}
+function legs(r){if(!r.legs){r.legs=[];for(let j=1;j<r.st.length;j++){const A=r.st[j-1],B=r.st[j];r.legs.push(B.a>A.d?legPath(SN[A.i],SN[B.i]):null)}}return r.legs}
 function along(P,f){const L=P.len*f;let lo=0,hi=P.cum.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(P.cum[m]<L)lo=m;else hi=m}
   const seg=P.cum[hi]-P.cum[lo]||1,u=(L-P.cum[lo])/seg,a=P.pts[lo],b=P.pts[hi];return [a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u]}
-// ---- Fahrplan ----
-const TCLS=c=>c==="S"?"s":c==="Tram"||c==="M"?"tr":c==="BAT"||c==="FAE"?"sch":/^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
-const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn",tr:"Tram & Metro",sch:"Schiff"};
-const FARBE={fv:"#e5484d",rv:"#7b4fd6",s:"#2f6fe0",tr:"#0f9488",sch:"#0369a1"};
-function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
-  return L.map(l=>{const [h,body]=l.split("|");const [cat,num,di]=h.split(",");
-    const st=body.split(";").map(x=>{const a=x.split(",");const t1=+a[1],t2=a.length>2?+a[2]:t1;return {i:parseInt(a[0],16),a:t1,d:t2}});
-    return {cat,label:cat==="S"?"S"+num:num?cat+" "+num:cat,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
-const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
-const DATED={},fpStatus={};let fpFeed=null;
-const ZF=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",weekday:"short"});
-function zh(ms){const p={};ZF.formatToParts(new Date(ms)).forEach(x=>p[x.type]=x.value);return {wd:p.weekday,date:p.year+"-"+p.month+"-"+p.day,t:+p.hour*60+ +p.minute+ +p.second/60+(ms%1000)/60000}}
-const dayType=wd=>wd==="Sat"?"sa":wd==="Sun"?"su":"wd";
-const tagRuns=z=>DATED[z.date]||DAYS[dayType(z.wd)];
-async function fpLaden(datum){const s=fpStatus[datum];if(s&&(s.ok||s.lauf||Date.now()-s.t<10*60000))return;fpStatus[datum]={lauf:true,t:Date.now()};
-  try{const r=await fetch("/api/fahrplan?d="+datum);if(!r.ok)throw 0;const j=await r.json();if(j.v!==FPV||!j.tt)throw 0;
-    DATED[datum]=parseDay(j.tt);if(datum===zh(Date.now()).date)fpFeed=j.feed;fpStatus[datum]={ok:true}}catch(e){fpStatus[datum]={t:Date.now()}}}
-const fpAn=!!(window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server");
-function fpBrauche(ms){if(!fpAn)return;for(const d of [-1,0,1]){const z=zh(ms+d*86400000);if(!DATED[z.date])fpLaden(z.date)}}
-function services(ms){const z=zh(ms),zg=zh(ms-86400000);return [{runs:tagRuns(zg),o:1440,t:z.t+1440},{runs:tagRuns(z),o:0,t:z.t}]}
-function legs(r){if(!r.legs){r.legs=[];for(let j=1;j<r.st.length;j++){const A=r.st[j-1],B=r.st[j];r.legs.push(B.a>A.d?legPath(SN[A.i],SN[B.i]):null)}}return r.legs}
-function trainPos(r,t){if(t<r.t0||t>r.t1)return null;
-  for(let j=0;j<r.st.length;j++){const S=r.st[j];
-    if(t>=S.a&&t<=S.d){return {xy:XY(SN[S.i]),stop:j,moving:false}}
-    if(j<r.st.length-1){const N=r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P)return null;
-      const u=(t-S.d)/(N.a-S.d);let f=u<.5?2*u*u:1-2*(1-u)*(1-u);f=.15*u+.85*f;
-      const a=along(P,f),b=along(P,Math.min(1,f+0.01)),c=along(P,Math.max(0,f-0.01));
-      return {xy:a,next:j+1,moving:true,h:Math.atan2(b[1]-c[1],b[0]-c[0])}}}}
+// Position eines Zuges zur Minute t seines Betriebstags
+function trainPos(r,t,rt){const T0=rt?rt.t0:r.t0,T1=rt?rt.t1:r.t1;if(t<T0||t>T1)return null;
+  for(let j=0;j<r.st.length;j++){const S=rt?{i:r.st[j].i,a:rt.A[j],d:rt.D[j]}:r.st[j];
+    if(t>=S.a&&t<=S.d){if(sperrHeute){const L=legs(r);if((j===0||legZu(L[j-1]))&&(j===r.st.length-1||legZu(L[j])))return null}
+      const s=ST[SN[S.i]]||STX[SN[S.i]];return {x:X(s),y:Y(s),stop:j,moving:false}}
+    if(j<r.st.length-1){const N=rt?{a:rt.A[j+1]}:r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P||legZu(P))return null;
+      const u=(t-S.d)/(N.a-S.d);let f=u<.5?2*u*u:1-2*(1-u)*(1-u);f=.15*u+.85*f; // anfahren & bremsen
+      const [x,y]=along(P,f),f2=Math.min(1,f+0.01),[x2,y2]=along(P,f2),[x0,y0]=f2>f?[x,y]:along(P,Math.max(0,f-0.01));
+      return {x,y,next:j+1,moving:true,h:Math.atan2(y2-y0,x2-x0)}}}}
   return null}
-// ---- Karte ----
-maplibregl.setWorkerUrl("lib/maplibre-gl-csp-worker.js?v="+((window.ZK_LOCAL&&window.ZK_LOCAL.version)||"1"));   // Version im Namen: Worker nicht aus altem Cache
-const map=new maplibregl.Map({container:"map",style:"https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json",
-  center:[8.5403,47.3779],zoom:12.2,pitch:60,bearing:-20,maxPitch:80,attributionControl:{compact:true,customAttribution:"Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tramgleise © OpenStreetMap"}});
-map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"top-right");
-const on={fv:true,rv:true,s:true,tr:true,sch:true};
-let speed=1,simMs=Date.now(),lastReal=performance.now(),counts={};
+// Schweizer Uhrzeit (unabhängig von der Zeitzone des Geräts)
+const ZF=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",weekday:"short"});
+const zCache={};
+function zh(ms){const key=Math.floor(ms/60000);let z=zCache[key];
+  if(!z){const p={};ZF.formatToParts(new Date(key*60000)).forEach(x=>p[x.type]=x.value);
+    z={wd:p.weekday,date:p.year+"-"+p.month+"-"+p.day,min:+p.hour*60+ +p.minute};zCache[key]=z}
+  const sec=(ms-Math.floor(ms/60000)*60000)/60000;return {wd:z.wd,date:z.date,t:z.min+sec}}
+const dayType=wd=>wd==="Sat"?"sa":wd==="Sun"?"su":"wd";
+const PREV={Mon:"Sun",Tue:"Mon",Wed:"Tue",Thu:"Wed",Fri:"Thu",Sat:"Fri",Sun:"Sat"};
+// Aktive Betriebstage: heute (Versatz 0) und gestern (Versatz +1440, Züge nach Mitternacht)
+function services(ms){const z=zh(ms),zg=zh(ms-86400000);return [{runs:tagRuns(zg),o:1440,type:dayType(zg.wd),t:z.t+1440},{runs:tagRuns(z),o:0,type:dayType(z.wd),t:z.t}]}
+let speed=1, simMs=Date.now(), lastReal=performance.now();
+const pad=n=>String(n).padStart(2,"0");
+function clock(ms){const z=zh(ms);const m=Math.floor(z.t);return pad(Math.floor(m/60)%24)+":"+pad(m%60)}
+function clockSec(ms){const z=zh(ms);const s=Math.floor(z.t*60);return pad(Math.floor(s/3600)%24)+":"+pad(Math.floor(s/60)%60)+":"+pad(s%60)}
 document.querySelectorAll("#speed button").forEach(b=>b.onclick=()=>{speed=+b.dataset.v;document.querySelectorAll("#speed button").forEach(x=>x.setAttribute("aria-pressed",x===b))});
-function legende(){const box=$("leg");box.innerHTML="";for(const c of ["fv","rv","s","tr","sch"]){const l=document.createElement("label");
-  l.innerHTML=`<i style="background:${FARBE[c]};opacity:${on[c]?1:.25}"></i><span>${TNAME[c]}</span><span class="n">${counts[c]||0}</span>`;l.onclick=()=>{on[c]=!on[c];legende()};box.appendChild(l)}}
-legende();
-map.on("load",()=>{
-  map.addSource("dem",{type:"raster-dem",tiles:["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],encoding:"terrarium",tileSize:512,maxzoom:14});
-  setAnsicht("3d");
-  try{map.setSky({"sky-color":"#bcd7ea","horizon-color":"#e8eef2","fog-color":"#e8eef2","sky-horizon-blend":0.6,"horizon-fog-blend":0.4,"fog-ground-blend":0.6})}catch(e){}
-  // Netz: Bahn, Tram/Metro, Schiffe
-  const bahn={type:"FeatureCollection",features:LINES.map(L=>({type:"Feature",properties:{t:L.type},geometry:{type:"MultiLineString",coordinates:L.parts.map(p=>p.map(q=>wgs(q[0],q[1])))}}))};
-  const oev=a=>({type:"FeatureCollection",features:OEV[a].map(k=>({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:decK(KANTEN[k]).map(q=>wgs(q[0],q[1]))}}))});
-  map.addSource("bahn",{type:"geojson",data:bahn});map.addSource("tram",{type:"geojson",data:oev("t")});map.addSource("schiff",{type:"geojson",data:oev("s")});
-  map.addLayer({id:"schiff",type:"line",source:"schiff",paint:{"line-color":"#3d86b8","line-width":1.4,"line-dasharray":[3,2],"line-opacity":.8}});
-  map.addLayer({id:"tram",type:"line",source:"tram",minzoom:11,paint:{"line-color":"#5f7380","line-width":["interpolate",["linear"],["zoom"],11,0.8,16,2.5],"line-opacity":.8}});
-  map.addLayer({id:"bahn",type:"line",source:"bahn",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":["match",["get","t"],"fv","#16222b","sm","#b5612a","#22808f"],
-    "line-width":["interpolate",["linear"],["zoom"],7,["match",["get","t"],"fv",1.6,1.1],14,["match",["get","t"],"fv",4,3]]}});
-  // Fahrzeuge
-  map.addSource("fz",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
-  map.addLayer({id:"fz",type:"circle",source:"fz",filter:["any",["!=",["get","c"],"tr"],[">=",["zoom"],11]],paint:{
-    "circle-color":["match",["get","c"],"fv",FARBE.fv,"rv",FARBE.rv,"s",FARBE.s,"tr",FARBE.tr,FARBE.sch],
-    "circle-radius":["interpolate",["linear"],["zoom"],7,["match",["get","c"],"tr",1.5,2.5],12,["match",["get","c"],"tr",3.5,5],16,["match",["get","c"],"tr",6,8]],
-    "circle-stroke-color":"#ffffff","circle-stroke-width":1.2,"circle-pitch-alignment":"viewport"}});
-  map.addLayer({id:"fz-text",type:"symbol",source:"fz",minzoom:13.5,layout:{"text-field":["get","l"],"text-font":["Frutiger Neue Condensed Bold"],"text-size":11,"text-offset":[0,-1.3],"text-allow-overlap":false},
-    paint:{"text-color":"#16222b","text-halo-color":"#ffffff","text-halo-width":1.5}});
-  map.on("click","fz",e=>{const f=e.features[0];new maplibregl.Popup({closeButton:false}).setLngLat(f.geometry.coordinates).setHTML(`<b>${f.properties.l}</b> → ${f.properties.z}<br>${f.properties.w}`).addTo(map)});
-  map.on("mouseenter","fz",()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave","fz",()=>map.getCanvas().style.cursor="");
-  requestAnimationFrame(frame);
-});
-function setAnsicht(v){document.querySelectorAll("#ansicht button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));
-  if(v==="3d"){map.setTerrain({source:"dem",exaggeration:1.2});if(map.getPitch()<30)map.easeTo({pitch:60})}else{map.setTerrain(null);map.easeTo({pitch:0,bearing:0})}}
-document.querySelectorAll("#ansicht button").forEach(b=>b.onclick=()=>setAnsicht(b.dataset.v));
-let letzt=0,langsam=0;
+$("now").onclick=()=>{simMs=Date.now()};
+// Filter
+const onTr={fv:true,rv:true,s:true,tr:true,sch:true};
+let lastCounts={fv:0,rv:0,s:0,tr:0,sch:0};
+// Zugfarbe nach Zugart oder nach Verspätung (pünktlich < 3 Min., 3–5 Min., ab 6 Min., ohne Echtzeit)
+let colMode="art";try{colMode=localStorage.getItem("zkFarbe")==="vsp"?"vsp":"art"}catch(e){}
+const DCLS=dl=>dl==null?"dn":dl<180?"d0":dl<360?"d1":"d2";
+const DNAME={d0:"Pünktlich (unter 3 Min.)",d1:"3–5 Min. verspätet",d2:"Ab 6 Min. verspätet",dn:"Ohne Echtzeitdaten"};
+let lastD={d0:0,d1:0,d2:0,dn:0};
+function setColMode(m){colMode=m;try{localStorage.setItem("zkFarbe",m)}catch(e){}document.querySelectorAll("#colmode button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===m));tlegend()}
+document.querySelectorAll("#colmode button").forEach(b=>b.onclick=()=>setColMode(b.dataset.v));
+function tlegend(){const box=$("tlegend");box.innerHTML="";
+  if(colMode==="vsp"){["d0","d1","d2","dn"].forEach(c=>{const b=document.createElement("button");b.setAttribute("aria-pressed","true");b.disabled=true;b.style.cursor="default";
+    b.innerHTML=`<i class="dot ${c}"></i><b>${DNAME[c]}</b><span class="n">${lastD[c]}</span>`;box.appendChild(b)});return}
+  KLASSEN.forEach(c=>{const b=document.createElement("button");b.setAttribute("aria-pressed",onTr[c]);
+    b.innerHTML=`<i class="dot ${c}"></i><b>${TNAME[c]}</b><span class="n">${lastCounts[c]}</span>`;b.onclick=()=>{onTr[c]=!onTr[c];tlegend()};box.appendChild(b)})}
+setColMode(colMode);
+// Fahrzeuge zeichnen: GeoJSON-Ebene «fz», etwa 15-mal pro Sekunde neu
+let colors={};
+function readColors(){const cs=getComputedStyle(document.documentElement);const g=n=>cs.getPropertyValue(n).trim();
+  colors={d0:g("--ok"),d1:g("--late"),d2:"#e5484d",dn:"#9aa5ab",late:g("--late"),fv:g("--tfv"),rv:g("--trv"),s:g("--ts"),tr:g("--ttr"),sch:g("--tsch"),sel:"#e3a008"}}
+readColors();try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",readColors)}catch(e){}
+new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+let visible=[], sel=null, slowT=0, fzT=0, lateN=0, cancN=0;
+const REIHE="trschsrvfv";
 function frame(now){const dt=Math.min(now-lastReal,1000);lastReal=now;simMs+=dt*speed;
-  if(now-letzt>=66){letzt=now;   // ~15 Bilder/s für die Fahrzeuge
-    const fs=[],c={fv:0,rv:0,s:0,tr:0,sch:0},seen=new Set(),b=map.getBounds(),pad=0.05;
-    const W=b.getWest()-pad,E=b.getEast()+pad,S=b.getSouth()-pad,N=b.getNorth()+pad,zoom=map.getZoom();
-    for(const sv of services(simMs)){for(const tr of sv.runs){if(sv.t<tr.t0||sv.t>tr.t1)continue;const p=trainPos(tr,sv.t);if(!p)continue;
-      const sk=tr.label+"|"+tr.st[0].i+"|"+(tr.t0-sv.o);if(sv.o)seen.add(sk);else if(seen.has(sk))continue;c[tr.cls]++;if(!on[tr.cls])continue;
-      if(tr.cls==="tr"&&zoom<11)continue;const ll=wgs(p.xy[0],p.xy[1]);if(ll[0]<W||ll[0]>E||ll[1]<S||ll[1]>N)continue;
-      fs.push({type:"Feature",properties:{c:tr.cls,l:tr.label,z:tr.to,w:p.moving?"nach "+SN[tr.st[p.next].i]:"in "+SN[tr.st[p.stop].i]},geometry:{type:"Point",coordinates:ll}})}}
-    map.getSource("fz").setData({type:"FeatureCollection",features:fs});counts=c}
-  if(now-langsam>1000){langsam=now;const z=zh(simMs);fpBrauche(simMs);const t=Math.floor(z.t*60);
-    $("clk").textContent=[Math.floor(t/3600)%24,Math.floor(t/60)%60,t%60].map(n=>String(n).padStart(2,"0")).join(":");
-    document.querySelectorAll("#leg .n").forEach((n,j)=>n.textContent=counts[["fv","rv","s","tr","sch"][j]]||0);
-    const tot=Object.values(counts).reduce((a,b)=>a+b,0);
-    $("info").textContent=`${tot} Fahrzeuge unterwegs · `+(DATED[z.date]?`Fahrplan vom ${+z.date.slice(8)}.${+z.date.slice(5,7)}.`:"eingebauter Fahrplan")}
+  sperrHeute=SPERR.teile.size>0&&SPERR.datum===zh(simMs).date;
+  $("clk").textContent=clockSec(simMs);
+  if(mapBereit&&now-fzT>=66){fzT=now;
+    const counts={fv:0,rv:0,s:0,tr:0,sch:0},dcount={d0:0,d1:0,d2:0,dn:0},fs=[],seen=new Set();visible=[];lateN=0;cancN=0;
+    const b=map.getBounds(),W0=b.getWest()-.05,E0=b.getEast()+.05,S0=b.getSouth()-.05,N0=b.getNorth()+.05,zoom=map.getZoom();
+    for(const sv of services(simMs)){const t=sv.t;
+      for(const tr of sv.runs){const rt=rtFor(tr,sv.o);if(rt&&rt.canc){if(t>=rt.t0-5&&t<=rt.t1)cancN++;continue}const T0=rt?rt.t0:tr.t0,T1=rt?rt.t1:tr.t1;if(t<T0||t>T1)continue;
+        const p=trainPos(tr,t,rt);if(!p)continue;const dl=delayNow(rt,p);if(dl>=180)lateN++;
+        const sk=tr.label+"|"+tr.st[0].i+"|"+(tr.t0-sv.o);if(sv.o){seen.add(sk)}else if(seen.has(sk))continue;
+        counts[tr.cls]++;if(!onTr[tr.cls])continue;if(tr.cls==="tr"&&zoom<11)continue;
+        const ll=wgs(p.x,p.y);if(ll[0]<W0||ll[0]>E0||ll[1]<S0||ll[1]>N0)continue;
+        const dc=DCLS(rt?dl:null);dcount[dc]++;const isSel=!!sel&&tr===sel.tr,isLate=colMode!=="vsp"&&dl>=180;
+        fs.push({type:"Feature",properties:{k:visible.length,c:tr.cls,f:colMode==="vsp"?colors[dc]:colors[tr.cls],r:isSel?colors.sel:isLate?colors.late:"#ffffff",
+          w:isSel?3.5:isLate?2.4:1.3,g:(tr.cls==="tr"?0.72:1)*(isSel?1.5:1),o:isSel?1:0,l:(tr.label+(dl>=60?" "+fmtDelay(dl):"")).replace(/[^\x00-\xff]/g,"'"),z:tr.to},geometry:{type:"Point",coordinates:ll}});
+        visible.push({tr,o:sv.o,p,dl,rt})}}
+    fs.sort((a,b)=>a.properties.o-b.properties.o||REIHE.indexOf(a.properties.c)-REIHE.indexOf(b.properties.c));
+    map.getSource("fz").setData(fc(fs));lastCounts=counts;lastD=dcount}
+  if(now-slowT>500){slowT=now;const counts=lastCounts,dcount=lastD;
+    $("live").textContent=`· ${counts.fv+counts.rv+counts.s+counts.tr+counts.sch} unterwegs`+(rtStats.on?` · ${lateN} verspätet · ${cancN} fallen aus`:"");
+    document.querySelectorAll("#tlegend .n").forEach((n,j)=>n.textContent=colMode==="vsp"?dcount[["d0","d1","d2","dn"][j]]:counts[KLASSEN[j]]);
+    const z=zh(simMs);fpBrauche(simMs);$("daytype").textContent=DATED[z.date]?`Fahrplan vom ${+z.date.slice(8)}.${+z.date.slice(5,7)}.${z.date.slice(0,4)}`:`Fahrplan ${DAYNAME[dayType(z.wd)]}`;
+    if(sel)showTrain(sel.tr,sel.o,false);else if(selSt&&$("deps"))renderDeps(selSt)}
   requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+// Zug-Details: Zeiten relativ zur aktuellen Betriebszeit umrechnen
+function showTrain(tr,o,center){sel={tr,o};selSt=null;selLn=null;markSt(null);
+  const rt=rtFor(tr,o);const t=zh(simMs).t+o,p=rt&&rt.canc?null:trainPos(tr,t,rt);const at=tm=>clock(simMs+(tm-t)*60000);
+  const items=tr.st.map((S,j)=>{const tm=j===0?S.d:S.a;const dl=rt?(j===0?rt.dd[j]:rt.da[j]):0;const etm=tm+dl/60;const cls=p&&(p.next===j||p.stop===j)?"next":etm<t?"done":"";
+    const cx=rt&&(rt.canc||rt.sc[j]);return `<li class="${cls}"><time class="${cx?"cx":""}">${at(tm)}</time><span>${SN[S.i]}${cx?' <span class="cxl">fällt aus</span>':dl>=60?` <span class="late">${fmtDelay(dl)}</span>`:""}</span></li>`}).join("");
+  const dln=delayNow(rt,p);
+  const where=rt&&rt.canc?"Dieser Zug fällt heute aus":!p?"Nicht mehr unterwegs":(p.moving?`Unterwegs nach ${SN[tr.st[p.next].i]}`:`Hält in ${SN[tr.st[p.stop].i]}`)+(rt?(dln>=60?` · ${Math.round(dln/60)} Min. verspätet`:" · pünktlich"):" · nur Fahrplan, keine Echtzeit");
+  $("detail").innerHTML=`<div class="card"><p class="eyebrow">${TNAME[tr.cls]}</p><h2><span class="badge ${tr.cls}">${tr.label}</span> → ${tr.to}</h2>
+    <p class="sub">${where}</p><p class="eyebrow">Halte im Hauptnetz</p><ol class="trip">${items}</ol>
+    <button class="link" id="back">Auswahl aufheben</button></div>`;
+  bindDetail();$("back").onclick=()=>{sel=null;clearSel()};
+  if(center&&p)hinZu(p.x,p.y,13)}
+// Abfahrten an einem Bahnhof (nächste 45 Minuten, auch über Mitternacht)
+function renderDeps(n){const box=$("deps");if(!box)return;const i=SN.indexOf(n);const out=[];
+  const z=zh(simMs);const svs=[...services(simMs),{runs:tagRuns(zh(simMs+86400000)),o:-1440,t:z.t-1440}];
+  for(const sv of svs)for(const tr of sv.runs){if(tr.t1<sv.t||tr.t0>sv.t+45)continue;
+    const rt=rtFor(tr,sv.o);tr.st.forEach((S,j)=>{if(S.i!==i||j===tr.st.length-1)return;const dm=S.d-sv.t;const dl=rt?rt.dd[j]:0;if(dm+dl/60<-0.5||dm>45)return;out.push({dm,tr,dl,cx:rt&&(rt.canc||rt.sc[j])})})}
+  out.sort((a,b)=>a.dm-b.dm);{const u=new Set();for(let j=out.length-1;j>=0;j--){const key=out[j].tr.label+'|'+Math.round(out[j].dm);if(u.has(key))out.splice(j,1);else u.add(key)}}
+  box.innerHTML=out.length?out.slice(0,12).map(o=>`<li><time class="${o.cx?"cx":""}">${clock(simMs+o.dm*60000)}</time><span><span class="badge ${o.tr.cls}">${o.tr.label}</span></span><span class="to">${o.cx?'<span class="cxl">fällt aus</span> ':o.dl>=60?`<span class="late">${fmtDelay(o.dl)}</span> `:""}${o.tr.to}</span></li>`).join(""):`<li><span></span><span></span><span class="to">Keine Abfahrten in den nächsten 45 Minuten</span></li>`}
+
+// ===== Echtzeit (Stufe 3) =====
+// Der lokale Dienst «ZugKarte Echtzeit» (Claude-Desktop-Erweiterung) liefert SIRI-ET-Daten.
+// Abgleich mit unserem Fahrplan über Bahnhof + Sollzeit; Verspätungen werden vorwärts weitergereicht.
+const STUIC=__STUIC__;
+const RT_SERVER="host:ZugKarte_Echtzeit";
+const UIC2IDX={};STUIC.forEach((l,i)=>l.forEach(u=>UIC2IDX[u]=i));
+for(const k in DAYS)DAYS[k].forEach(r=>r.id=RID++);
+const rtMap=new Map();let rtStats={on:false,at:0,matched:0,late:0,canc:0,total:0};
+function rtFor(tr,o){if(!rtStats.on||Math.abs(simMs-Date.now())>3*3600e3)return null;return rtMap.get(tr.id+"|"+o)||null}
+let rtLetzt=null;
+function applyRT(d){rtLetzt=d;
+  const nowMs=Date.now(),z=zh(nowMs),mid0=Math.round(nowMs/60000-z.t),nowMin=nowMs/60000;
+  const svs=[{runs:tagRuns(zh(nowMs-86400000)),o:1440,mid:mid0-1440},{runs:tagRuns(z),o:0,mid:mid0}];
+  const idx=new Map(),ref=new Map();
+  for(const sv of svs)for(const r of sv.runs){if(sv.mid+r.t1<nowMin-180||sv.mid+r.t0>nowMin+260)continue;ref.set(r.id+"|"+sv.o,{r,o:sv.o});
+    const n=r.st.length;r.st.forEach((S,j)=>{const last=j===n-1;const key=S.i+"|"+Math.round(sv.mid+(last?S.a:S.d))+(last?"a":"d");let a=idx.get(key);if(!a)idx.set(key,a=[]);a.push(r.id+"|"+sv.o)})}
+  rtMap.clear();let matched=0,late=0,canc=0;
+  for(const [nr,line,op,jc,calls] of d.z){
+    const votes=new Map();
+    for(const c of calls){const si=UIC2IDX[c[0]];if(si===undefined)continue;
+      if(c[3]!=null)(idx.get(si+"|"+c[3]+"d")||[]).forEach(k=>votes.set(k,(votes.get(k)||0)+1));
+      if(c[1]!=null)(idx.get(si+"|"+c[1]+"a")||[]).forEach(k=>votes.set(k,(votes.get(k)||0)+1))}
+    let best=null,bv=0;const lab=(line||"").replace(/\s+/g,"");
+    for(const [k,v] of votes){const sc=v+(ref.get(k).r.label.replace(/\s+/g,"")===lab?.5:0);if(sc>bv){bv=sc;best=k}}
+    if(!best||rtMap.has(best))continue;
+    const {r,o}=ref.get(best);const n=r.st.length;
+    const da=new Array(n).fill(null),dd=new Array(n).fill(null),sc=new Array(n).fill(0);
+    for(const c of calls){const si=UIC2IDX[c[0]];r.st.forEach((S,j)=>{if(S.i===si){if(c[2]!=null)da[j]=c[2];if(c[4]!=null)dd[j]=c[4];if(c[5])sc[j]=1}})}
+    let carry=0;for(let j=0;j<n;j++){if(da[j]==null)da[j]=dd[j]!=null?dd[j]:carry;if(dd[j]==null)dd[j]=da[j];carry=dd[j]}
+    // angepasste Zeiten (Minuten des Betriebstags), monoton
+    const A=[],D=[];let prev=-1e9;r.st.forEach((S,j)=>{let a=Math.max(S.a+da[j]/60,prev);let dep=Math.max(S.d+dd[j]/60,a);A.push(a);D.push(dep);prev=dep});
+    rtMap.set(best,{nr,line,canc:!!jc,da,dd,sc,A,D,t0:D[0],t1:A[n-1]});matched++;if(jc)canc++}
+  rtStats={on:true,at:d.abgerufen||Date.now(),matched,late:0,canc,total:d.z.length};
+}
+function delayNow(rt,p){if(!rt||!p)return 0;return p.moving?rt.da[p.next]:rt.dd[p.stop]}
+const fmtDelay=s=>{const m=Math.round(s/60);return m>=1?"+"+m+"′":""};
+// Status-Anzeige
+function setRT(state,msg,action){const el=$("rt");el.dataset.state=state;$("rtTxt").textContent=msg;
+  const b=$("rtBtn");b.hidden=!action;if(action){b.textContent=action.label;b.onclick=action.fn}
+  $("rtNote").textContent=state==="on"?"":msg}
+function rtTick(){if(!rtStats.on)return;const age=(Date.now()-rtStats.at)/60000;
+  const t=new Date(rtStats.at);const hh=clock(rtStats.at);
+  if(age>5)setRT("stale",`Echtzeit veraltet (Stand ${hh})`);else setRT("on",`Echtzeit · Stand ${hh}`)}
+let rtMcp=null,rtUnwatch=null;
+function rtError(e){const code=e&&e.code;
+  if(code==="server_unavailable"||code==="upstream_error"||code==="rate_limited"){if(rtStats.on){rtTick();$("rtNote").textContent="Der Echtzeit-Dienst war gerade nicht erreichbar. Die Karte zeigt die letzten Daten und versucht es in einer Minute wieder."}else setRT("err","Echtzeit-Dienst gerade nicht erreichbar. Nächster Versuch in einer Minute.");return}
+  rtMap.clear();rtStats.on=false;
+  if(code==="server_not_connected")setRT("off","Echtzeit-Dienst nicht gefunden. Öffne die Karte in der Claude-Desktop-App und prüfe, ob die Erweiterung «ZugKarte Echtzeit» installiert und eingeschaltet ist.");
+  else if(code==="approval_required"||code==="not_in_manifest"||code==="consent_required")setRT("off","Die Karte braucht deine Freigabe für den Echtzeit-Dienst.",{label:"Echtzeit erlauben",fn:rtAsk});
+  else if(code==="tool_error")setRT("err",(e.message||"Der Echtzeit-Dienst meldet einen Fehler.").replace(/^"|"$/g,""));
+  else if(code==="cancelled")setRT("off","Abfrage abgelehnt. Ohne Freigabe zeigt die Karte nur den Fahrplan.",{label:"Echtzeit erlauben",fn:rtAsk});
+  else setRT("off","Echtzeit ist hier nicht verfügbar. Die Karte zeigt den Fahrplan.")}
+async function rtAsk(){if(!rtMcp)return;setRT("wait","Frage Echtzeit-Dienst an …");
+  try{const res=await rtMcp.callTool(RT_SERVER,"verspaetungen",{},{cache:{staleTime:55000,gcTime:600000}});const p=res.payload;if(p&&p.z){applyRT(p);rtTick()}else setRT("err","Unerwartete Antwort vom Echtzeit-Dienst.")}catch(e){rtError(e)}}
+// Eigenständiges Programm: Echtzeit direkt vom lokalen ZugKarte-Server
+function showKeyForm(msg){$("keyForm").hidden=false;$("keyEdit").hidden=true;if(msg)$("keyMsg").textContent=msg}
+function hideKeyForm(){$("keyForm").hidden=true;$("keyEdit").hidden=window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server"}
+async function localPoll(){
+  try{const r=await fetch("/api/verspaetungen",{cache:"no-store"});const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.z){applyRT(j);rtTick();hideKeyForm();return}
+    if(r.status===401){rtMap.clear();rtStats.on=false;if(window.ZK_LOCAL.mode==="server"){setRT("off","Echtzeit ist gerade nicht verfügbar. Die Karte zeigt die Züge nach Fahrplan.");return}setRT("off",j.fehler||"Noch kein API-Schlüssel eingetragen.");showKeyForm();return}
+    if(rtStats.on){rtTick();$("rtNote").textContent=(j.fehler||"Echtzeit gerade nicht verfügbar.")+" Die Karte zeigt die letzten Daten und versucht es in einer Minute wieder."}
+    else setRT("err",j.fehler||"Echtzeit gerade nicht verfügbar. Nächster Versuch in einer Minute.")}
+  catch(e){if(!rtStats.on)setRT("err","Das Programm ZugKarte antwortet nicht. Ist das ZugKarte-Fenster noch offen?");else $("rtNote").textContent="Das Programm ZugKarte antwortet gerade nicht. Ist das ZugKarte-Fenster noch offen?"}}
+if(window.ZK_LOCAL){
+  if(window.ZK_LOCAL.mode!=="server")$("keyEdit").onclick=()=>showKeyForm();
+  $("keyForm").addEventListener("submit",async e=>{e.preventDefault();const k=$("keyIn").value.trim();if(!k){$("keyMsg").textContent="Bitte zuerst den Schlüssel einfügen.";return}
+    $("keySave").disabled=true;$("keyMsg").textContent="Speichere …";
+    try{const r=await fetch("/api/schluessel",{method:"POST",headers:{"Content-Type":"application/json","X-ZugKarte":"1"},body:JSON.stringify({apiKey:k})});const j=await r.json().catch(()=>({}));
+      if(r.ok){$("keyIn").value="";$("keyMsg").textContent="Gespeichert. Hole Echtzeitdaten …";setRT("wait","Hole Echtzeitdaten …");await localPoll()}else $("keyMsg").textContent=j.fehler||"Speichern hat nicht geklappt."}
+    catch(err){$("keyMsg").textContent="Das Programm ZugKarte antwortet nicht. Ist das ZugKarte-Fenster noch offen?"}
+    $("keySave").disabled=false});
+  setRT("wait","Hole Echtzeitdaten …");localPoll();setInterval(localPoll,60000);setInterval(rtTick,15000);
+  if(window.ZK_LOCAL.mode==="server"){sperrLaden();setInterval(sperrLaden,30*60000)}
+}else (async()=>{let mcp=null;try{mcp=window.claude&&window.claude.use?await window.claude.use("mcp"):null}catch(e){mcp=null}
+  if(!mcp){setRT("off","Echtzeit gibt es nur in der Claude-Desktop-App mit der Erweiterung «ZugKarte Echtzeit». Hier zeigt die Karte den Fahrplan.");return}
+  rtMcp=mcp;setRT("wait","Verbinde Echtzeit …");
+  rtUnwatch=mcp.watchTool(RT_SERVER,"verspaetungen",null,ev=>{
+    if(ev.type==="data"){const p=ev.result&&ev.result.payload;if(p&&p.z){applyRT(p);if(ev.result.cache&&ev.result.cache.storedAt)rtStats.at=ev.result.cache.storedAt;rtTick()}else setRT("err","Unerwartete Antwort vom Echtzeit-Dienst.")}
+    else rtError(ev.error)},{refetchInterval:60000,cache:{staleTime:55000,gcTime:600000}});
+  setInterval(rtTick,15000)})();
+
+legend();intro();
+map.once("load",()=>{if(matchMedia("(max-width:760px)").matches){const a=document.querySelector(".maplibregl-ctrl-attrib");if(a)a.classList.remove("maplibregl-compact-show")}});
+// Handy: Seitenleiste auf- und zuklappen; bei einer Auswahl öffnen
+function seite(auf){$("side").classList.toggle("zu",!auf);$("sideToggle").setAttribute("aria-expanded",auf);$("sideToggle").textContent=auf?"Details ausblenden":"Details anzeigen";setTimeout(()=>map.resize(),250)}
+$("sideToggle").onclick=()=>seite($("side").classList.contains("zu"));
+if(matchMedia("(max-width:760px)").matches)seite(false);
+let letzteKarte=null;new MutationObserver(()=>{const c=$("detail").querySelector(".card");if(!c)return;if($("side").classList.contains("zu"))seite(true);
+  const h=c.querySelector("h2"),t=h?h.textContent:"";if(t!==letzteKarte&&matchMedia("(max-width:760px)").matches){const sd=$("side");sd.scrollTop+=$("detail").getBoundingClientRect().top-sd.getBoundingClientRect().top-8}letzteKarte=t}).observe($("detail"),{childList:true});
 </script>

@@ -62,7 +62,7 @@ function seite(datei) {
 }
 const PAGE = seite("index.html");
 // CSP der 3D-Karte – gilt auch für den Web-Worker (lädt die Kacheln selbst)
-const CSP3D = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
+const CSP3D = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
 let PAGE3D = null; try { PAGE3D = seite("3d.html"); } catch {}   // 3D-Karte (Prototyp, MapLibre)
 // Bibliotheken der 3D-Karte (MapLibre GL, selbst ausgeliefert)
 const LIB = {}; try { for (const f of fs.readdirSync(path.join(__dirname, "public", "lib"))) { const b = fs.readFileSync(path.join(__dirname, "public", "lib", f)); LIB[f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }) }; } } catch {}
@@ -225,7 +225,7 @@ function json(req, res, code, obj, gz) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405, SEC); return res.end(); }
-  if (url.pathname === "/" || url.pathname === "/index.html") {
+  if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/2d") {
     if (req.headers["if-none-match"] === PAGE.etag) { res.writeHead(304, { ...SEC, ETag: PAGE.etag }); return res.end(); }
     const h = { ...SEC, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE.gz); }
