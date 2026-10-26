@@ -8,18 +8,18 @@
   --ground:#e6ecee; --land:#fbfcfb; --lake:#b9d5e5; --canton:#cfd8dc;
   --ink:#16222b; --muted:#5d6d77; --line:#dbe2e5; --panel:#ffffff;
   --fv:#16222b; --rv:#22808f; --sm:#b5612a; --sel:#e3a008;
-  --tfv:#e5484d; --trv:#7b4fd6; --ts:#2f6fe0; --tring:#ffffff; --late:#d97706; --ok:#16a34a;
+  --tfv:#e5484d; --trv:#7b4fd6; --ts:#2f6fe0; --ttr:#0f9488; --tsch:#0369a1; --oevln:#7d8f99; --schln:#5b9cc8; --tring:#ffffff; --late:#d97706; --ok:#16a34a;
   --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --ground:#0d1317; --land:#172026; --lake:#1d3a4c; --canton:#2a363d;
   --ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:#121a1f;
-  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}}
+  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --ttr:#2dd4bf; --tsch:#38bdf8; --oevln:#5d6f78; --schln:#4f8fb8; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}}
 :root[data-theme="dark"]{
   --ground:#0d1317; --land:#172026; --lake:#1d3a4c; --canton:#2a363d;
   --ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:#121a1f;
-  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}
+  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --ttr:#2dd4bf; --tsch:#38bdf8; --oevln:#5d6f78; --schln:#4f8fb8; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}
 html,body{height:100%}
 body{background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:14px;overflow:hidden}
 .app{height:100%;display:grid;grid-template-rows:auto 1fr}
@@ -45,6 +45,8 @@ svg{display:block;width:100%;height:100%}
 .de{fill:var(--land);stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.85}
 .debl{fill:none;stroke:var(--canton);stroke-width:1;vector-effect:non-scaling-stroke}
 .delbl{fill:var(--muted);font-family:var(--f-ui);font-weight:600;letter-spacing:.04em;text-anchor:middle;pointer-events:none;opacity:.8}
+.oev{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.oev.t{stroke:var(--oevln);stroke-width:1.1;opacity:.8}.oev.s{stroke:var(--schln);stroke-width:1.2;stroke-dasharray:5 4}
 .dln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .dln.f{stroke:var(--fv);stroke-width:2.2}.dln.m{stroke:var(--rv);stroke-width:1.4}.dln.b{stroke:var(--rv);stroke-width:.9;opacity:.55}
 .dst{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke}
@@ -134,7 +136,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
 .cxl{color:var(--tfv);font-weight:700}
 .live{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--tring);box-shadow:0 0 0 1px var(--line);justify-self:center}
-.dot.fv{background:var(--tfv)}.dot.rv{background:var(--trv)}.dot.s{background:var(--ts)}
+.dot.fv{background:var(--tfv)}.dot.rv{background:var(--trv)}.dot.s{background:var(--ts)}.dot.tr{background:var(--ttr)}.dot.sch{background:var(--tsch)}
 .dot.d0{background:var(--ok)}.dot.d1{background:var(--late)}.dot.d2{background:#e5484d}.dot.dn{background:#9aa5ab}
 .colmode{margin:2px 0 10px}
 .deps{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:2px}
@@ -142,7 +144,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
 .deps li:last-child{border-bottom:0}
 .deps time{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
 .badge{display:inline-block;white-space:nowrap;font:700 11px var(--f-ui);padding:1px 5px;border-radius:3px;color:#fff;text-align:center}
-.badge.fv{background:var(--tfv)}.badge.rv{background:var(--trv)}.badge.s{background:var(--ts)}
+.badge.fv{background:var(--tfv)}.badge.rv{background:var(--trv)}.badge.s{background:var(--ts)}.badge.tr{background:var(--ttr)}.badge.sch{background:var(--tsch)}
 .deps .to{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trip{list-style:none;margin:0 0 14px;padding:0}
 .trip li{display:grid;grid-template-columns:3.2em 1fr;gap:10px;font-size:13px;padding:3px 0;color:var(--muted)}
@@ -193,6 +195,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
         <path class="cant" id="cant"></path>
         <g id="denet"></g>
         <g id="dest"></g>
+        <g id="oevnet"><g id="oevs"></g><g id="oevt"></g></g>
         <g id="lines"></g>
         <g id="sperren"></g>
         <g id="hits"></g>
@@ -233,13 +236,13 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <p class="sperrinfo" id="sperrInfo" hidden></p>
     </section>
     <section id="detail"></section>
-    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Reliefschattierung © swisstopo (DHM25). <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem offiziellen Fahrplan der Schweiz (GTFS, opentransportdata.swiss), den der Server zweimal pro Woche neu lädt und für jeden Tag einzeln aufbereitet – mit Feiertagen, Baustellen und dem Fahrplanwechsel im Dezember; Zeiten in Schweizer Zeit. Ist er nicht erreichbar, gilt ein eingebauter Fahrplan je für Montag–Freitag, Samstag und Sonntag (transport.opendata.ch). Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Reliefschattierung © swisstopo (DHM25). <span id="deNote">Umriss und Bundesländer Deutschlands aus deutschlandGeoJSON (github.com/isellsoap/deutschlandGeoJSON), deutsches Bahnnetz © OpenStreetMap-Mitwirkende (ODbL): dunkel Fernverkehr (ICE/IC), türkis Hauptbahnen, hell Nebenbahnen. Bahnhöfe Deutschland: DB Station&Service (CC BY 4.0).</span> Züge nach dem offiziellen Fahrplan der Schweiz (GTFS, opentransportdata.swiss), den der Server zweimal pro Woche neu lädt und für jeden Tag einzeln aufbereitet – mit Feiertagen, Baustellen und dem Fahrplanwechsel im Dezember; Zeiten in Schweizer Zeit. Auf der Website fahren auch Trams, Metro und Schiffe mit (Tramgleise und Schiffslinien © OpenStreetMap-Mitwirkende, ODbL). Ist der Fahrplan nicht erreichbar, gilt ein eingebauter Fahrplan je für Montag–Freitag, Samstag und Sonntag (transport.opendata.ch). Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, sobald die Erweiterung «ZugKarte Echtzeit» in der Claude-Desktop-App läuft.</p>
   </aside>
 </main>
 </div>
 
 <script>
-const TT=__TT__, STX=__STX__, KANTEN=__KANTEN__; // STX: Halte ausserhalb des Schweizer Netzes (grenzüberschreitende Züge)
+const TT=__TT__, STX=__STX__, KANTEN=__KANTEN__, OEV=__OEV__; // STX: Halte ausserhalb des Schweizer Netzes (grenzüberschreitende Züge)
 const DE=__DE__, DN=__DENETZ__;
 const GEO=__GEO__, ST=__ST__, LINES=__LINES__, TIER0=__TIER0__, TIER1=__TIER1__;
 const TYPES={fv:{name:"Fernverkehrsachsen",short:"Fernverkehr"},rv:{name:"Regionalstrecken",short:"Regional"},sm:{name:"Schmalspur & Privatbahnen",short:"Schmalspur"}};
@@ -263,6 +266,10 @@ const deSt=DN.st.slice().reverse().map(([n,x,y,t])=>{const c=el("circle",{cx:x,c
 const deOrd=deSt.slice().reverse(); // Reihenfolge der Daten: wichtigste zuerst
 const deLbls=DE.labels.map(b=>{const t=el("text",{x:b.x,y:b.y,class:"delbl"},$("delbl"));t.textContent=b.name;return t});
 GEO.lakes.forEach(l=>el("path",{d:l.d,class:"lake"},$("lakes")));
+// Tram-/Metronetz und Schiffslinien (Verlauf wie KANTEN, Karteneinheiten × 10)
+const decK=v=>{let x=0,y=0;return "M"+v.split(";").map((q,i)=>{const [a,b]=q.split(",").map(Number);if(i){x+=a;y+=b}else{x=a;y=b}return (x/10).toFixed(1)+","+(y/10).toFixed(1)}).join("L")};
+const MIT_OEV=OEV.t.length+OEV.s.length>0;
+if(MIT_OEV){el("path",{d:OEV.t.map(k=>decK(KANTEN[k])).join(""),class:"oev t"},$("oevt"));el("path",{d:OEV.s.map(k=>decK(KANTEN[k])).join(""),class:"oev s"},$("oevs"))}
 
 // Index Bahnhof -> Strecken, Nachbarn
 const LEFT=new Set(["Luzern","Visp","Olten","Locarno","Emmenbrücke","Rotkreuz","Spiez","Zürich Altstetten","Genève","Pfäffikon SZ","Biel/Bienne","Hendschiken"]);
@@ -309,6 +316,7 @@ function svgPt(cx,cy){const r=$("map").getBoundingClientRect();const s=Math.min(
   const ox=(r.width-W*s)/2, oy=(r.height-H*s)/2; return [(cx-r.left-ox)/s,(cy-r.top-oy)/s,s]}
 function apply(){
   $("vp").setAttribute("transform",`translate(${tx},${ty}) scale(${k})`);
+  $("oevt").style.display=k>=1.6?"":"none";
   const s=svgPt(0,0)[2]*k; // Bildschirm-Pixel pro Karteneinheit
   const show2=k>=3.2, show1=k>=1.7, far=k<0.55; // far: Deutschland-Ansicht, Schweiz nur noch grob
   names.forEach(n=>{
@@ -450,13 +458,14 @@ q.addEventListener("blur",()=>setTimeout(()=>sg.hidden=true,100));
 // TT: je Tagestyp (wd = Mo–Fr, sa = Samstag, su = Sonntag) der ganze Tagesfahrplan.
 // Zeile 1 = Zielorte; danach je Zuglauf "Kat,Nr,Ziel|Halt;Halt" mit Halt = BahnhofIdx(hex),Ankunft[,Abfahrt] in Minuten ab Mitternacht
 const SN=Object.keys(ST).concat(Object.keys(STX));
-const TCLS=c=>c==="S"?"s":/^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
-const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn"};
+const TCLS=c=>c==="S"?"s":c==="Tram"||c==="M"?"tr":c==="BAT"||c==="FAE"?"sch":/^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
+const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn",tr:"Tram & Metro",sch:"Schiff"};
+const KLASSEN=MIT_OEV&&window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server"?["fv","rv","s","tr","sch"]:["fv","rv","s"];
 const DAYNAME={wd:"Montag–Freitag",sa:"Samstag",su:"Sonntag"};
 function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
   return L.map(l=>{const [h,body]=l.split("|");const [cat,num,di]=h.split(",");
     const st=body.split(";").map(x=>{const a=x.split(",");const t1=+a[1],t2=a.length>2?+a[2]:t1;return {i:parseInt(a[0],16),a:t1,d:t2}});
-    return {cat,label:cat==="S"?"S"+num:cat+" "+num,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
+    return {cat,label:cat==="S"?"S"+num:num?cat+" "+num:cat,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
 const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
 // Fahrplan nach Datum (Website): der Server rechnet täglich den offiziellen GTFS-Fahrplan für die nächsten Tage um
 // (mit Baustellen, Feiertagen und Fahrplanwechsel). Fehlt er, gilt der eingebaute Fahrplan nach Wochentag.
@@ -535,8 +544,8 @@ function clockSec(ms){const z=zh(ms);const s=Math.floor(z.t*60);return pad(Math.
 document.querySelectorAll("#speed button").forEach(b=>b.onclick=()=>{speed=+b.dataset.v;document.querySelectorAll("#speed button").forEach(x=>x.setAttribute("aria-pressed",x===b))});
 $("now").onclick=()=>{simMs=Date.now()};
 // Filter
-const onTr={fv:true,rv:true,s:true};
-let lastCounts={fv:0,rv:0,s:0};
+const onTr={fv:true,rv:true,s:true,tr:true,sch:true};
+let lastCounts={fv:0,rv:0,s:0,tr:0,sch:0};
 // Zugfarbe nach Zugart oder nach Verspätung (pünktlich < 3 Min., 3–5 Min., ab 6 Min., ohne Echtzeit)
 let colMode="art";try{colMode=localStorage.getItem("zkFarbe")==="vsp"?"vsp":"art"}catch(e){}
 const DCLS=dl=>dl==null?"dn":dl<180?"d0":dl<360?"d1":"d2";
@@ -547,12 +556,12 @@ document.querySelectorAll("#colmode button").forEach(b=>b.onclick=()=>setColMode
 function tlegend(){const box=$("tlegend");box.innerHTML="";
   if(colMode==="vsp"){["d0","d1","d2","dn"].forEach(c=>{const b=document.createElement("button");b.setAttribute("aria-pressed","true");b.disabled=true;b.style.cursor="default";
     b.innerHTML=`<i class="dot ${c}"></i><b>${DNAME[c]}</b><span class="n">${lastD[c]}</span>`;box.appendChild(b)});return}
-  ["fv","rv","s"].forEach(c=>{const b=document.createElement("button");b.setAttribute("aria-pressed",onTr[c]);
+  KLASSEN.forEach(c=>{const b=document.createElement("button");b.setAttribute("aria-pressed",onTr[c]);
     b.innerHTML=`<i class="dot ${c}"></i><b>${TNAME[c]}</b><span class="n">${lastCounts[c]}</span>`;b.onclick=()=>{onTr[c]=!onTr[c];tlegend()};box.appendChild(b)})}
 setColMode(colMode);
 // Zeichnen
 const cv=$("trains"),cx=cv.getContext("2d");let colors={};
-function readColors(){const cs=getComputedStyle(document.documentElement);const g=n=>cs.getPropertyValue(n).trim();colors={d0:g("--ok"),d1:g("--late"),d2:"#e5484d",dn:"#9aa5ab",late:g("--late"),fv:g("--tfv"),rv:g("--trv"),s:g("--ts"),ring:g("--tring"),ink:g("--ink"),land:g("--land"),sel:g("--sel")}}
+function readColors(){const cs=getComputedStyle(document.documentElement);const g=n=>cs.getPropertyValue(n).trim();colors={d0:g("--ok"),d1:g("--late"),d2:"#e5484d",dn:"#9aa5ab",late:g("--late"),fv:g("--tfv"),rv:g("--trv"),s:g("--ts"),tr:g("--ttr"),sch:g("--tsch"),ring:g("--tring"),ink:g("--ink"),land:g("--land"),sel:g("--sel")}}
 readColors();try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",readColors)}catch(e){}
 new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 let visible=[], sel=null, slowT=0;
@@ -563,14 +572,14 @@ function frame(now){const dt=Math.min(now-lastReal,1000);lastReal=now;simMs+=dt*
   if(cv.width!==Math.round(r.width*dpr)||cv.height!==Math.round(r.height*dpr)){cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr)}
   const s=Math.min(r.width/W,r.height/H),ox=(r.width-W*s)/2,oy=(r.height-H*s)/2;
   cx.setTransform(dpr,0,0,dpr,0,0);cx.clearRect(0,0,r.width,r.height);
-  const counts={fv:0,rv:0,s:0};visible=[];let lateN=0,cancN=0;const rad=k<2?2.8:k<5?4.2:6;
+  const counts={fv:0,rv:0,s:0,tr:0,sch:0};visible=[];let lateN=0,cancN=0;const rad=k<2?2.8:k<5?4.2:6;
   const seen=new Set();
   for(const sv of services(simMs)){const t=sv.t;
-    for(const tr of sv.runs){const rt=rtFor(tr,sv.o);if(rt&&rt.canc){if(t>=rt.t0-5&&t<=rt.t1)cancN++;continue}const T0=rt?rt.t0:tr.t0,T1=rt?rt.t1:tr.t1;if(t<T0||t>T1)continue;const p=trainPos(tr,t,rt);if(!p)continue;const dl=delayNow(rt,p);if(dl>=180)lateN++;if(sv.o){seen.add(tr.label)}else if(seen.has(tr.label))continue;counts[tr.cls]++;if(!onTr[tr.cls])continue;
+    for(const tr of sv.runs){const rt=rtFor(tr,sv.o);if(rt&&rt.canc){if(t>=rt.t0-5&&t<=rt.t1)cancN++;continue}const T0=rt?rt.t0:tr.t0,T1=rt?rt.t1:tr.t1;if(t<T0||t>T1)continue;const p=trainPos(tr,t,rt);if(!p)continue;const dl=delayNow(rt,p);if(dl>=180)lateN++;const sk=tr.label+"|"+tr.st[0].i+"|"+(tr.t0-sv.o);if(sv.o){seen.add(sk)}else if(seen.has(sk))continue;counts[tr.cls]++;if(!onTr[tr.cls])continue;if(tr.cls==="tr"&&k<1.6)continue;
       const sx=ox+(tx+k*p.x)*s,sy=oy+(ty+k*p.y)*s;if(sx<-20||sy<-20||sx>r.width+20||sy>r.height+20)continue;visible.push({tr,o:sv.o,p,sx,sy,dl,rt})}}
-  visible.sort((a,b)=>"srvfv".indexOf(a.tr.cls)-"srvfv".indexOf(b.tr.cls));
+  visible.sort((a,b)=>"trschsrvfv".indexOf(a.tr.cls)-"trschsrvfv".indexOf(b.tr.cls));
   const dcount={d0:0,d1:0,d2:0,dn:0};
-  for(const v of visible){const isSel=sel&&v.tr===sel.tr,R=isSel?rad+3:rad;const dc=DCLS(v.rt?v.dl:null);dcount[dc]++;
+  for(const v of visible){const isSel=sel&&v.tr===sel.tr,R=(isSel?rad+3:rad)*(v.tr.cls==="tr"?0.7:1);const dc=DCLS(v.rt?v.dl:null);dcount[dc]++;
     const fill=colMode==="vsp"?colors[dc]:colors[v.tr.cls];
     // Richtungspfeil vor dem Punkt (ab mittlerer Zoomstufe)
     if(v.p.moving&&v.p.h!==undefined&&k>=1.6){const c=Math.cos(v.p.h),sn=Math.sin(v.p.h),tip=R+8,b=R-1,w=R*1.0;
@@ -578,11 +587,11 @@ function frame(now){const dt=Math.min(now-lastReal,1000);lastReal=now;simMs+=dt*
       cx.fillStyle=fill;cx.fill();cx.lineWidth=1;cx.strokeStyle=colors.ring;cx.stroke()}
     cx.beginPath();cx.arc(v.sx,v.sy,R,0,Math.PI*2);cx.fillStyle=fill;cx.fill();
     const isLate=colMode!=="vsp"&&v.dl>=180;cx.lineWidth=isSel?3:isLate?2.6:1.5;cx.strokeStyle=isSel?colors.sel:isLate?colors.late:colors.ring;cx.stroke();
-    if(k>=5&&(v.tr.cls!=="s"||k>=8)){cx.font="600 11px Archivo, system-ui, sans-serif";cx.lineWidth=3;cx.strokeStyle=colors.land;cx.fillStyle=colors.ink;
+    if(k>=5&&((v.tr.cls!=="s"&&v.tr.cls!=="tr")||(v.tr.cls==="s"&&k>=8)||k>=12)){cx.font="600 11px Archivo, system-ui, sans-serif";cx.lineWidth=3;cx.strokeStyle=colors.land;cx.fillStyle=colors.ink;
       const lb=v.tr.label+(v.dl>=60?" "+fmtDelay(v.dl):"");cx.strokeText(lb,v.sx+rad+3,v.sy-rad-1);cx.fillText(lb,v.sx+rad+3,v.sy-rad-1)}}
   if(now-slowT>500){slowT=now;lastCounts=counts;
-    $("live").textContent=`· ${counts.fv+counts.rv+counts.s} unterwegs`+(rtStats.on?` · ${lateN} verspätet · ${cancN} fallen aus`:"");
-    lastD=dcount;document.querySelectorAll("#tlegend .n").forEach((n,j)=>n.textContent=colMode==="vsp"?dcount[["d0","d1","d2","dn"][j]]:counts[["fv","rv","s"][j]]);
+    $("live").textContent=`· ${counts.fv+counts.rv+counts.s+counts.tr+counts.sch} unterwegs`+(rtStats.on?` · ${lateN} verspätet · ${cancN} fallen aus`:"");
+    lastD=dcount;document.querySelectorAll("#tlegend .n").forEach((n,j)=>n.textContent=colMode==="vsp"?dcount[["d0","d1","d2","dn"][j]]:counts[KLASSEN[j]]);
     const z=zh(simMs);fpBrauche(simMs);$("daytype").textContent=DATED[z.date]?`Fahrplan vom ${+z.date.slice(8)}.${+z.date.slice(5,7)}.${z.date.slice(0,4)}`:`Fahrplan ${DAYNAME[dayType(z.wd)]}`;
     if(sel)showTrain(sel.tr,sel.o,false);else if(selSt&&$("deps"))renderDeps(selSt)}
   requestAnimationFrame(frame)}

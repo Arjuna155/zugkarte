@@ -12,6 +12,8 @@ D = ROOT / "data"
 # Deutschland (Grundkarte, Bahnnetz, grenzüberschreitende Züge) ein-/ausschalten.
 # Arjuna möchte sich vorerst auf die Schweiz konzentrieren (25.10.2026) → aus. Daten und Werkzeuge bleiben erhalten.
 MIT_DEUTSCHLAND = False
+# Trams, Metro und Schiffe (Etappe 1 «ganzer ÖV», 26.10.2026)
+MIT_OEV = True
 
 
 def load(name):
@@ -30,6 +32,18 @@ grenze = load("grenze.json") if MIT_DEUTSCHLAND else {"stationen": {}, "kanten":
 stations = load("stations.json")
 stx = {n: {"n": n, "E": round(x * 100 + 2480000), "N": round(1300000 - y * 100)}
        for n, (x, y) in grenze["stationen"].items() if n not in stations}
+# Tram-, Metro- und Schiffshalte (tools/oev_netz.py) als weitere Zusatzhalte; Fahrten nur aus dem GTFS-Fahrplan des Servers
+oev = load("oev_netz.json") if MIT_OEV else {"halte": {}, "kanten": {}, "geo": {}, "art": {}}
+oev_name = {}
+for did, (nm, x, y, art) in oev["halte"].items():
+    n = nm
+    if n in stations or n in stx: n = f"{nm} ({'Schiff' if art == 's' else 'Tram'})"
+    k = 2
+    while n in stations or n in stx: n = f"{nm} ({k})"; k += 1
+    stx[n] = {"n": n, "E": round(x * 100 + 2480000), "N": round(1300000 - y * 100), "a": art}; oev_name[did] = n
+kanten = dict(grenze["kanten"]); oev_art = {"t": [], "s": []}
+for key, val in oev["kanten"].items():
+    a, b = key.split("|"); kk = f"{oev_name[a]}|{oev_name[b]}"; kanten[kk] = val; oev_art[oev["art"][key]].append(kk)
 sn = list(stations) + list(stx); sidx = {n: i for i, n in enumerate(sn)}
 for k, txt in fahrplan.items():
     zl = txt.split("\n"); head = zl[0].split("|"); rows = [l for l in zl[1:] if l]
@@ -42,14 +56,15 @@ for k, txt in fahrplan.items():
 
 # Grundlage für den automatischen GTFS-Fahrplan des Servers (app/fahrplan.js); die Kennung kommt auch in die Seite
 import sys; sys.path.insert(0, str(ROOT / "tools")); import fahrplan_basis
-fb = fahrplan_basis.build(lines, stations, load("stuic.json"))
+fb = fahrplan_basis.build(lines, stations, load("stuic.json"), stx, oev, oev_name)
 (ROOT / "app" / "fahrplan_basis.json").write_text(json.dumps(fb, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 values = {
     "__FPV__": fb["v"],
     "__TT__": fahrplan,
     "__STX__": stx,
-    "__KANTEN__": grenze["kanten"],
+    "__KANTEN__": kanten,
+    "__OEV__": oev_art,
     "__STUIC__": load("stuic.json"),
     "__GEO__": load("geo.json"),
     "__DE__": load("deutschland.json") if MIT_DEUTSCHLAND else {"country": "", "states": "", "labels": [], "box": [0, 0, 1, 1]},

@@ -133,8 +133,9 @@ function heuteZH() { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: 
 function fpJahr(iso) { const y = +iso.slice(0, 4); const d1 = new Date(Date.UTC(y, 11, 1)); const ersterSo = 1 + (7 - d1.getUTCDay()) % 7; const wechsel = `${y}-12-${String(ersterSo + 7).padStart(2, "0")}`; return iso >= wechsel ? y + 1 : y; }
 
 // ---------- Umrechnung GTFS → Kartenfahrplan ----------
-const UMRECHNUNG = 2;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
-const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt)
+const UMRECHNUNG = 3;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
+const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt, auf der Karte Bahn)
+const OEV_NEIN = new Set(["7005", "617", "87_LEX"]);   // Agenturen ohne eigenes Netz auf der Karte (Riffelalp-Tram, Alpintrans, SNCF)
 // tage: ["JJJJ-MM-TT", …]; zips: [Pfad, …]; liefert {datum: {ziele:[…], zeilen:[…], feed}}
 async function umrechnen(B, zips, tage, log) {
   const weg = graph(B), tageSet = new Set(tage.map(ymd)), erg = {};
@@ -150,14 +151,19 @@ async function umrechnen(B, zips, tage, log) {
     meine.forEach(d => { erledigt.add(d); erg[isoAus(d)].feed = fVersion; });
     const meineSet = new Set(meine);
     log("Fahrplan:", path.basename(file), "(Ausgabe " + fVersion + ") für", meine.length, "Tage");
-    // Linien: nur Bahn (100–199); von den Trams (900) nur Waldenburgerbahn (BLT 19) und Forchbahn (FB 18) – Stadttrams nicht
-    const linien = new Map();
-    await lesen(file, zip, "routes.txt", (f, k) => { const t = +f[k.route_type];
-      if ((t >= 100 && t < 200) || (t === 900 && TRAM_JA.has(f[k.agency_id] + "/" + f[k.route_short_name]))) {
-        // Anzeige wie bisher: Linie («S 5», «IR 13»), sonst Zugnummer
-        const kat = f[k.route_desc] || f[k.route_short_name] || "", kurz = (f[k.route_short_name] || "").trim();
-        const rest = kurz.startsWith(kat) ? kurz.slice(kat.length).trim() : kurz;
-        linien.set(f[k.route_id], { kat, linie: /^(\d{1,2}|[A-Z]{2,3})$/.test(rest) ? rest : "" }); } });
+    // Linien: Bahn (100–199, dazu Waldenburgerbahn und Forchbahn) auf dem Bahnnetz;
+    // Trams (900), Metro (400/401) und Schiffe (1000) auf dem ÖV-Netz (oev in fahrplan_basis.json)
+    const linien = new Map(), mitOev = !!(B.oev && Object.keys(B.oev).length);
+    await lesen(file, zip, "routes.txt", (f, k) => { const t = +f[k.route_type], ag = f[k.agency_id], kurz = (f[k.route_short_name] || "").trim();
+      const bahn = (t >= 100 && t < 200) || (t === 900 && TRAM_JA.has(ag + "/" + kurz));
+      const oev = !bahn && mitOev && (t === 900 || t === 400 || t === 401 || t === 1000) && !OEV_NEIN.has(ag);
+      if (!bahn && !oev) return;
+      // Anzeige wie bisher: Linie («S 5», «IR 13», «Tram 4»), sonst Zug-/Kursnummer
+      let kat = f[k.route_desc] || kurz || "";
+      if (oev && t === 900) kat = "Tram"; else if (oev && (t === 400 || t === 401)) kat = "M";
+      const rest = kurz.startsWith(kat) ? kurz.slice(kat.length).trim() : kurz.startsWith("M") && kat === "M" ? kurz.slice(1) : kurz;
+      const linie = t === 1000 ? (/^\d{1,3}$/.test(rest) ? rest : "") : /^(\d{1,2}|[A-Z]{2,3})$/.test(rest) ? rest : "";
+      linien.set(f[k.route_id], { kat, linie, oev }); });
     // Verkehrstage
     const dienst = new Map(), wdSp = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     const wdVon = d => new Date(Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8))).getUTCDay();
@@ -174,7 +180,7 @@ async function umrechnen(B, zips, tage, log) {
     await lesen(file, zip, "trips.txt", (line, k) => {
       const f = csv(line); const L = linien.get(f[k.route_id]); if (!L) return;
       const s = dienst.get(f[k.service_id]); if (!s || !s.size) return;
-      fahrten.set(f[k.trip_id], { kat: L.kat, nr: L.linie || f[k.trip_short_name] || "", ziel: (f[k.trip_headsign] || "").replace(/\s*[|\r\n]+\s*/g, " / ").trim(), tage: [...s], halte: [] });
+      fahrten.set(f[k.trip_id], { kat: L.kat, oev: L.oev, nr: L.linie || f[k.trip_short_name] || "", ziel: (f[k.trip_headsign] || "").replace(/\s*[|\r\n]+\s*/g, " / ").trim(), tage: [...s], halte: [] });
     }, true);
     dienst.clear();
     // Halte → Kartenbahnhof (UIC; sonst naher Halt mit passendem Namen)
@@ -184,12 +190,13 @@ async function umrechnen(B, zips, tage, log) {
       let u = f[k.didok] || ""; if (!u) { const id = f[k.stop_id]; const m = id.match(/sloid:(\d+)/i); u = m ? "85" + m[1].padStart(5, "0") : (id.match(/^(\d{7})/) || [])[1] || ""; }
       let i = B.uic[u]; if (i === undefined) i = -1;
       if (i < 0 && isFinite(x)) {   // eigener Halt beim Kartenbahnhof (Locarno FART, Arth-Goldau RB, Brig Bahnhofplatz, «Liestal, Bahnhof» …)
-        let best = -1, bd = 4; B.st.forEach((p, j) => { const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = j; } });
+        let best = -1, bd = 4; const nb = B.nbahn || B.st.length; for (let j = 0; j < nb; j++) { const p = B.st[j], d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = j; } }
         const nm = f[k.stop_name] || "", kn = best >= 0 ? B.name[best] : "";
         if (best >= 0 && !(bd <= 0.5 || (bd <= 2 && (nm.startsWith(kn + " ") || nm.startsWith(kn + ","))) || /, (Bahnhof|Station)$/.test(nm))) best = -1;
         i = best;
       }
-      halt.set(f[k.stop_id], haltListe.length); haltListe.push([i, x, y]);
+      const o = B.oev ? B.oev[u] : undefined;
+      halt.set(f[k.stop_id], haltListe.length); haltListe.push([i, x, y, o === undefined ? -1 : o]);
     });
     // Takt-Fahrten (frequencies.txt)
     const takt = new Map();
@@ -207,8 +214,16 @@ async function umrechnen(B, zips, tage, log) {
     for (const [tid, F] of fahrten) {
       if (!F.halte.length) continue; stats.fahrten++;
       const H = F.halte, ord = []; for (let q = 0; q < H.length; q += 4) ord.push(q); ord.sort((p, q) => H[p] - H[q]);
-      const seq = ord.map(q => { const h = H[q + 3] >= 0 ? haltListe[H[q + 3]] : [-1, NaN, NaN]; let A = H[q + 1], D = H[q + 2]; if (A < 0) A = D; if (D < 0) D = A; return { i: h[0], x: h[1], y: h[2], a: A, d: D }; });
+      const seq = ord.map(q => { const h = H[q + 3] >= 0 ? haltListe[H[q + 3]] : [-1, NaN, NaN, -1]; let A = H[q + 1], D = H[q + 2]; if (A < 0) A = D; if (D < 0) D = A; return { i: F.oev ? h[3] : h[0], x: h[1], y: h[2], a: A, d: D }; });
       F.halte = null;
+      if (F.oev) {   // Trams/Schiffe: Halte in derselben Minute gleichmässig verteilen, sonst wäre der Abschnitt ohne Fahrzeit
+        for (let q = 1; q < seq.length; q++) {
+          const t0 = seq[q - 1].d; if (seq[q].a > t0) continue;
+          let j = q; while (j < seq.length && seq[j].a <= t0) j++;
+          const t1 = j < seq.length ? seq[j].a : t0 + 0.5 * (j - q + 1), n = j - q + 1;
+          for (let m = q; m < j; m++) { const v = Math.round((t0 + (t1 - t0) * (m - q + 1) / n) * 100) / 100; if (seq[m].a === seq[m].d) seq[m].a = seq[m].d = v; else seq[m].a = Math.min(v, seq[m].d); }
+        }
+      }
       const runs = []; let cur = null, last = null, zw = [];
       for (const s of seq) {
         if (s.i < 0) { zw.push(s); continue; }

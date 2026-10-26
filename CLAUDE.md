@@ -16,6 +16,12 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Seite (nur Website): `/api/fahrplan?d=…` für gestern/heute/morgen, sonst eingebauter Wochentagsfahrplan. `/api/fahrplan/status` zeigt Stand.
 - Sperrungen kommen jetzt bevorzugt aus dem GTFS-Tagesfahrplan (keine transport.opendata-Abfragen mehr); `direkt` in sperren.json zählt parallele Streckenteile mit gleichen Endbahnhöfen als befahren.
 
+## Trams, Metro, Schiffe (Etappe 1 «ganzer ÖV», 26.10.2026)
+- `tools/oev_netz.py` → `data/oev_netz.json`: Halte (didok) und Kanten mit Verlauf aus `data/quellen/gtfs_oev.json.gz` (GTFS-Auszug: Haltefolgen route_type 900/400/401/1000) und `data/quellen/osm_oev.json.gz` (OSM railway=tram|light_rail|subway, route=ferry; Overpass aus dem Browser). Ausgeschlossen: Forchbahn, Waldenburgerbahn (Bahnnetz), Riffelalp, Alpintrans.
+- build.py (`MIT_OEV`): Halte als Zusatzhalte in `STX` (Namenskonflikt → «(Schiff)»/«(Tram)»), Verlauf in `KANTEN`, Liste in `OEV` {t,s}. fahrplan_basis: `oev` {didok: Index}, `nbahn`.
+- fahrplan.js: Tram → Kategorie «Tram», Metro «M», Schiffe route_desc (BAT/FAE); Halte über `oev`; gleiche Minute → Zeiten verteilt (Bruchteile von Minuten). Klassen auf der Karte `tr`/`sch`, Trams erst ab Zoom 1.6, nur Website.
+- Netz neu bauen: GTFS-Auszug + OSM im Browser holen (siehe oben), dann `python3 tools/oev_netz.py && python3 tools/build.py`.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
