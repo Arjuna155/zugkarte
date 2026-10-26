@@ -48,6 +48,10 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - gtfs.de-Download nur im Browser: Seite https://download.gtfs.de/germany/ öffnen, dann gleiche Herkunft fetchen, mit fflate (jsDelivr) entpacken und filtern.
 - OSM-Daten nur über den Browser (Overpass): overpass-api.de antwortet aus derselben Herkunft mit 406 → Abfrage von einer fremden Seite aus (z. B. data.deutschebahn.com), Kachelergebnisse in IndexedDB zwischenspeichern.
 
+## Gleisverlauf genau (26.10.2026)
+- `tools/gleise_fein.py` legt jeden Streckenteil auf die Gleise der swisstopo-Vektorkarte (`data/quellen/swisstopo_gleise.txt.gz`, ch.swisstopo.base.vt z13, transportation/class=rail ohne Abstellgleise; im Browser geholt). Weg nur im Korridor ±250 m (sonst ±600 m) um den alten Verlauf, Kanten nah am alten Verlauf bevorzugt, Lücken (Tunnel fehlen in den Kacheln) gerade überbrückt, Länge 0.6–1.35× alt. Läuft automatisch am Ende von `tools/netz_ausbau.py`.
+- 3D: Ecken nur noch leicht gerundet (max. 15 m).
+
 ## Netz erweitern
 - `tools/netz_neu.py` (neue Strecken als Bahnhofsketten) + `tools/netz_ausbau.py` bauen aus `data/quellen/basis/` (Hauptnetz 23.10.) Stationen, Netz, Gleisverlauf (OSM, `osm_ch_export.json.gz`) und den Fahrplan (Rohdaten `ch_raw_*` + stationboards der neuen Bahnhöfe `ch_sb_neu.json.gz`) neu. Danach `tools/build.py`.
 - transport.opendata.ch stationboard: `limit` max. ~400 (500 → HTTP 400); im ersten passList-Eintrag steht eine falsche Halt-ID (wird durch die ID der Tafel ersetzt).

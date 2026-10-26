@@ -293,3 +293,6 @@ netz = dict(NETZ); netz["strecken"] = strecken
 (D / "geo_lines.json").write_text(json.dumps(geo_out, separators=(",", ":")), encoding="utf-8")
 (D / "stuic.json").write_text(json.dumps(STUIC, separators=(",", ":")), encoding="utf-8")
 (D / "uics.json").write_text(json.dumps(sorted({u for l in STUIC for u in l}), separators=(",", ":")), encoding="utf-8")
+
+# ---- Gleisverlauf auf die genauen Gleise der swisstopo-Karte legen (tools/gleise_fein.py) ----
+import gleise_fein; gleise_fein.main()

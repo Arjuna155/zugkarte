@@ -49,9 +49,10 @@ s = ersetze(s, '<script>\nconst TT=', '<script src="lib/maplibre-gl-csp.js"></sc
 s = zwischen(s, "// Geografie\n", "// Index Bahnhof -> Strecken, Nachbarn",
              "const MIT_OEV=OEV.t.length+OEV.s.length>0;\n"
              "const decK=v=>{let x=0,y=0;return glatt(v.split(\";\").map((q,i)=>{const [a,b]=q.split(\",\").map(Number);if(i){x+=a;y+=b}else{x=a;y=b}return [x/10,y/10]}))};\n"
-             "// Verlauf glätten (Chaikin): die Gleisdaten stammen aus einem 20–50-m-Raster\n"
-             "function glatt(p,n=3){for(let r=0;r<n&&p.length>2;r++){const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];\n"
-             "  q.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}q.push(p[p.length-1]);p=q}return p}\n\n")
+             ""
+             "// Ecken leicht runden (Chaikin, höchstens 15 m je Ecke – der Verlauf selbst ist genau)\n"
+             "function glatt(p,n=2){for(let r=0;r<n&&p.length>2;r++){const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1])||1,f=Math.min(.25,.15/L);\n"
+             "  q.push([a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f],[b[0]+(a[0]-b[0])*f,b[1]+(a[1]-b[1])*f])}q.push(p[p.length-1]);p=q}return p}\n\n")
 s = ersetze(s, 'LINES.forEach(L=>{L.parts=L.geo.split("/").map(p=>{let x=0,y=0;return p.split(";").map((q,k)=>{const [a,b]=q.split(",").map(Number);if(k){x+=a;y+=b}else{x=a;y=b}return [x/10-24800,13000-y/10]})});',
             'LINES.forEach(L=>{L.parts=L.geo.split("/").map(p=>{let x=0,y=0;return glatt(p.split(";").map((q,k)=>{const [a,b]=q.split(",").map(Number);if(k){x+=a;y+=b}else{x=a;y=b}return [x/10-24800,13000-y/10]}))});')
 s = zwischen(s, "// Strecken zeichnen (Fernverkehr zuoberst)", "function showTip(", neu)
