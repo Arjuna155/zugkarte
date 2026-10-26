@@ -78,7 +78,7 @@ NEU += [
  ("Centovallibahn", "sm", ["Locarno", "Intragna", "Camedo"]),
  ("AB Gossau–Appenzell", "sm", ["Gossau SG", "Herisau", "Urnäsch", "Appenzell"]),
  ("AB St. Gallen–Trogen", "sm", ["St. Gallen", "Speicher", "Trogen"]),
- ("AB Altstätten–Gais", "sm", ["Altstätten SG", "Altstätten Stadt", "Gais"]),
+ ("AB Altstätten–Gais", "sm", ["Altstätten Stadt", "Gais"]),   # Altstätten SG–Stadt (Strassenbahn) stillgelegt, Bus
  ("Rorschach–Heiden", "sm", ["Rorschach", "Wienacht-Tobel", "Heiden"]),
  ("Rheineck–Walzenhausen", "sm", ["Rheineck", "Walzenhausen"]),
  ("Frauenfeld–Wil", "sm", ["Frauenfeld", "Matzingen", "Münchwilen TG", "Wil SG"]),
