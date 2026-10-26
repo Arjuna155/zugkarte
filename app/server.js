@@ -130,6 +130,7 @@ const FP = require("./fahrplan.js").start({ DATA_DIR, log });
 // haben, heute aber von keiner Fahrt benutzt werden, gelten als gesperrt. Grundlage: sperren.json (tools/sperren_daten.py).
 const SPERR_FILE = path.join(DATA_DIR, "sperrungen.json");
 let SP = null; try { SP = JSON.parse(fs.readFileSync(path.join(__dirname, "sperren.json"), "utf8")); } catch (e) { log("sperren.json fehlt:", e.message); }
+const ohne = new Set((SP && SP.ohne) || []);   // Abschnitte ohne Linienverkehr (Museumsbahnen)
 let sperr = null; try { sperr = JSON.parse(fs.readFileSync(SPERR_FILE, "utf8")); } catch {}
 let sperrLaeuft = false;
 const zhParts = () => { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" }).formatToParts(new Date()).forEach(x => p[x.type] = x.value); return p; };
@@ -151,7 +152,7 @@ function sperrAusGtfs() {
   }
   const erw = SP.erwartet[typ], teile = [];
   SP.teile.forEach((t, i) => { const nie = !SP.erwartet.wd[i] && !SP.erwartet.sa[i] && !SP.erwartet.su[i];
-    if (gesehen[i] === 0 && (erw[i] >= 3 || nie)) teile.push(t); });
+    if (gesehen[i] === 0 && (erw[i] >= 3 || nie) && !ohne.has(i)) teile.push(t); });
   sperr = { datum, erstellt: Date.now(), teile, quelle: "gtfs", feed: j.feed }; sperrBuf = buf;
   try { fs.writeFileSync(SPERR_FILE, JSON.stringify(sperr)); } catch {}
   log("Sperrungen (GTFS " + j.feed + "):", teile.length, "gesperrte Streckenteile,", zeilen.length, "Zugläufe");
@@ -191,7 +192,7 @@ async function sperrPruefen() {
     if (fehler > SP.abfrage.length * 0.1) { log("Sperrungen: zu viele Fehler (" + fehler + "), Ergebnis verworfen"); return; }
     const erw = SP.erwartet[typ], teile = [];
     SP.teile.forEach((t, i) => { const nie = !SP.erwartet.wd[i] && !SP.erwartet.sa[i] && !SP.erwartet.su[i];
-      if (gesehen[i] === 0 && (erw[i] >= 3 || nie)) teile.push(t); });   // «nie»: Strecke ohne Fahrplandaten (an den Stichtagen gesperrt)
+      if (gesehen[i] === 0 && (erw[i] >= 3 || nie) && !ohne.has(i)) teile.push(t); });   // «nie»: Strecke ohne Fahrplandaten (an den Stichtagen gesperrt)
     sperr = { datum, erstellt: Date.now(), teile, abfragen, fehler, quelle: "transport.opendata.ch" };
     fs.writeFileSync(SPERR_FILE, JSON.stringify(sperr));
     log("Sperrungen:", teile.length, "gesperrte Streckenteile,", abfragen, "Abfragen,", Math.round((Date.now() - t0) / 1000), "s");

@@ -105,3 +105,10 @@ NEU += [
 ERSATZDATUM = {"2026-11-24": "2026-10-27", "2026-11-28": "2026-10-31", "2026-11-29": "2026-11-01"}
 # Endhalte der Ersatz-Pendelzüge an den Stichtagen (diese Fahrten werden durch die Normaldaten ersetzt)
 ERSATZ_ENDHALTE = {"Dallenwil", "Wolfenschiessen", "Les Marécottes"}
+
+# Zusätzliche Bahnhöfe ohne stationboard-Daten (Koordinaten/UIC aus dem GTFS-Fahrplan), werden in die
+# bestehende Strecke eingefügt. Täsch: Endpunkt des Pendelzugs Täsch–Zermatt (u. a. bei Sperrung St. Niklaus–Täsch).
+ZUSATZ_BAHNHOEFE = {"Täsch": ("8501688", 46.06740, 7.77470, "sm")}
+
+# Abschnitte ohne Linienverkehr (nur Museums-/Extrafahrten): nie als «gesperrt» markieren
+OHNE_LINIENVERKEHR = [("Sumiswald-Grünen", "Huttwil")]

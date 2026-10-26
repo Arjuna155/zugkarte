@@ -19,7 +19,7 @@ from shapely.geometry import LineString, Point
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 D = ROOT / "data"; Q = D / "quellen"
-sys.path.insert(0, str(ROOT / "tools")); from netz_neu import NEU, ERSATZDATUM, ERSATZ_ENDHALTE
+sys.path.insert(0, str(ROOT / "tools")); from netz_neu import NEU, ERSATZDATUM, ERSATZ_ENDHALTE, ZUSATZ_BAHNHOEFE
 
 def lv95(lat, lon):   # Näherungsformel swisstopo (wie beim ursprünglichen Netz)
     p = (lat * 3600 - 169028.66) / 10000; l = (lon * 3600 - 26782.5) / 10000
@@ -59,6 +59,9 @@ for name, (sid, sname, la, lo) in n2id_board.items():
     n = alias.get(name, name)
     if n in ST and sid not in id2n:
         id2n[sid] = n; STUIC[list(ST).index(n)].append(sid); print("  Halt-ID ergänzt:", n, sid)
+for nm, (sid, la, lo, typ) in ZUSATZ_BAHNHOEFE.items():
+    if nm in ST: continue
+    E, N = lv95(la, lo); ST[nm] = dict(n=nm, lat=la, lon=lo, E=round(E), N=round(N)); id2n[sid] = nm; STUIC.append([sid])
 print(len(ST), "Kartenbahnhöfe")
 names = list(ST); XY = {n: ((s["E"] - 2480000) / 100, (1300000 - s["N"]) / 100) for n, s in ST.items()}
 
@@ -124,6 +127,7 @@ neue = set(ST) - set(jload(B / "stations.json"))
 typen = {}
 for name, typ, hs in NEU:
     for h in hs: typen.setdefault(alias.get(h, h), set()).add("sm" if typ == "sm" else "nb")
+for nm, (_, _, _, typ) in ZUSATZ_BAHNHOEFE.items(): typen.setdefault(nm, set()).add("sm" if typ == "sm" else "nb")
 for n in sorted(neue):
     p = Point(XY[n])
     for si, s in enumerate(strecken):

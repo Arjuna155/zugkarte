@@ -9,6 +9,7 @@ Inhalt:
   erwartet {"wd"|"sa"|"su": [Anzahl je Teil]}
   beine    {"a-b": [Teilnummern]}          Weg zwischen zwei Kartenbahnhöfen (Indizes in stations.json)
   direkt   {"a-b": [Teilnummern]}          Teile mit genau diesen Endbahnhöfen
+  ohne     [Teilnummern]                   Abschnitte ohne Linienverkehr (nie «gesperrt»)
   uic      {Halt-ID: Bahnhofsindex}
   abfrage  [[Bahnhofsindex, Halt-ID], …]   Bahnhöfe, deren Abfahrten der Server täglich holt (decken alle Teile ab)
 """
@@ -85,4 +86,8 @@ def build(lines, stations, stuic, fahrplan):
     for t, (i, j) in enumerate(teile):
         a, b = sorted((sidx[lines[i]["stops"][j]], sidx[lines[i]["stops"][j + 1]]))
         direkt.setdefault(f"{a}-{b}", []).append(t)
-    return dict(teile=teile, erwartet=erwartet, beine=beine, direkt=direkt, uic=uic, abfrage=abfrage)
+    # Abschnitte ohne Linienverkehr (Museumsbahnen) nie als gesperrt melden
+    from netz_neu import OHNE_LINIENVERKEHR
+    paare = {frozenset(p) for p in OHNE_LINIENVERKEHR}
+    ohne = [t for t, (i, j) in enumerate(teile) if frozenset((lines[i]["stops"][j], lines[i]["stops"][j + 1])) in paare]
+    return dict(teile=teile, erwartet=erwartet, beine=beine, direkt=direkt, uic=uic, abfrage=abfrage, ohne=ohne)
