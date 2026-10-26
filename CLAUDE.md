@@ -22,6 +22,11 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - fahrplan.js: Tram → Kategorie «Tram», Metro «M», Schiffe route_desc (BAT/FAE); Halte über `oev`; gleiche Minute → Zeiten verteilt (Bruchteile von Minuten). Klassen auf der Karte `tr`/`sch`, Trams erst ab Zoom 1.6, nur Website.
 - Netz neu bauen: GTFS-Auszug + OSM im Browser holen (siehe oben), dann `python3 tools/oev_netz.py && python3 tools/build.py`.
 
+## 3D-Karte (Etappe 2, Prototyp seit 26.10.2026)
+- `src/template3d.html` → `app/public/3d.html` (build.py, gleiche Platzhalter), Server liefert sie unter `/3d` mit eigener CSP aus. MapLibre GL 5.6.0 (CSP-Build) liegt selbst ausgeliefert in `app/public/lib/` (`/lib/…`).
+- Grundkarte: swisstopo-Vektorkacheln (`vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json`), Gelände: Mapterhorn (`tiles.mapterhorn.com/{z}/{x}/{y}.webp`, terrarium, 512 px), beide ohne Schlüssel.
+- Fahrzeuge: gleiche Fahrplan-/Positionslogik wie die 2D-Karte (Code kopiert), Kartenkoordinaten → WGS84 per swisstopo-Näherung, GeoJSON-Quelle ~15×/s aktualisiert. Linien mit Chaikin geglättet (Raster der Gleisdaten).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

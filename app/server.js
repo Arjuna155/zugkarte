@@ -55,9 +55,15 @@ const log = (...a) => console.log(new Date().toLocaleString("de-CH", { timeZone:
 
 // ---- Kartenseite vorbereiten (einmal beim Start, gzip vorberechnet) ----
 let RELIEF = null; try { RELIEF = fs.readFileSync(path.join(__dirname, "public", "relief.jpg")); } catch {}
-const RAW = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
-  .replace("<script>", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script>");
-const PAGE = { raw: Buffer.from(RAW), gz: zlib.gzipSync(RAW, { level: 9 }), etag: '"' + crypto.createHash("sha1").update(RAW).digest("hex").slice(0, 16) + '"' };
+function seite(datei) {
+  const raw = fs.readFileSync(path.join(__dirname, "public", datei), "utf8")
+    .replace("<script>", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script>");
+  return { raw: Buffer.from(raw), gz: zlib.gzipSync(raw, { level: 9 }), etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' };
+}
+const PAGE = seite("index.html");
+let PAGE3D = null; try { PAGE3D = seite("3d.html"); } catch {}   // 3D-Karte (Prototyp, MapLibre)
+// Bibliotheken der 3D-Karte (MapLibre GL, selbst ausgeliefert)
+const LIB = {}; try { for (const f of fs.readdirSync(path.join(__dirname, "public", "lib"))) { const b = fs.readFileSync(path.join(__dirname, "public", "lib", f)); LIB[f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }) }; } } catch {}
 
 // ---- Echtzeit (SIRI-ET) ----
 let cache = null, cacheGz = null, inflight = null, lastErr = null, lastAttempt = 0;
@@ -222,6 +228,20 @@ const server = http.createServer(async (req, res) => {
     const h = { ...SEC, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE.raw);
+  }
+  if ((url.pathname === "/3d" || url.pathname === "/3d.html") && PAGE3D) {
+    // 3D-Karte: Kacheln von swisstopo (Grundkarte) und Mapterhorn (Gelände)
+    const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
+    if (req.headers["if-none-match"] === PAGE3D.etag) { res.writeHead(304, { ...SEC, "Content-Security-Policy": csp, ETag: PAGE3D.etag }); return res.end(); }
+    const h = { ...SEC, "Content-Security-Policy": csp, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE3D.etag, Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE3D.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE3D.raw);
+  }
+  if (url.pathname.startsWith("/lib/") && LIB[url.pathname.slice(5)]) {
+    const f = LIB[url.pathname.slice(5)], ct = url.pathname.endsWith(".css") ? "text/css; charset=utf-8" : url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/plain; charset=utf-8";
+    const h = { ...SEC, "Content-Type": ct, "Cache-Control": "public, max-age=86400", Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : f.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : f.raw);
   }
   if (url.pathname === "/relief.jpg") {   // Reliefschattierung (swisstopo), lange cachebar
     if (!RELIEF) { res.writeHead(404, SEC); return res.end(); }

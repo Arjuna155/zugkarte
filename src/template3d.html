@@ -1,0 +1,156 @@
+<link rel="stylesheet" href="lib/maplibre-gl.css">
+<style>
+:root{
+  --ink:#16222b; --muted:#5d6d77; --line:#dbe2e5; --panel:rgba(255,255,255,.94);
+  --tfv:#e5484d; --trv:#7b4fd6; --ts:#2f6fe0; --ttr:#0f9488; --tsch:#0369a1; --sel:#e3a008;
+  --f-ui:system-ui,-apple-system,"Segoe UI",sans-serif; --f-mono:ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{--ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:rgba(18,26,31,.92)}}
+html,body{height:100%;margin:0;background:#e6ecee}
+#map{position:fixed;inset:0}
+.panel{position:fixed;left:12px;top:12px;z-index:2;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;font:13px var(--f-ui);box-shadow:0 4px 16px rgba(0,0,0,.12);max-width:min(330px,calc(100vw - 48px))}
+.panel h1{font-size:15px;margin:0 0 2px}.panel h1 small{font-weight:500;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-left:4px}
+.panel .row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.panel time{font:600 18px var(--f-mono);font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);font:600 12px var(--f-ui);padding:5px 9px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.leg{display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;margin-top:8px;align-items:center}
+.leg label{display:contents;cursor:pointer}
+.leg i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.leg .n{font:12px var(--f-mono);color:var(--muted);text-align:right}
+.sub{color:var(--muted);font-size:12px;margin-top:6px}
+a{color:inherit}
+.maplibregl-popup-content{font:13px var(--f-ui);color:#16222b;padding:8px 10px}
+.maplibregl-popup-content b{font-weight:700}
+@media (max-width:600px){.panel{left:8px;top:8px;padding:8px 10px}.leg{display:none}}
+</style>
+<div id="map"></div>
+<div class="panel">
+  <h1>ZugKarte 3D <small>Prototyp</small></h1>
+  <div class="row"><time id="clk">--:--:--</time>
+    <div class="seg" id="speed"><button data-v="1" aria-pressed="true">1×</button><button data-v="10" aria-pressed="false">10×</button><button data-v="60" aria-pressed="false">60×</button></div>
+  </div>
+  <div class="row"><div class="seg" id="ansicht"><button data-v="3d" aria-pressed="true">3D</button><button data-v="2d" aria-pressed="false">Flach</button></div>
+    <a href="/">Zur normalen Karte</a></div>
+  <div class="leg" id="leg"></div>
+  <div class="sub" id="info">Fahrplan wird geladen …</div>
+</div>
+<script src="lib/maplibre-gl-csp.js"></script>
+<script>
+const TT=__TT__, STX=__STX__, KANTEN=__KANTEN__, OEV=__OEV__, ST=__ST__, LINES=__LINES__, FPV=__FPV__;
+const $=id=>document.getElementById(id);
+// ---- Koordinaten: Kartenkoordinaten (LV95/100) → WGS84 (Näherungsformeln swisstopo) ----
+function wgs(x,y){const E=x*100+2480000,N=1300000-y*100,yy=(E-2600000)/1e6,xx=(N-1200000)/1e6;
+  const l=2.6779094+4.728982*yy+0.791484*yy*xx+0.1306*yy*xx*xx-0.0436*yy*yy*yy;
+  const p=16.9023892+3.238272*xx-0.270978*yy*yy-0.002528*xx*xx-0.0447*yy*yy*xx-0.0140*xx*xx*xx;
+  return [Math.round(l*100/36*1e6)/1e6,Math.round(p*100/36*1e6)/1e6]}
+const SN=Object.keys(ST).concat(Object.keys(STX));
+const XY=n=>{const s=ST[n]||STX[n];return [(s.E-2480000)/100,(1300000-s.N)/100]};
+// ---- Netz (wie in der 2D-Karte), Verlauf geglättet (Chaikin): die Gleise stammen aus einem 20–50-m-Raster ----
+function glatt(p,n=3){for(let r=0;r<n&&p.length>2;r++){const q=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];
+  q.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}q.push(p[p.length-1]);p=q}return p}
+LINES.forEach(L=>{L.parts=L.geo.split("/").map(p=>{let x=0,y=0;return glatt(p.split(";").map((q,k)=>{const [a,b]=q.split(",").map(Number);if(k){x+=a;y+=b}else{x=a;y=b}return [x/10-24800,13000-y/10]}))})});
+const decK=v=>{let x=0,y=0;return glatt(v.split(";").map((q,i)=>{const [a,b]=q.split(",").map(Number);if(i){x+=a;y+=b}else{x=a;y=b}return [x/10,y/10]}))};
+const G={};
+LINES.forEach((L,i)=>L.stops.forEach((s,j)=>{if(!j)return;const a=L.stops[j-1],pt=L.parts[j-1];let len=0;for(let k=1;k<pt.length;k++)len+=Math.hypot(pt[k][0]-pt[k-1][0],pt[k][1]-pt[k-1][1]);
+  (G[a]=G[a]||[]).push({to:s,pts:pt,len});(G[s]=G[s]||[]).push({to:a,pts:pt.slice().reverse(),len})}));
+for(const k in KANTEN){const [a,b]=k.split("|");const pt=decK(KANTEN[k]);let len=0;for(let j=1;j<pt.length;j++)len+=Math.hypot(pt[j][0]-pt[j-1][0],pt[j][1]-pt[j-1][1]);
+  (G[a]=G[a]||[]).push({to:b,pts:pt,len});(G[b]=G[b]||[]).push({to:a,pts:pt.slice().reverse(),len})}
+const pathCache={};
+function legPath(A,B){const key=A+">"+B;if(key in pathCache)return pathCache[key];
+  const dist={[A]:0},prev={},done=new Set(),Q=[[0,A]];
+  while(Q.length){let bi=0;for(let j=1;j<Q.length;j++)if(Q[j][0]<Q[bi][0])bi=j;const [d,u]=Q.splice(bi,1)[0];if(done.has(u))continue;done.add(u);if(u===B)break;
+    for(const e of G[u]||[]){const nd=d+e.len;if(dist[e.to]===undefined||nd<dist[e.to]){dist[e.to]=nd;prev[e.to]=[u,e];Q.push([nd,e.to])}}}
+  if(dist[B]===undefined)return pathCache[key]=null;
+  const seq=[];let c=B;while(c!==A){seq.push(prev[c][1]);c=prev[c][0]}seq.reverse();
+  const pts=[];seq.forEach(e=>pts.push(...(pts.length?e.pts.slice(1):e.pts)));
+  const cum=[0];for(let k=1;k<pts.length;k++)cum.push(cum[k-1]+Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]));
+  return pathCache[key]={pts,cum,len:cum[cum.length-1]}}
+function along(P,f){const L=P.len*f;let lo=0,hi=P.cum.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(P.cum[m]<L)lo=m;else hi=m}
+  const seg=P.cum[hi]-P.cum[lo]||1,u=(L-P.cum[lo])/seg,a=P.pts[lo],b=P.pts[hi];return [a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u]}
+// ---- Fahrplan ----
+const TCLS=c=>c==="S"?"s":c==="Tram"||c==="M"?"tr":c==="BAT"||c==="FAE"?"sch":/^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c)?"fv":"rv";
+const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn",tr:"Tram & Metro",sch:"Schiff"};
+const FARBE={fv:"#e5484d",rv:"#7b4fd6",s:"#2f6fe0",tr:"#0f9488",sch:"#0369a1"};
+function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
+  return L.map(l=>{const [h,body]=l.split("|");const [cat,num,di]=h.split(",");
+    const st=body.split(";").map(x=>{const a=x.split(",");const t1=+a[1],t2=a.length>2?+a[2]:t1;return {i:parseInt(a[0],16),a:t1,d:t2}});
+    return {cat,label:cat==="S"?"S"+num:num?cat+" "+num:cat,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
+const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
+const DATED={},fpStatus={};let fpFeed=null;
+const ZF=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",weekday:"short"});
+function zh(ms){const p={};ZF.formatToParts(new Date(ms)).forEach(x=>p[x.type]=x.value);return {wd:p.weekday,date:p.year+"-"+p.month+"-"+p.day,t:+p.hour*60+ +p.minute+ +p.second/60+(ms%1000)/60000}}
+const dayType=wd=>wd==="Sat"?"sa":wd==="Sun"?"su":"wd";
+const tagRuns=z=>DATED[z.date]||DAYS[dayType(z.wd)];
+async function fpLaden(datum){const s=fpStatus[datum];if(s&&(s.ok||s.lauf||Date.now()-s.t<10*60000))return;fpStatus[datum]={lauf:true,t:Date.now()};
+  try{const r=await fetch("/api/fahrplan?d="+datum);if(!r.ok)throw 0;const j=await r.json();if(j.v!==FPV||!j.tt)throw 0;
+    DATED[datum]=parseDay(j.tt);if(datum===zh(Date.now()).date)fpFeed=j.feed;fpStatus[datum]={ok:true}}catch(e){fpStatus[datum]={t:Date.now()}}}
+const fpAn=!!(window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server");
+function fpBrauche(ms){if(!fpAn)return;for(const d of [-1,0,1]){const z=zh(ms+d*86400000);if(!DATED[z.date])fpLaden(z.date)}}
+function services(ms){const z=zh(ms),zg=zh(ms-86400000);return [{runs:tagRuns(zg),o:1440,t:z.t+1440},{runs:tagRuns(z),o:0,t:z.t}]}
+function legs(r){if(!r.legs){r.legs=[];for(let j=1;j<r.st.length;j++){const A=r.st[j-1],B=r.st[j];r.legs.push(B.a>A.d?legPath(SN[A.i],SN[B.i]):null)}}return r.legs}
+function trainPos(r,t){if(t<r.t0||t>r.t1)return null;
+  for(let j=0;j<r.st.length;j++){const S=r.st[j];
+    if(t>=S.a&&t<=S.d){return {xy:XY(SN[S.i]),stop:j,moving:false}}
+    if(j<r.st.length-1){const N=r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P)return null;
+      const u=(t-S.d)/(N.a-S.d);let f=u<.5?2*u*u:1-2*(1-u)*(1-u);f=.15*u+.85*f;
+      const a=along(P,f),b=along(P,Math.min(1,f+0.01)),c=along(P,Math.max(0,f-0.01));
+      return {xy:a,next:j+1,moving:true,h:Math.atan2(b[1]-c[1],b[0]-c[0])}}}}
+  return null}
+// ---- Karte ----
+maplibregl.setWorkerUrl("lib/maplibre-gl-csp-worker.js");
+const map=new maplibregl.Map({container:"map",style:"https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json",
+  center:[8.5403,47.3779],zoom:12.2,pitch:60,bearing:-20,maxPitch:80,attributionControl:{compact:true,customAttribution:"Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tramgleise © OpenStreetMap"}});
+map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"top-right");
+const on={fv:true,rv:true,s:true,tr:true,sch:true};
+let speed=1,simMs=Date.now(),lastReal=performance.now(),counts={};
+document.querySelectorAll("#speed button").forEach(b=>b.onclick=()=>{speed=+b.dataset.v;document.querySelectorAll("#speed button").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+function legende(){const box=$("leg");box.innerHTML="";for(const c of ["fv","rv","s","tr","sch"]){const l=document.createElement("label");
+  l.innerHTML=`<i style="background:${FARBE[c]};opacity:${on[c]?1:.25}"></i><span>${TNAME[c]}</span><span class="n">${counts[c]||0}</span>`;l.onclick=()=>{on[c]=!on[c];legende()};box.appendChild(l)}}
+legende();
+map.on("load",()=>{
+  map.addSource("dem",{type:"raster-dem",tiles:["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],encoding:"terrarium",tileSize:512,maxzoom:14});
+  setAnsicht("3d");
+  try{map.setSky({"sky-color":"#bcd7ea","horizon-color":"#e8eef2","fog-color":"#e8eef2","sky-horizon-blend":0.6,"horizon-fog-blend":0.4,"fog-ground-blend":0.6})}catch(e){}
+  // Netz: Bahn, Tram/Metro, Schiffe
+  const bahn={type:"FeatureCollection",features:LINES.map(L=>({type:"Feature",properties:{t:L.type},geometry:{type:"MultiLineString",coordinates:L.parts.map(p=>p.map(q=>wgs(q[0],q[1])))}}))};
+  const oev=a=>({type:"FeatureCollection",features:OEV[a].map(k=>({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:decK(KANTEN[k]).map(q=>wgs(q[0],q[1]))}}))});
+  map.addSource("bahn",{type:"geojson",data:bahn});map.addSource("tram",{type:"geojson",data:oev("t")});map.addSource("schiff",{type:"geojson",data:oev("s")});
+  map.addLayer({id:"schiff",type:"line",source:"schiff",paint:{"line-color":"#3d86b8","line-width":1.4,"line-dasharray":[3,2],"line-opacity":.8}});
+  map.addLayer({id:"tram",type:"line",source:"tram",minzoom:11,paint:{"line-color":"#5f7380","line-width":["interpolate",["linear"],["zoom"],11,0.8,16,2.5],"line-opacity":.8}});
+  map.addLayer({id:"bahn",type:"line",source:"bahn",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":["match",["get","t"],"fv","#16222b","sm","#b5612a","#22808f"],
+    "line-width":["interpolate",["linear"],["zoom"],7,["match",["get","t"],"fv",1.6,1.1],14,["match",["get","t"],"fv",4,3]]}});
+  // Fahrzeuge
+  map.addSource("fz",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+  map.addLayer({id:"fz",type:"circle",source:"fz",filter:["any",["!=",["get","c"],"tr"],[">=",["zoom"],11]],paint:{
+    "circle-color":["match",["get","c"],"fv",FARBE.fv,"rv",FARBE.rv,"s",FARBE.s,"tr",FARBE.tr,FARBE.sch],
+    "circle-radius":["interpolate",["linear"],["zoom"],7,["match",["get","c"],"tr",1.5,2.5],12,["match",["get","c"],"tr",3.5,5],16,["match",["get","c"],"tr",6,8]],
+    "circle-stroke-color":"#ffffff","circle-stroke-width":1.2,"circle-pitch-alignment":"viewport"}});
+  map.addLayer({id:"fz-text",type:"symbol",source:"fz",minzoom:13.5,layout:{"text-field":["get","l"],"text-font":["Frutiger Neue Condensed Bold"],"text-size":11,"text-offset":[0,-1.3],"text-allow-overlap":false},
+    paint:{"text-color":"#16222b","text-halo-color":"#ffffff","text-halo-width":1.5}});
+  map.on("click","fz",e=>{const f=e.features[0];new maplibregl.Popup({closeButton:false}).setLngLat(f.geometry.coordinates).setHTML(`<b>${f.properties.l}</b> → ${f.properties.z}<br>${f.properties.w}`).addTo(map)});
+  map.on("mouseenter","fz",()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave","fz",()=>map.getCanvas().style.cursor="");
+  requestAnimationFrame(frame);
+});
+function setAnsicht(v){document.querySelectorAll("#ansicht button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));
+  if(v==="3d"){map.setTerrain({source:"dem",exaggeration:1.2});if(map.getPitch()<30)map.easeTo({pitch:60})}else{map.setTerrain(null);map.easeTo({pitch:0,bearing:0})}}
+document.querySelectorAll("#ansicht button").forEach(b=>b.onclick=()=>setAnsicht(b.dataset.v));
+let letzt=0,langsam=0;
+function frame(now){const dt=Math.min(now-lastReal,1000);lastReal=now;simMs+=dt*speed;
+  if(now-letzt>=66){letzt=now;   // ~15 Bilder/s für die Fahrzeuge
+    const fs=[],c={fv:0,rv:0,s:0,tr:0,sch:0},seen=new Set(),b=map.getBounds(),pad=0.05;
+    const W=b.getWest()-pad,E=b.getEast()+pad,S=b.getSouth()-pad,N=b.getNorth()+pad,zoom=map.getZoom();
+    for(const sv of services(simMs)){for(const tr of sv.runs){if(sv.t<tr.t0||sv.t>tr.t1)continue;const p=trainPos(tr,sv.t);if(!p)continue;
+      const sk=tr.label+"|"+tr.st[0].i+"|"+(tr.t0-sv.o);if(sv.o)seen.add(sk);else if(seen.has(sk))continue;c[tr.cls]++;if(!on[tr.cls])continue;
+      if(tr.cls==="tr"&&zoom<11)continue;const ll=wgs(p.xy[0],p.xy[1]);if(ll[0]<W||ll[0]>E||ll[1]<S||ll[1]>N)continue;
+      fs.push({type:"Feature",properties:{c:tr.cls,l:tr.label,z:tr.to,w:p.moving?"nach "+SN[tr.st[p.next].i]:"in "+SN[tr.st[p.stop].i]},geometry:{type:"Point",coordinates:ll}})}}
+    map.getSource("fz").setData({type:"FeatureCollection",features:fs});counts=c}
+  if(now-langsam>1000){langsam=now;const z=zh(simMs);fpBrauche(simMs);const t=Math.floor(z.t*60);
+    $("clk").textContent=[Math.floor(t/3600)%24,Math.floor(t/60)%60,t%60].map(n=>String(n).padStart(2,"0")).join(":");
+    document.querySelectorAll("#leg .n").forEach((n,j)=>n.textContent=counts[["fv","rv","s","tr","sch"][j]]||0);
+    const tot=Object.values(counts).reduce((a,b)=>a+b,0);
+    $("info").textContent=`${tot} Fahrzeuge unterwegs · `+(DATED[z.date]?`Fahrplan vom ${+z.date.slice(8)}.${+z.date.slice(5,7)}.`:"eingebauter Fahrplan")}
+  requestAnimationFrame(frame)}
+</script>

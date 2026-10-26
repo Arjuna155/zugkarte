@@ -90,6 +90,13 @@ head = ('<!doctype html><html lang="de"><head><meta charset="utf-8">'
 out = ROOT / "app" / "public" / "index.html"
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(head + html + "</body></html>", encoding="utf-8")
+# 3D-Karte (Prototyp, MapLibre GL) – gleiche Daten, eigene Seite /3d
+h3 = (ROOT / "src" / "template3d.html").read_text(encoding="utf-8")
+for key, val in values.items():
+    if key in h3: h3 = h3.replace(key, json.dumps(val, ensure_ascii=False, separators=(",", ":")))
+(ROOT / "app" / "public" / "3d.html").write_text(
+    '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>ZugKarte 3D</title>'
+    '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + h3 + "</body></html>", encoding="utf-8")
 (ROOT / "app" / "uics.json").write_text((D / "uics.json").read_text(encoding="utf-8"), encoding="utf-8")
 # Grundlage für die tägliche Sperrungsprüfung des Servers (nur Schweizer Netz)
 import sperren_daten
