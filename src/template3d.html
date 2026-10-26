@@ -100,7 +100,7 @@ function trainPos(r,t){if(t<r.t0||t>r.t1)return null;
       return {xy:a,next:j+1,moving:true,h:Math.atan2(b[1]-c[1],b[0]-c[0])}}}}
   return null}
 // ---- Karte ----
-maplibregl.setWorkerUrl("lib/maplibre-gl-csp-worker.js");
+maplibregl.setWorkerUrl("lib/maplibre-gl-csp-worker.js?v="+((window.ZK_LOCAL&&window.ZK_LOCAL.version)||"1"));   // Version im Namen: Worker nicht aus altem Cache
 const map=new maplibregl.Map({container:"map",style:"https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json",
   center:[8.5403,47.3779],zoom:12.2,pitch:60,bearing:-20,maxPitch:80,attributionControl:{compact:true,customAttribution:"Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tramgleise © OpenStreetMap"}});
 map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"top-right");
