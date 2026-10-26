@@ -50,6 +50,8 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 
 ## Gleisverlauf genau (26.10.2026)
 - `tools/gleise_fein.py` legt jeden Streckenteil auf die Gleise der swisstopo-Vektorkarte (`data/quellen/swisstopo_gleise.txt.gz`, ch.swisstopo.base.vt z13, transportation/class=rail ohne Abstellgleise; im Browser geholt). Weg nur im Korridor ±250 m (sonst ±600 m) um den alten Verlauf, Kanten nah am alten Verlauf bevorzugt, Lücken (Tunnel fehlen in den Kacheln) gerade überbrückt, Länge 0.6–1.35× alt. Läuft automatisch am Ende von `tools/netz_ausbau.py`.
+- Bahnhöfe stehen auf der offiziellen Lage (`data/quellen/bahnhof_koord.json`, Mittel der Bahnsteige aus dem GTFS); gleise_fein setzt sie in `stations.json` und legt die Streckenteile zwischen diese Punkte.
+- Reihenfolge der Suche: durchgehender Weg auf swisstopo-Gleisen (Korridor 2.5/6/12), dann OSM-Gleise als Ersatz (fehlende Kacheln, z. B. Bonfol), erst zuletzt Lücken gerade überbrücken. Prüfung: /tmp-Skript qual.py-Logik – kein Stück > 50 m weg von swisstopo UND OSM (Ausnahmen: Waldenburgerbahn, Forchbahn, CEVA – Tunnel/Stadtbahn, in OSM richtig).
 - 3D: Ecken nur noch leicht gerundet (max. 15 m).
 
 ## Netz erweitern

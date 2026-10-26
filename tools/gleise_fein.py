@@ -22,6 +22,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 D = ROOT / "data"; Q = D / "quellen"
 
 
+def lv95_abs(lat, lon):
+    x, y = lv95(lat, lon); return x * 100 + 2480000, 1300000 - y * 100
+
+
 def lv95(lat, lon):
     p = (lat * 3600 - 169028.66) / 10000; l = (lon * 3600 - 26782.5) / 10000
     E = 2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l ** 3
@@ -61,6 +65,7 @@ def graphen(zeilen):
                 if prev is not None:
                     d = math.hypot(xy[k][0] - xy[prev][0], xy[k][1] - xy[prev][1]); rows += [prev, k]; cols += [k, prev]; w += [d, d]
                 prev = k
+        if not xy: continue
         xy = np.array(xy); tree = cKDTree(xy)
         for i, j in tree.query_pairs(0.02):   # gleiche Stelle in zwei Stücken/Kacheln
             d = float(np.hypot(*(xy[i] - xy[j]))) + 0.001; rows += [i, j]; cols += [j, i]; w += [d, d]
@@ -100,9 +105,10 @@ def dicht(pts, schritt=0.5):
     return o
 
 
-def fein(alt, G, korridor):
+def fein(alt, G, korridor, A=None, B=None, bruecken=True):
     xy, M, tree = G
-    d = dicht(alt)
+    A = A or alt[0]; B = B or alt[-1]
+    d = dicht([A] + list(alt) + [B])
     near = sorted({i for l in tree.query_ball_point(d, korridor) for i in l})
     if len(near) < 2: return None
     near = np.array(near); sub = M[near][:, near].tocoo()
@@ -110,7 +116,6 @@ def fein(alt, G, korridor):
     nah = cKDTree(np.array(d)).query(xy[near])[0]
     f = 1 + 1.5 * (nah[sub.row] + nah[sub.col]) / 2
     sub = csr_matrix((sub.data * f, (sub.row, sub.col)), shape=sub.shape)
-    A, B = alt[0], alt[-1]
     def start(P):   # nächster Korridorknoten zum Endpunkt (höchstens 300 m)
         dd = np.hypot(xy[near][:, 0] - P[0], xy[near][:, 1] - P[1]); i = int(np.argmin(dd))
         return i if dd[i] <= 3 else None
@@ -118,6 +123,7 @@ def fein(alt, G, korridor):
     if a is None or b is None or a == b: return None
     dist, pred = dijkstra(sub, indices=a, return_predecessors=True)
     if not np.isfinite(dist[b]):
+        if not bruecken: return None
         # Lücken überbrücken (Tunnel fehlen in den Vektorkacheln): Teilnetze im Korridor über ihre nächsten Punkte verbinden
         P = xy[near]; nc, lab = connected_components(sub, directed=False)
         if nc > 60: return None
@@ -151,23 +157,40 @@ def fein(alt, G, korridor):
     pts = pts[:n - max(2, n * 2 // 5) + d_b.index(min(d_b)) + 1]
     pts = [A] + pts + [B]
     neu = LineString(pts).simplify(0.03)
-    alt_len = LineString(alt).length
-    if not (0.6 * alt_len - 1 <= neu.length <= 1.35 * alt_len + 1.5): return None   # anderer Weg als bisher
+    alt_len = LineString(alt).length; mit_enden = LineString([A] + list(alt) + [B]).length
+    if not (0.6 * alt_len - 1 <= neu.length <= 1.35 * mit_enden + 1.5): return None   # anderer Weg als bisher
     return list(neu.coords)
 
 
 def main():
     G = graphen(gzip.open(Q / "swisstopo_gleise.txt.gz", "rt").read().split("\n"))
+    # Ersatz, wo in den swisstopo-Kacheln Gleise fehlen: OSM-Gleise (gröber, aber durchgehend)
+    osm = ["r" + w[5] for f in ("osm_ch_export.json.gz", "osm_ch_ergaenzung.json.gz") for w in json.load(gzip.open(Q / f))]
+    G["o"] = graphen(osm)["r"]
+    # Bahnhöfe auf ihre offizielle Lage setzen (Mittel der Bahnsteige im GTFS-Fahrplan, data/quellen/bahnhof_koord.json)
+    st = json.loads((D / "stations.json").read_text(encoding="utf-8"))
+    koord = json.loads((Q / "bahnhof_koord.json").read_text(encoding="utf-8")); verschoben = 0
+    for n, (la, lo) in koord.items():
+        if n not in st: continue
+        E_, N_ = lv95_abs(la, lo)
+        if abs(E_ - st[n]["E"]) + abs(N_ - st[n]["N"]) > 1: verschoben += 1
+        st[n].update(lat=la, lon=lo, E=round(E_), N=round(N_))
+    (D / "stations.json").write_text(json.dumps(st, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(verschoben, "Bahnhöfe auf die offizielle Lage verschoben")
+    XY = {n: ((v["E"] - 2480000) / 100, (1300000 - v["N"]) / 100) for n, v in st.items()}
     netz = json.loads((D / "netz.json").read_text(encoding="utf-8"))
     geo = json.loads((D / "geo_lines.json").read_text(encoding="utf-8"))
     neu_geo = []; ok = alt_bleibt = 0; abw = []
     for s, g in zip(netz["strecken"], geo):
         teile = []
-        for part in g.split("/"):
-            alt = dec(part); res = None
-            for gr in (("n", "r") if s["typ"] == "sm" else ("r", "n")):
-                for korr in (2.5, 6):
-                    res = fein(alt, G[gr], korr)
+        for j, part in enumerate(g.split("/")):
+            alt = dec(part); res = None; A, B = XY[s["halte"][j]], XY[s["halte"][j + 1]]
+            # zuerst ein durchgehender Weg auf den Gleisen (auch im breiteren Korridor), erst dann Lücken überbrücken
+            for br in (False, True):
+                for gr in (("n", "r") if s["typ"] == "sm" else ("r", "n")) + (() if br else ("o",)):
+                    for korr in ((2.5, 6) if br else (2.5, 6, 12)):
+                        res = fein(alt, G[gr], korr, A, B, br)
+                        if res: break
                     if res: break
                 if res: break
             if res:
@@ -175,7 +198,7 @@ def main():
                 al = LineString(alt); abw.append(max(al.distance(Point(p)) for p in res[::max(1, len(res) // 20)]))
                 teile.append(enc(res))
             else:
-                alt_bleibt += 1; teile.append(part)
+                alt_bleibt += 1; teile.append(enc([A] + alt[1:-1] + [B]) if len(alt) > 2 else enc([A, B]))   # Enden an die neue Bahnhofslage
         neu_geo.append("/".join(teile))
     (D / "geo_lines.json").write_text(json.dumps(neu_geo, separators=(",", ":")), encoding="utf-8")
     abw.sort()
