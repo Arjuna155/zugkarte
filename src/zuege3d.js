@@ -11,14 +11,23 @@ async function foLaden(d){const o=FO[d];if(!fpAn||(o&&(o.lauf||Date.now()-o.t<5*
   catch(e){FO[d]=Object.assign(FO[d]||{},{lauf:false,t:Date.now()})}}
 function foWunsch(tr,o){const d=zh(simMs-(o?86400000:0)).date,F=FO[d];if(!fpAn||!F||!F.evu||!F.evu[tr.ag]||!tr.zn)return;
   const k=F.evu[tr.ag]+":"+tr.zn;if(F.z[k]&&F.z[k][1])return;fetch("/api/formation?d="+d+"&w="+encodeURIComponent(k)).catch(()=>{})}
-// Wagenliste eines Zuges (zwischengespeichert, bis neue Formationsdaten kommen)
+// Wagenliste eines Zuges (zwischengespeichert, bis neue Formationsdaten kommen). Wagen, die nur einen Teil des Laufs
+// mitfahren (Flügelzüge, Verstärkung), haben von/bis-Halte: kv/kb = Index im Lauf (−1 bzw. 1e9 = ganzer Lauf).
 function wagenVon(tr,o){const d=zh(simMs-(o?86400000:0)).date;foLaden(d);const F=FO[d],ver=F?F.v:0;
   if(tr._wg&&tr._wgv===ver)return tr._wg;
   let w=null,echt=-1;const key=F&&F.evu&&F.evu[tr.ag]&&tr.zn?F.evu[tr.ag]+":"+tr.zn:null;
   if(key&&F.z[key]){const [i,e]=F.z[key];w=ZM.ausFormation(F.f[i]);echt=e}
   if(!w||!w.length){w=ZM.rueckfall(tr.cat,tr.num,tr.ag);echt=-1}
+  const halt=u=>{const si=UIC2IDX[u];if(si===undefined)return -2;return tr.st.findIndex(S=>S.i===si)};
+  for(const v of w){const a=v.von?halt(v.von):-1,b=v.bis?halt(v.bis):-1;v.kv=a>=0?a:-1;v.kb=b>=0?b:1e9}
+  tr._wg={w,echt,sub:{}};tr._wgv=ver;return tr._wg}
+// Wagen, die auf dem aktuellen Abschnitt mitfahren (stehend: alle, die an diesem Halt im Zug sind) → Bauteile mit Lage im Zug
+function wagenJetzt(Z,p){const j=p.j,m=p.moving;let maske="";
+  for(const v of Z.w)maske+=(m?v.kv<=j&&v.kb>=j+1:v.kv<=j&&v.kb>=j)?"1":"0";
+  let S=Z.sub[maske];if(S)return S;
+  let w=Z.w.filter((v,i)=>maske[i]==="1");if(!w.length)w=Z.w;
   let off=0;const teile=ZM.wagenTeile(w).map((W,i)=>{const L=w[i].L/100,s=off+L/2;off+=L;return {W,L,s}});
-  tr._wg={w,teile,L:off,echt};tr._wgv=ver;return tr._wg}
+  return Z.sub[maske]={teile,L:off}}
 
 // Laufweg eines Zuges als Linienzüge mit Längen (Kartenkoordinaten). An Kopfbahnhöfen (Zug wendet, z. B. Zürich HB,
 // Luzern) beginnt ein neuer Abschnitt – so steht der Zug am Bahnsteig, statt sich um den Bahnhof zu knicken.
@@ -65,7 +74,11 @@ function gleisHoehe(pf,k,steil,ex){
 // Unternehmen mit Normalspur (sonst: Schmal-/Zahnradbahn, steilere Strecken erlaubt)
 const NORMALSPUR=new Set(["11","33","65","82","78","351","81____","87_LEX","06____","800693","L7____","817000"]);
 // ---- three.js-Ebene ----
-const Z3={laden:false,bereit:false,liste:[],ursprung:null,hBudget:0,sel:null};
+const Z3={laden:false,bereit:false,liste:[],zuege:[],ursprung:null,hBudget:0,sel:null};
+// Bei jedem Bild: Lage aller 3D-Züge zur aktuellen Zeit neu (flüssige Fahrt; welche Züge 3D sind, bestimmt frame() ~15×/s)
+function z3Bild(){const t0=zh(simMs).t;Z3.liste=[];Z3.ursprung=maplibregl.MercatorCoordinate.fromLngLat(map.getCenter());if(Z3.hBudget<2)Z3.hBudget=2;
+  for(const z of Z3.zuege){const p=trainPos(z.tr,t0+z.o,z.rt);if(p)z3Zug(z.tr,z.o,p,z.sel)}
+  map.triggerRepaint()}
 function z3Laden(){if(Z3.laden)return;Z3.laden=true;const s=document.createElement("script");s.src="lib/three.min.js";
   s.onload=()=>{try{map.addLayer(z3Ebene(),"fz");Z3.bereit=true}catch(e){console.error(e)}};document.head.appendChild(s)}
 function z3Ebene(){return {id:"zuege3d",type:"custom",renderingMode:"3d",
@@ -87,7 +100,7 @@ function z3Ebene(){return {id:"zuege3d",type:"custom",renderingMode:"3d",
     this.cam.projectionMatrix=m.multiply(l);this.r.resetState();this.r.render(this.szene,this.cam)}}}
 
 // Wagen eines Zuges berechnen (aus frame()): Lage, Richtung und Neigung jedes Wagens
-function z3Zug(tr,o,p,isSel){const PF=pfad(tr);if(!PF||p.j===undefined)return false;const Z=wagenVon(tr,o);
+function z3Zug(tr,o,p,isSel){const PF=pfad(tr);if(!PF||p.j===undefined)return false;const Z=wagenJetzt(wagenVon(tr,o),p);
   // fahrend: auf dem Abschnitt j→j+1; stehend: Zugmitte am Bahnsteig (Abschnitt der Weiterfahrt, am Ziel der Ankunft)
   const nL=PF.legSec.length,j=p.moving?p.j:Math.min(p.j,nL-1),amEnde=!p.moving&&p.j>=nL;
   const pf=PF.teile[PF.legSec[j]],kopf=(amEnde?PF.legS1[j]:PF.legS0[j]+(PF.legS1[j]-PF.legS0[j])*(p.moving?p.f:0))+Z.L/2;
