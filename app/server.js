@@ -129,6 +129,8 @@ async function getData() {
 
 // ---- Fahrplan nach Datum (GTFS, app/fahrplan.js) ----
 const FP = require("./fahrplan.js").start({ DATA_DIR, log });
+// Zugzusammensetzungen (Wagen, Typen, Längen) – lädt im Hintergrund, siehe formation.js
+const FO = require("./formation.js").start({ DATA_DIR, log, fahrplan: FP, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 
 // ---- Sperrungen (Bahnersatz) ----
 // Bevorzugt aus dem GTFS-Tagesfahrplan (enthält geplante Sperrungen, braucht keine Abfragen);
@@ -263,6 +265,13 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : zlib.gunzipSync(buf));
   }
   if (url.pathname === "/api/fahrplan/status") return json(req, res, 200, FP.status());
+  if (url.pathname === "/api/formation") {
+    const d = url.searchParams.get("d") || "", w = url.searchParams.get("w");
+    if (!/^\d{4}-\d\d-\d\d$/.test(d)) return json(req, res, 400, { fehler: "Datum fehlt" });
+    if (w) { const [evu, nr] = w.split(":"); FO.wunsch(d, evu, nr || ""); }
+    const gz = FO.fuer(d); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz);
+  }
+  if (url.pathname === "/api/formation/status") return json(req, res, 200, FO.status());
   if (url.pathname === "/api/verspaetungen") {
     try { const d = await getData(); return json(req, res, 200, d, d === cache ? cacheGz : null); }
     catch (e) { return json(req, res, e instanceof KeyError ? 401 : 502, { fehler: e instanceof KeyError ? "Echtzeit ist auf diesem Server nicht eingerichtet." : e.message }); }
