@@ -39,21 +39,31 @@ function punkt(pf,s){const c=pf.cum,n=c.length,E=c[n-1];
     return [A[0]+(A[0]-B[0])*k,A[1]+(A[1]-B[1])*k]}
   let lo=0,hi=n-1;while(hi-lo>1){const m=(lo+hi)>>1;if(c[m]<=s)lo=m;else hi=m}const u=(s-c[lo])/((c[hi]-c[lo])||1);
   const A=pf.pts[lo],B=pf.pts[hi];return [A[0]+(B[0]-A[0])*u,A[1]+(B[1]-A[1])*u]}
-// Höhe des Gleises: Gelände entlang des Wegs, aber mit begrenzter Steigung – so bleiben Züge auf Brücken oben
-// (statt ins Tal zu tauchen) und verschwinden in Tunnels im Berg. Abschnittsweise je 4 km berechnet.
+// Höhe des Gleises aus dem Gelände. Brücken: kurze Stellen, an denen das Gelände tiefer liegt, als es die Steigung
+// erlaubt (bis 800 m lang), werden gerade überspannt; Tunnels: Stellen unter dem Gelände gerade unterfahren (Zug verdeckt).
+// Sonst liegt der Zug auf dem Gelände – nichts schwebt. Abschnittsweise je 4 km, beim Hineinzoomen genauer neu berechnet.
 const H_SCHRITT=.25,H_STUECK=160,H_RAND=40;
-function hoehe(pf,s,sm){const ex=map.getTerrain()?map.getTerrain().exaggeration||1:0;if(!ex)return 0;
-  const k=Math.floor(s/(H_SCHRITT*H_STUECK));let h=pf.h[k];
-  if(!h){if(Z3.hBudget<=0)return null;Z3.hBudget--;
-    const n=H_STUECK+2*H_RAND+1,s0=(k*H_STUECK-H_RAND)*H_SCHRITT,dem=new Float32Array(n);
-    for(let i=0;i<n;i++){const p=punkt(pf,s0+i*H_SCHRITT),e=map.queryTerrainElevation(wgs(p[0],p[1]));if(e===null||e===undefined)return null;dem[i]=e}
-    const g=(sm?.07:.045)*ex*H_SCHRITT*100,v=new Float32Array(n),r=new Float32Array(n);
-    v[0]=dem[0];for(let i=1;i<n;i++)v[i]=Math.min(Math.max(dem[i],v[i-1]-g),v[i-1]+g);
-    r[n-1]=dem[n-1];for(let i=n-2;i>=0;i--)r[i]=Math.min(Math.max(dem[i],r[i+1]-g),r[i+1]+g);
-    h=new Float32Array(n);for(let i=0;i<n;i++){const a=v[i],b=r[i],d=dem[i];h[i]=a>=d&&b>=d?Math.max(a,b):a<=d&&b<=d?Math.min(a,b):d}
-    h.s0=s0;pf.h[k]=h}
+function hoehe(pf,s,steil){const T=map.getTerrain(),ex=T?T.exaggeration||1:0;if(!ex)return 0;
+  const k=Math.floor(s/(H_SCHRITT*H_STUECK)),zs=Math.min(14,Math.floor(map.getZoom()));let h=pf.h[k];
+  if((!h||h.z<zs||h.ex!==ex)&&Z3.hBudget>0){Z3.hBudget--;const neu=gleisHoehe(pf,k,steil,ex);if(neu){neu.z=zs;neu.ex=ex;pf.h[k]=h=neu}}
+  if(!h)return null;
   const f=(s-h.s0)/H_SCHRITT,i=Math.max(0,Math.min(h.length-2,Math.floor(f))),u=f-i;return h[i]*(1-u)+h[i+1]*u}
+function gleisHoehe(pf,k,steil,ex){
+  const n=H_STUECK+2*H_RAND+1,s0=(k*H_STUECK-H_RAND)*H_SCHRITT,dem=new Float32Array(n);
+  for(let i=0;i<n;i++){const p=punkt(pf,s0+i*H_SCHRITT),e=map.queryTerrainElevation(wgs(p[0],p[1]));if(e===null||e===undefined)return null;dem[i]=e}
+  // Steigungsgrenze (Normalspur 5 %, Schmalspur/Zahnrad 25 %), vorwärts und rückwärts
+  const g=(steil?.25:.05)*ex*H_SCHRITT*100,v=new Float32Array(n),r=new Float32Array(n),h=new Float32Array(n);
+  v[0]=dem[0];for(let i=1;i<n;i++)v[i]=Math.min(Math.max(dem[i],v[i-1]-g),v[i-1]+g);
+  r[n-1]=dem[n-1];for(let i=n-2;i>=0;i--)r[i]=Math.min(Math.max(dem[i],r[i+1]-g),r[i+1]+g);
+  const lage=new Int8Array(n);for(let i=0;i<n;i++){const d=dem[i];lage[i]=v[i]>d+1.5&&r[i]>d+1.5?1:v[i]<d-1.5&&r[i]<d-1.5?-1:0;h[i]=d}
+  for(let i=0;i<n;){if(!lage[i]){i++;continue}const L=lage[i];let j=i;while(j+1<n&&lage[j+1]===L)j++;
+    const a=i>0?dem[i-1]:(v[i]+r[i])/2,b=j<n-1?dem[j+1]:(v[j]+r[j])/2,m=j-i+2;
+    if(L<0||(j-i+1)*H_SCHRITT<=8)for(let q=i;q<=j;q++){const lin=a+(b-a)*(q-i+1)/m;h[q]=L>0?Math.max(lin,dem[q]):Math.min(lin,dem[q])}
+    i=j+1}
+  h.s0=s0;return h}
 
+// Unternehmen mit Normalspur (sonst: Schmal-/Zahnradbahn, steilere Strecken erlaubt)
+const NORMALSPUR=new Set(["11","33","65","82","78","351","81____","87_LEX","06____","800693","L7____","817000"]);
 // ---- three.js-Ebene ----
 const Z3={laden:false,bereit:false,liste:[],ursprung:null,hBudget:0,sel:null};
 function z3Laden(){if(Z3.laden)return;Z3.laden=true;const s=document.createElement("script");s.src="lib/three.min.js";
@@ -84,7 +94,7 @@ function z3Zug(tr,o,p,isSel){const PF=pfad(tr);if(!PF||p.j===undefined)return fa
   const os=Z3.ursprung,ms=os.meterInMercatorCoordinateUnits(),aus=[];
   for(const t of Z.teile){const sc=kopf-t.s,h=t.L*.42;
     const pv=punkt(pf,sc+h),ph=punkt(pf,sc-h),pm=punkt(pf,sc);
-    const zv=hoehe(pf,sc+h,t.W.T.spur<1.2),zh_=hoehe(pf,sc-h,t.W.T.spur<1.2);if(zv===null||zh_===null)return false;
+    const steil=t.W.T.spur<1.2||!NORMALSPUR.has(tr.ag),zv=hoehe(pf,sc+h,steil),zh_=hoehe(pf,sc-h,steil);if(zv===null||zh_===null)return false;
     const mv=maplibregl.MercatorCoordinate.fromLngLat(wgs(pv[0],pv[1])),mh=maplibregl.MercatorCoordinate.fromLngLat(wgs(ph[0],ph[1])),mm=maplibregl.MercatorCoordinate.fromLngLat(wgs(pm[0],pm[1]));
     const dx=(mv.x-mh.x)/ms,dy=(mv.y-mh.y)/ms,len=Math.hypot(dx,dy)||1;
     aus.push({g:ZM.schluessel(t.W),geo:ZM.bauWagen(t.W),x:(mm.x-os.x)/ms,y:(mm.y-os.y)/ms,z:(zv+zh_)/2,dreh:Math.atan2(dy,dx),neig:Math.atan2(zv-zh_,len),sel:isSel})}
