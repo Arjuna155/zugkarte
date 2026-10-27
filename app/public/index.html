@@ -463,9 +463,9 @@ const TNAME={fv:"Fernverkehr",rv:"Regio & RegioExpress",s:"S-Bahn",tr:"Tram & Me
 const KLASSEN=MIT_OEV&&window.ZK_LOCAL&&window.ZK_LOCAL.mode==="server"?["fv","rv","s","tr","sch"]:["fv","rv","s"];
 const DAYNAME={wd:"Montag–Freitag",sa:"Samstag",su:"Sonntag"};
 function parseDay(txt){const L=txt.split("\n"),D=L.shift().split("|");
-  return L.map(l=>{const [h,body]=l.split("|");const [cat,num,di]=h.split(",");
+  return L.map(l=>{const [h,body]=l.split("|");const [cat,num,di,zn,ag]=h.split(",");
     const st=body.split(";").map(x=>{const a=x.split(",");const t1=+a[1],t2=a.length>2?+a[2]:t1;return {i:parseInt(a[0],16),a:t1,d:t2}});
-    return {cat,label:cat==="S"?"S"+num:num?cat+" "+num:cat,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
+    return {cat,num,zn,ag,label:cat==="S"?"S"+num:num?cat+" "+num:cat,to:D[+di]||"",cls:TCLS(cat),st,t0:st[0].d,t1:st[st.length-1].a,legs:null}})}
 const DAYS={};for(const k in TT)DAYS[k]=parseDay(TT[k]);
 // Fahrplan nach Datum (Website): der Server rechnet täglich den offiziellen GTFS-Fahrplan für die nächsten Tage um
 // (mit Baustellen, Feiertagen und Fahrplanwechsel). Fehlt er, gilt der eingebaute Fahrplan nach Wochentag.
@@ -520,11 +520,11 @@ function along(P,f){const L=P.len*f;let lo=0,hi=P.cum.length-1;while(hi-lo>1){co
 function trainPos(r,t,rt){const T0=rt?rt.t0:r.t0,T1=rt?rt.t1:r.t1;if(t<T0||t>T1)return null;
   for(let j=0;j<r.st.length;j++){const S=rt?{i:r.st[j].i,a:rt.A[j],d:rt.D[j]}:r.st[j];
     if(t>=S.a&&t<=S.d){if(sperrHeute){const L=legs(r);if((j===0||legZu(L[j-1]))&&(j===r.st.length-1||legZu(L[j])))return null}
-      const s=ST[SN[S.i]]||STX[SN[S.i]];return {x:X(s),y:Y(s),stop:j,moving:false}}
+      const s=ST[SN[S.i]]||STX[SN[S.i]];return {x:X(s),y:Y(s),stop:j,j,f:0,moving:false}}
     if(j<r.st.length-1){const N=rt?{a:rt.A[j+1]}:r.st[j+1];if(t>S.d&&t<N.a){const P=legs(r)[j];if(!P||legZu(P))return null;
       const u=(t-S.d)/(N.a-S.d);let f=u<.5?2*u*u:1-2*(1-u)*(1-u);f=.15*u+.85*f; // anfahren & bremsen
       const [x,y]=along(P,f),f2=Math.min(1,f+0.01),[x2,y2]=along(P,f2),[x0,y0]=f2>f?[x,y]:along(P,Math.max(0,f-0.01));
-      return {x,y,next:j+1,moving:true,h:Math.atan2(y2-y0,x2-x0)}}}}
+      return {x,y,next:j+1,j,f,moving:true,h:Math.atan2(y2-y0,x2-x0)}}}}
   return null}
 // Schweizer Uhrzeit (unabhängig von der Zeitzone des Geräts)
 const ZF=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Zurich",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",weekday:"short"});

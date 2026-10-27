@@ -54,6 +54,13 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Reihenfolge der Suche: durchgehender Weg auf swisstopo-Gleisen (Korridor 2.5/6/12), dann OSM-Gleise als Ersatz (fehlende Kacheln, z. B. Bonfol), erst zuletzt Lücken gerade überbrücken. Prüfung: /tmp-Skript qual.py-Logik – kein Stück > 50 m weg von swisstopo UND OSM (Ausnahmen: Waldenburgerbahn, Forchbahn, CEVA – Tunnel/Stadtbahn, in OSM richtig).
 - 3D: Ecken nur noch leicht gerundet (max. 15 m).
 
+## 3D-Züge mit echter Zusammensetzung (Vorschau seit 27.10.2026, nur mit `?zuege3d`)
+- `app/formation.js`: Train Formation Service (`/formation/v2/formations_vehicle_based`, gleicher Schlüssel wie SIRI-ET). Hintergrund-Lader ≤ 40 Abfragen/Min. (`ZK_FORMATION_PRO_MIN`), zuerst Züge der nächsten 3 h, dann heute, dann morgen. Speichert `DATA_DIR/formation/JJJJ-MM-TT.json` und `typisch.json` (letzte Zusammensetzung je «EVU:Zugnr» als Rückfall). Zuordnung GTFS agency_id → EVU in `EVU`. `/api/formation?d=…[&w=EVU:Nr]`, `/api/formation/status`. Bei 401/403: Schlüssel nicht für den Dienst abonniert (Pause 1 h), 429: Pause 10 Min.
+- Kompaktformat je Wagen «Typ,Länge,Klasse,Einheit[,von,bis]» (Einheit = gleiche parentEvn).
+- Tagesfahrplan-Zeilen tragen jetzt «Kat,Linie,Ziel,Zugnr,agency_id» (UMRECHNUNG 4).
+- Seite: `src/zuege3d_modelle.js` (Baureihen als Parametersätze, Geometrie mit Farbe je Fläche, Regeln typeCodeName → Baureihe, Rückfall nach Linie/Unternehmen), `src/zuege3d.js` (three.js r158 aus `/lib/three.min.js`, Custom Layer «zuege3d», Wagen entlang des Laufwegs, Abschnitte an Kopfbahnhöfen, Gleishöhe = Gelände mit Steigungsgrenze). mach_3d.py fügt beide vor karte3d_frame.js ein. Ab Zoom 13.2; Punkte der 3D-Züge werden unsichtbar (`d3`).
+- Lokaler Test ohne Kacheln: Stil per Playwright-Route durch einen leeren Stil ersetzen, Gelände aus (`setze3d(false)`), Formation-API mit `OTD_FORMATION_URL` auf einen Mock.
+
 ## Netz erweitern
 - `tools/netz_neu.py` (neue Strecken als Bahnhofsketten) + `tools/netz_ausbau.py` bauen aus `data/quellen/basis/` (Hauptnetz 23.10.) Stationen, Netz, Gleisverlauf (OSM, `osm_ch_export.json.gz`) und den Fahrplan (Rohdaten `ch_raw_*` + stationboards der neuen Bahnhöfe `ch_sb_neu.json.gz`) neu. Danach `tools/build.py`.
 - transport.opendata.ch stationboard: `limit` max. ~400 (500 → HTTP 400); im ersten passList-Eintrag steht eine falsche Halt-ID (wird durch die ID der Tafel ersetzt).

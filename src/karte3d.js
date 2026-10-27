@@ -59,6 +59,7 @@ map.on("load",()=>{
     paint:{"text-color":"#16222b","text-halo-color":"#ffffff","text-halo-width":1.6}});
   // Fahrzeuge (Daten aus frame())
   map.addLayer({id:"fz",type:"circle",source:"fz",paint:{"circle-color":["get","f"],"circle-stroke-color":["get","r"],"circle-stroke-width":["get","w"],"circle-pitch-alignment":"viewport",
+    "circle-opacity":["case",["==",["get","d3"],1],0,1],"circle-stroke-opacity":["case",["==",["get","d3"],1],0,1],
     "circle-radius":["interpolate",["linear"],["zoom"],7,["*",["get","g"],2.6],11,["*",["get","g"],4.4],15,["*",["get","g"],7]]}});
   map.addLayer({id:"fz-l",type:"symbol",source:"fz",minzoom:12.5,filter:["any",["!=",["get","c"],"tr"],[">=",["zoom"],14.5]],layout:{"text-field":["get","l"],"text-font":[SCHRIFT],"text-size":11,
     "text-anchor":"bottom-left","text-offset":[0.6,-0.4],"text-optional":true},paint:{"text-color":"#16222b","text-halo-color":"#ffffff","text-halo-width":1.5}});

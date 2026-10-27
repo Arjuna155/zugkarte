@@ -30,7 +30,7 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     return { d: `${p.year}-${p.month}-${p.day}`, min: +p.hour * 60 + +p.minute }; };
   if (process.env.ZK_FP_HEUTE) versatz = Math.round((Date.parse(process.env.ZK_FP_HEUTE) - Date.parse(zh(Date.now()).d)) / 86400000) * 86400000;
 
-  // Antwort → kompakte Zeichenkette: Wagen in Reihenfolge, je «Typ,Länge,Klasse[,von,bis]», getrennt durch «;»
+  // Antwort → kompakte Zeichenkette: Wagen in Reihenfolge, je «Typ,Länge,Klasse,Einheit[,von,bis]», getrennt durch «;»
   // Klasse: 1, 2, 12, WR (Speisewagen), X (ohne Sitzplätze: Lok, Gepäck). von/bis (UIC) nur, wenn der Wagen
   // nicht den ganzen Lauf mitfährt (Flügelzüge, Verstärkung).
   function kompakt(j) {
@@ -42,13 +42,17 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     const bis = v => v.vehicleProperties && v.vehicleProperties.toStop ? v.vehicleProperties.toStop.uic : null;
     const zaehl = new Map(); for (const v of wagen) for (const u of [von(v), bis(v)]) if (u) zaehl.set(u, (zaehl.get(u) || 0) + 1);
     const haeufig = [...zaehl.entries()].sort((a, b) => b[1] - a[1]); const ganz = new Set(haeufig.slice(0, 2).map(x => x[0]));
+    // Einheit (Triebzug, Lok, einzelner Wagen): Wagen mit gleicher parentEvn gehören zusammen → Nummer g
+    let g = -1, letzte = null;
     return wagen.map(v => {
       const id = v.vehicleIdentifier || {}, p = v.vehicleProperties || {};
+      const einheit = id.parentEvn || id.evn || ("?" + v.position);
+      if (einheit !== letzte) { g++; letzte = einheit; }
       const typ = String(id.typeCodeName || id.typeCode || "?").replace(/[,;|]/g, " ").trim();
       const len = p.length ? Math.round(p.length * 10) / 10 : "";
       const k = p.numberRestaurantSpace > 0 && !(p.number1class || p.number2class) ? "WR" : p.number1class > 0 && p.number2class > 0 ? "12" : p.number1class > 0 ? "1" : p.number2class > 0 ? "2" : p.numberRestaurantSpace > 0 ? "WR" : "X";
       const a = von(v), b = bis(v), teil = (a && !ganz.has(a)) || (b && !ganz.has(b));
-      return [typ, len, k].concat(teil ? [a || "", b || ""] : []).join(",");
+      return [typ, len, k, g].concat(teil ? [a || "", b || ""] : []).join(",");
     }).join(";");
   }
 
