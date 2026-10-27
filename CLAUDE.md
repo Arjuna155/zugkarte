@@ -68,5 +68,9 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Schmalspur/Privatbahnen (25.10.): stationboards in `ch_sb_neu2.json.gz` (ohne Verkehrsmittelfilter, Busse entfernt; Forchbahn/Waldenburgerbahn laufen als «T»). Meterspur, die in OSM als light_rail/tram erfasst ist: `osm_ch_ergaenzung.json.gz`. Haltestellen «Ort, Bahnhof/Station» werden dem nahen Kartenbahnhof zugeordnet.
 - Ohne Daten bei transport.opendata.ch (Linie nur gezeichnet): zb Engelberg, MGB Visp–Zermatt, WAB Grindelwald Grund, BVB, Salvan, CJ Tavannes.
 
+## Vision (27.10.2026, ausführlich im Projekt-Dokument claude/vision-roadmap.md)
+Ganze Schweiz in 3D (Gelände, Gebäude, Brücken, Tunnels). Züge fahren in Echtzeit auf ihren Gleisen und halten wie in echt. Später kommen Trams, Bergbahnen, Schiffe und Busse dazu, als Erweiterungen Wetter und Verkehr (zuerst Autobahn). Alles ist als einzeln schaltbare Ebene gebaut (Datenteil auf dem Server, Zeichenteil auf der Karte), und die Karte muss auf dem Handy flüssig bleiben.
+Etappen: 1 3D-Züge fertig → 2 Züge wie in echt (Gleis/Sektor, Anfahren/Bremsen) → 3 3D-Welt (Entscheid MapLibre oder Cesium) → 4 Trams 3D → 5 Bergbahnen/Schiffe → 6 Busse → 7 Wetter/Verkehr.
+
 ## Offene Punkte
 - Eingebauter Fallback-Fahrplan (data/fahrplan/*.txt) ist vom Fahrplan 2026; auf der Website ersetzt ihn der GTFS-Fahrplan. Für Artifact/Windows-Programm ggf. später aus GTFS neu erzeugen.
