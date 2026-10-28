@@ -6,6 +6,7 @@ import { ZM } from "./modelle.js";
 import { K } from "./karte.js";
 import { wgs } from "../util.js";
 import { ladeThree, szeneMitLicht } from "./drei.js";
+import { einrasten } from "./gleise.js";
 import { ebene } from "../ui/ebenen.js";
 
 // Ein-/ausschalten über die Ebenen in der Seitenleiste (alte Adresse ?zuege3d=aus schaltet weiterhin ab)
@@ -85,7 +86,10 @@ export function z3Zug(tr, o, p, isSel) {
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = t.L * .42, pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
     const steil = t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
-    const llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
+    let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
+    // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
+    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = einrasten(mv, rx, ry), gh = einrasten(mh, rx, ry);
+    if (gv && gh) { mv = gv; mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
     aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: Math.atan2(zv - zh_, len), sel: isSel, ll: llm, tr, o });
   }

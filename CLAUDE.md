@@ -49,6 +49,10 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Achtung: Die Gleise in `data/quellen/swisstopo_gleise.txt.gz` enthalten Tunnel (ohne Kennzeichnung); die OSM-Exporte haben keine Tunnelangabe (Feld 4 = Zahnrad).
 - Seite: `kern/bauwerke.js` lädt die Daten; Strecken je Linie als zwei Merkmale (offen id=i, Tunnel id=100000+i, Eigenschaft `tun`), Ebene `bahn-tunnel` gestrichelt und blass; Fahrzeugpunkte im Tunnel mit Gelände halb durchsichtig (`p.tunnel` aus trainPos).
 
+## 3D-Züge auf den Gleisen der Karte (28.10.2026)
+- `web/src/karte/gleise.js`: Gleise der Grundkarte (transportation class=rail/transit) im Ausschnitt ab Zoom 13 in ein 25-m-Raster; `einrasten()` setzt Vorder- und Hinterende jedes 3D-Wagens auf das nächste Gleis (≤ 7 m), linke Gleise in Fahrtrichtung bevorzugt (Linksverkehr auf Doppelspur). Ohne Gleise in der Nähe bleibt der Wagen auf unserer Streckenlinie.
+- Ebene «strecken» (Streckenlinien) in karte.js: blendet `bahn` und `bahn-tunnel` aus (Hervorhebung einer gewählten Strecke bleibt).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

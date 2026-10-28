@@ -2,6 +2,7 @@
 import { B } from "../kern/basis.js";
 import { SPERR } from "../kern/wege.js";
 import { tunnelVon } from "../kern/bauwerke.js";
+import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
 
@@ -105,6 +106,7 @@ export function karteStarten() {
       const a = document.querySelector(".maplibregl-ctrl-attrib"); if (a) a.classList.remove("maplibregl-compact-show");
       setTimeout(() => { map.resize(); map.fitBounds(CH_BOX, { padding: 20, duration: 0 }); }, 300);   // Seitenleiste ist inzwischen zugeklappt
     }
+    ebene({ id: "strecken", name: "Streckenlinien", an: true, setze: an => { for (const l of ["bahn", "bahn-tunnel"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an ? "visible" : "none"); } });
     K.bereit = true; setze3d(K.mit3d); kartenAuswahl(); sperrenKarte(); melde("karte");
   });
   an("sperren", sperrenKarte);
