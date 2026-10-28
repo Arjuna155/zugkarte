@@ -1,0 +1,232 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="Interaktive Karte des Schweizer Bahnnetzes mit allen Zügen nach Fahrplan und in Echtzeit."><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%2316222b%22/%3E%3Cpath d=%22M5 22c6-1 8-12 22-12%22 stroke=%22%23fff%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%2216%22 cy=%2214.5%22 r=%224%22 fill=%22%23e5484d%22 stroke=%22%23fff%22 stroke-width=%221.5%22/%3E%3C/svg%3E"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>ÖV Schweiz 3D – ZugKarte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lib/maplibre-gl.css">
+<style>
+/* Layout: Karte füllt den Bildschirm, Seitenleiste rechts (Desktop) bzw. unten (Handy) */
+:root{
+  --ground:#e6ecee; --land:#fbfcfb; --lake:#b9d5e5; --canton:#cfd8dc;
+  --ink:#16222b; --muted:#5d6d77; --line:#dbe2e5; --panel:#ffffff;
+  --fv:#16222b; --rv:#22808f; --sm:#b5612a; --sel:#e3a008;
+  --tfv:#e5484d; --trv:#7b4fd6; --ts:#2f6fe0; --ttr:#0f9488; --tsch:#0369a1; --oevln:#7d8f99; --schln:#5b9cc8; --tring:#ffffff; --late:#d97706; --ok:#16a34a;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#0d1317; --land:#172026; --lake:#1d3a4c; --canton:#2a363d;
+  --ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:#121a1f;
+  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --ttr:#2dd4bf; --tsch:#38bdf8; --oevln:#5d6f78; --schln:#4f8fb8; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ground:#0d1317; --land:#172026; --lake:#1d3a4c; --canton:#2a363d;
+  --ink:#e7eef1; --muted:#93a4ad; --line:#2a363d; --panel:#121a1f;
+  --fv:#e7eef1; --rv:#58c2d1; --sm:#e59a5f; --sel:#f5c04a; --tfv:#ff6b6e; --trv:#a98bff; --ts:#5c9bff; --ttr:#2dd4bf; --tsch:#38bdf8; --oevln:#5d6f78; --schln:#4f8fb8; --tring:#0d1317; --late:#f59e0b; --ok:#22c55e; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:14px;overflow:hidden}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--panel);border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:18px;font-weight:700;font-stretch:80%;letter-spacing:.01em;display:flex;align-items:baseline;gap:10px}
+h1 small{font-size:12px;font-weight:500;color:var(--muted);font-stretch:100%;letter-spacing:.04em;text-transform:uppercase}
+.search{margin-left:auto;position:relative;flex:0 1 280px;min-width:0}
+.search input{width:100%;box-sizing:border-box;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--ground);color:var(--ink)}
+.search input:focus{outline:2px solid var(--rv);outline-offset:1px}
+.sugg{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;z-index:20;max-height:260px;overflow:auto;box-shadow:0 8px 24px rgb(0 0 0/.15)}
+.sugg button{display:block;width:100%;text-align:left;font:inherit;padding:8px 12px;border:0;background:none;color:var(--ink);cursor:pointer}
+.sugg button:hover,.sugg button.on{background:var(--ground)}
+main{display:grid;grid-template-columns:1fr 320px;min-height:0}
+.mapwrap{position:relative;min-width:0;min-height:0;overflow:hidden}
+#map{position:absolute;inset:0}
+.app{grid-template-columns:minmax(0,1fr)}header>*{min-width:0;max-width:100%}.clock{min-width:0}.rtpill{min-width:0}
+.ctrl{z-index:3}.ctrl button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.maplibregl-ctrl-attrib{font-size:11px}.maplibregl-ctrl-bottom-left{left:env(safe-area-inset-left,0px)}
+.mapwrap.drag{cursor:grabbing}
+svg{display:block;width:100%;height:100%}
+.relief{mix-blend-mode:multiply;opacity:.42;pointer-events:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .relief{filter:invert(1);mix-blend-mode:screen;opacity:.16}}
+:root[data-theme="dark"] .relief{filter:invert(1);mix-blend-mode:screen;opacity:.16}
+.ch{fill:var(--land);stroke:var(--muted);stroke-width:1.2;vector-effect:non-scaling-stroke}
+.de{fill:var(--land);stroke:var(--muted);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.85}
+.debl{fill:none;stroke:var(--canton);stroke-width:1;vector-effect:non-scaling-stroke}
+.delbl{fill:var(--muted);font-family:var(--f-ui);font-weight:600;letter-spacing:.04em;text-anchor:middle;pointer-events:none;opacity:.8}
+.oev{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.oev.t{stroke:var(--oevln);stroke-width:1.1;opacity:.8}.oev.s{stroke:var(--schln);stroke-width:1.2;stroke-dasharray:5 4}
+.dln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.dln.f{stroke:var(--fv);stroke-width:2.2}.dln.m{stroke:var(--rv);stroke-width:1.4}.dln.b{stroke:var(--rv);stroke-width:.9;opacity:.55}
+.dst{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke}
+.cant{fill:none;stroke:var(--canton);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.lake{fill:var(--lake);stroke:none}
+.ln{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.ln.fv{stroke:var(--fv);stroke-width:3.2}
+.ln.rv{stroke:var(--rv);stroke-width:2.4}
+.ln.sm{stroke:var(--sm);stroke-width:2.2;stroke-dasharray:1 0}
+.hit{fill:none;stroke:transparent;stroke-width:14;vector-effect:non-scaling-stroke;cursor:pointer}
+.ln.dim{opacity:.18}
+.ln.hl{stroke:var(--sel);stroke-width:5}
+.sperre{fill:none;stroke:#e5484d;stroke-width:4;stroke-dasharray:7 5;stroke-linecap:butt;vector-effect:non-scaling-stroke}
+.sperrzeichen circle{fill:#e5484d;stroke:#fff;vector-effect:non-scaling-stroke}.sperrzeichen rect{fill:#fff}
+.sperrinfo{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;margin:12px 0 0;padding:8px 10px;border-radius:6px;background:color-mix(in srgb,#e5484d 10%,var(--panel));border:1px solid color-mix(in srgb,#e5484d 35%,var(--line))}
+.sperrinfo b{color:#e5484d}
+.st{fill:var(--land);stroke:var(--ink);vector-effect:non-scaling-stroke;cursor:pointer}
+.st.t0{stroke-width:2.2}.st.t1{stroke-width:1.6}.st.t2{stroke-width:1.1}
+.st.sel{fill:var(--sel);stroke:var(--ink)}
+.lbl{fill:var(--ink);paint-order:stroke;stroke:var(--land);stroke-linejoin:round;font-family:var(--f-ui);pointer-events:none}
+.lbl.t0{font-weight:700;font-stretch:85%}.lbl.t1{font-weight:600;font-stretch:80%}.lbl.t2{font-weight:500;font-stretch:78%;fill:var(--muted)}
+.ctrl{position:absolute;right:calc(12px + env(safe-area-inset-right,0px));top:12px;display:flex;flex-direction:column;gap:6px}
+.ctrl button{width:36px;height:36px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 18px var(--f-ui);cursor:pointer;display:grid;place-items:center}
+.ctrl button:hover{border-color:var(--muted)}
+.ctrl button:focus-visible,.legend button:focus-visible,.chip:focus-visible{outline:2px solid var(--rv);outline-offset:2px}
+.readout{position:absolute;left:calc(12px + env(safe-area-inset-left,0px));bottom:12px;display:flex;gap:12px;align-items:flex-end;pointer-events:none}
+.coord{font:500 11px var(--f-mono);color:var(--muted);background:color-mix(in srgb,var(--panel) 85%,transparent);padding:4px 8px;border-radius:4px;font-variant-numeric:tabular-nums}
+.scale{font:500 11px var(--f-mono);color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.scale i{display:block;height:5px;border:1.5px solid var(--ink);border-top:0}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--panel);font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px;white-space:nowrap;transform:translate(-50%,-140%)}
+aside{background:var(--panel);border-left:1px solid var(--line);overflow:auto;min-height:0;display:flex;flex-direction:column;gap:20px;
+  padding-block:16px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.legend{display:flex;flex-direction:column;gap:4px}
+.legend button{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;font:inherit;text-align:left;padding:8px 8px;border:1px solid transparent;border-radius:6px;background:none;color:var(--ink);cursor:pointer}
+.legend button:hover{background:var(--ground)}
+.legend button[aria-pressed="false"]{opacity:.4}
+.legend b{font-weight:600}
+.legend span.n{font:500 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.sw{height:0;border-top:3px solid}
+.sw.fv{border-color:var(--fv);border-top-width:3.5px}.sw.rv{border-color:var(--rv)}.sw.sm{border-color:var(--sm)}
+.card h2{margin:0 0 2px;font-size:22px;font-weight:700;font-stretch:82%;text-wrap:balance}
+.card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:0 0 16px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.chip{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--ground);color:var(--ink);cursor:pointer}
+.chip:hover{border-color:var(--muted)}
+.chip i{width:14px;height:0;border-top:3px solid}
+.chip i.fv{border-color:var(--fv)}.chip i.rv{border-color:var(--rv)}.chip i.sm{border-color:var(--sm)}
+ol.stops{list-style:none;margin:0 0 12px;padding:0;position:relative}
+ol.stops li{position:relative;padding:5px 0 5px 22px}
+ol.stops li::before{content:"";position:absolute;left:5px;top:0;bottom:0;border-left:3px solid var(--c)}
+ol.stops li:first-child::before{top:50%}ol.stops li:last-child::before{bottom:50%}
+ol.stops li::after{content:"";position:absolute;left:1px;top:50%;width:8px;height:8px;margin-top:-6px;border-radius:50%;background:var(--panel);border:2px solid var(--c)}
+ol.stops button{font:inherit;background:none;border:0;padding:0;color:var(--ink);cursor:pointer;text-align:left}
+ol.stops button:hover{text-decoration:underline}
+ol.stops li{display:flex;justify-content:space-between;gap:8px}
+.km{font:500 11px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hint{color:var(--muted);font-size:13px;line-height:1.5;margin:0}
+.note{margin-top:auto;font-size:12px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:12px}
+.link{font:inherit;font-size:13px;background:none;border:0;padding:0;color:var(--rv);cursor:pointer;text-decoration:underline}
+#trains{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.clock{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.clock time{font:500 20px var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:.02em;min-width:6.2ch}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:600 12px var(--f-ui);padding:6px 9px;border:0;background:var(--panel);color:var(--muted);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.seg button:focus-visible{outline:2px solid var(--rv);outline-offset:-2px}
+.rtpill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);padding:5px 10px;border:1px solid var(--line);border-radius:999px;max-width:22em;min-width:0}
+.rtpill i{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.rtpill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rtpill[data-state="on"]{color:var(--ink)}.rtpill[data-state="on"] i{background:var(--ok)}
+.rtpill[data-state="stale"] i,.rtpill[data-state="wait"] i{background:var(--late)}
+.rtpill[data-state="err"] i{background:var(--tfv)}
+.keyform{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--ground)}
+.keyform label{font-size:12px;font-weight:600}
+.keyrow{display:flex;gap:6px}
+.keyrow input{flex:1;min-width:0;font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.keyrow button{font:600 13px var(--f-ui);padding:7px 12px;border:0;border-radius:5px;background:var(--ink);color:var(--panel);cursor:pointer}
+.keyrow input:focus-visible,.keyrow button:focus-visible{outline:2px solid var(--rv);outline-offset:1px}
+.rtnote{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0 0 8px}
+.rtnote:empty{display:none}
+.late{color:var(--late);font-weight:700;font-variant-numeric:tabular-nums}
+.cx{text-decoration:line-through;opacity:.6}
+.cxl{color:var(--tfv);font-weight:700}
+.live{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--tring);box-shadow:0 0 0 1px var(--line);justify-self:center}
+.dot.fv{background:var(--tfv)}.dot.rv{background:var(--trv)}.dot.s{background:var(--ts)}.dot.tr{background:var(--ttr)}.dot.sch{background:var(--tsch)}
+.dot.d0{background:var(--ok)}.dot.d1{background:var(--late)}.dot.d2{background:#e5484d}.dot.dn{background:#9aa5ab}
+.colmode{margin:2px 0 10px}
+.deps{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:2px}
+.deps li{display:grid;grid-template-columns:3.4em auto 1fr;gap:8px;align-items:baseline;font-size:13px;padding:4px 0;border-bottom:1px solid var(--line)}
+.deps li:last-child{border-bottom:0}
+.deps time{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
+.badge{display:inline-block;white-space:nowrap;font:700 11px var(--f-ui);padding:1px 5px;border-radius:3px;color:#fff;text-align:center}
+.badge.fv{background:var(--tfv)}.badge.rv{background:var(--trv)}.badge.s{background:var(--ts)}.badge.tr{background:var(--ttr)}.badge.sch{background:var(--tsch)}
+.deps .to{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip{list-style:none;margin:0 0 14px;padding:0}
+.trip li{display:grid;grid-template-columns:3.2em 1fr;gap:10px;font-size:13px;padding:3px 0;color:var(--muted)}
+.trip li.done{opacity:.5}
+.trip li.next{color:var(--ink);font-weight:600}
+.trip time{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums}
+.sidetoggle{display:none;font:600 12px var(--f-ui);border:1px solid var(--line);background:var(--ground);color:var(--ink);border-radius:999px;padding:5px 12px;align-self:center;cursor:pointer;flex:none}
+@media (max-width:760px){
+  main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  aside{border-left:0;border-top:1px solid var(--line);max-height:38vh;gap:14px;padding-left:max(16px,env(safe-area-inset-left,0px))}
+  .search{flex-basis:100%;margin-left:0}
+  .legend{flex-direction:row;flex-wrap:wrap}
+  .legend button{grid-template-columns:22px auto auto;padding:6px 8px}
+  .note{display:none}
+  .app{grid-template-columns:minmax(0,1fr)}header>*{min-width:0;max-width:100%}.rtpill span{min-width:0}
+  main{grid-template-columns:minmax(0,1fr)}.clock{max-width:100%;min-width:0}.rtpill{min-width:0}
+  header{gap:6px 10px;padding-block:6px}h1{font-size:16px}h1 small{display:none}.clock{gap:6px}.clock time{font-size:16px;min-width:5.6ch}
+  .seg button{padding:5px 7px}.rtpill{max-width:100%;padding:3px 8px;font-size:11px}.search input{padding:6px 10px}
+  aside{max-height:42vh;transition:max-height .2s}
+  aside.zu{max-height:44px;overflow:hidden}
+  .sidetoggle{display:block}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+<header>
+  <h1>ÖV Schweiz <small>3D-Karte</small></h1>
+  <div class="clock" aria-label="Simulierte Uhrzeit">
+    <time id="clk">--:--:--</time>
+    <div class="seg" id="speed" role="group" aria-label="Geschwindigkeit">
+      <button data-v="0" aria-pressed="false" title="Anhalten">❚❚</button>
+      <button data-v="1" aria-pressed="true">1×</button>
+      <button data-v="10" aria-pressed="false">10×</button>
+      <button data-v="60" aria-pressed="false">60×</button>
+    </div>
+    <button class="link" id="now">Jetzt</button>
+    <span class="rtpill" id="rt" data-state="off" role="status"><i></i><span id="rtTxt">Nur Fahrplan</span></span>
+  </div>
+  <div class="search">
+    <input id="q" type="search" placeholder="Bahnhof suchen, z. B. Lenzburg" autocomplete="off" aria-label="Bahnhof suchen">
+    <div class="sugg" id="sugg" hidden></div>
+  </div>
+</header>
+<main>
+  <div class="mapwrap" id="wrap">
+    <div id="map"></div>
+    <div class="ctrl">
+      <button id="zin" aria-label="Hineinzoomen">+</button>
+      <button id="zout" aria-label="Herauszoomen">−</button>
+      <button id="zreset" aria-label="Ganze Schweiz anzeigen" style="font-size:13px">CH</button>
+      <button id="z3d" aria-label="3D-Gelände ein/aus" aria-pressed="true" style="font-size:12px">3D</button>
+      <a href="/2d" id="z2d" aria-label="Zur flachen 2D-Karte" title="Zur 2D-Karte" style="font:600 12px var(--f-ui);width:36px;height:36px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center;text-decoration:none">2D</a>
+    </div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+  <aside id="side"><button class="sidetoggle" id="sideToggle" aria-expanded="true">Details ausblenden</button>
+    <section>
+      <p class="eyebrow">Strecken</p>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section>
+      <p class="eyebrow">Züge <span class="live" id="live"></span></p>
+      <p class="hint" id="daytype" style="margin:-4px 0 8px"></p>
+      <p class="rtnote" id="rtNote"></p><button class="link" id="rtBtn" hidden style="margin:0 0 10px"></button>
+      <div class="seg colmode" id="colmode" role="group" aria-label="Zugfarbe"><button data-v="art" aria-pressed="true">Farbe: Zugart</button><button data-v="vsp" aria-pressed="false">Farbe: Verspätung</button></div>
+      <div class="legend" id="tlegend"></div>
+      <p class="sperrinfo" id="sperrInfo" hidden></p>
+    </section>
+    <section id="detail"></section>
+    <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Grundkarte © swisstopo, Gelände © Mapterhorn (offene Höhendaten, u. a. swisstopo), dargestellt mit MapLibre GL. Züge nach dem offiziellen Fahrplan der Schweiz (GTFS, opentransportdata.swiss), den der Server zweimal pro Woche neu lädt und für jeden Tag einzeln aufbereitet – mit Feiertagen, Baustellen und dem Fahrplanwechsel im Dezember; Zeiten in Schweizer Zeit. Auf der Website fahren auch Trams, Metro und Schiffe mit (Tramgleise und Schiffslinien © OpenStreetMap-Mitwirkende, ODbL). Ist der Fahrplan nicht erreichbar, gilt ein Ersatzfahrplan je für Montag–Freitag, Samstag und Sonntag. Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, alle 60 Sekunden über den Server.</p>
+  </aside>
+</main>
+</div>
+
+
+<script src="lib/maplibre-gl-csp.js"></script>
+<script src="js/app.9a69cf9491.js" defer></script>
+</body></html>

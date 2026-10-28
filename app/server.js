@@ -57,13 +57,17 @@ const log = (...a) => console.log(new Date().toLocaleString("de-CH", { timeZone:
 let RELIEF = null; try { RELIEF = fs.readFileSync(path.join(__dirname, "public", "relief.jpg")); } catch {}
 function seite(datei) {
   const raw = fs.readFileSync(path.join(__dirname, "public", datei), "utf8")
-    .replace("<script>", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script>");
+    .replace("<script", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script");
   return { raw: Buffer.from(raw), gz: zlib.gzipSync(raw, { level: 9 }), etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' };
 }
 const PAGE = seite("index.html");
 // CSP der 3D-Karte – gilt auch für den Web-Worker (lädt die Kacheln selbst)
 const CSP3D = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
 let PAGE3D = null; try { PAGE3D = seite("3d.html"); } catch {}   // 3D-Karte (Prototyp, MapLibre)
+let PAGEV2 = null; try { PAGEV2 = seite("karte.html"); } catch {}   // neue Website aus web/ (Umbau 28.10.2026), vorerst unter /v2
+// Feste Dateien der neuen Website: js/app.<hash>.js und daten/*.<hash>.json – Name ändert sich mit dem Inhalt → lange zwischenspeicherbar
+const FEST = {};
+for (const dir of ["js", "daten"]) { try { for (const f of fs.readdirSync(path.join(__dirname, "public", dir))) { const b = fs.readFileSync(path.join(__dirname, "public", dir, f)); FEST["/" + dir + "/" + f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }), ct: f.endsWith(".js") ? "text/javascript; charset=utf-8" : "application/json; charset=utf-8", immer: /\.[0-9a-f]{10}\./.test(f) }; } } catch {} }
 // Bibliotheken der 3D-Karte (MapLibre GL, selbst ausgeliefert)
 const LIB = {}; try { for (const f of fs.readdirSync(path.join(__dirname, "public", "lib"))) { const b = fs.readFileSync(path.join(__dirname, "public", "lib", f)); LIB[f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }) }; } } catch {}
 
@@ -240,6 +244,17 @@ const server = http.createServer(async (req, res) => {
     const h = { ...SEC, "Content-Security-Policy": csp, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE3D.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE3D.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE3D.raw);
+  }
+  if (url.pathname === "/v2" && PAGEV2) {
+    if (req.headers["if-none-match"] === PAGEV2.etag) { res.writeHead(304, { ...SEC, "Content-Security-Policy": CSP3D, ETag: PAGEV2.etag }); return res.end(); }
+    const h = { ...SEC, "Content-Security-Policy": CSP3D, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGEV2.etag, Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGEV2.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGEV2.raw);
+  }
+  if (FEST[url.pathname]) {
+    const f = FEST[url.pathname], h = { ...SEC, "Content-Type": f.ct, "Cache-Control": f.immer ? "public, max-age=31536000, immutable" : "no-cache", Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : f.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : f.raw);
   }
   if (url.pathname.startsWith("/lib/") && LIB[url.pathname.slice(5)]) {
     const f = LIB[url.pathname.slice(5)], ct = url.pathname.endsWith(".css") ? "text/css; charset=utf-8" : url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/plain; charset=utf-8";
