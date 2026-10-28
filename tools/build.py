@@ -95,6 +95,20 @@ h3 = (ROOT / "src" / "template3d.html").read_text(encoding="utf-8")
 for key, val in values.items():
     if key in h3: h3 = h3.replace(key, json.dumps(val, ensure_ascii=False, separators=(",", ":")))
 (ROOT / "app" / "public" / "3d.html").write_text(head.replace("<meta charset=\"utf-8\">", "<meta charset=\"utf-8\"><title>ÖV Schweiz 3D – ZugKarte</title>", 1) + h3 + "</body></html>", encoding="utf-8")
+# Neue Website (web/, tools/web_bauen.mjs): Daten als eigene, lange zwischenspeicherbare Dateien statt in der Seite
+import hashlib
+DATEN = ROOT / "app" / "public" / "daten"; DATEN.mkdir(parents=True, exist_ok=True)
+def daten_datei(name, obj):
+    txt = json.dumps(obj, ensure_ascii=False, separators=(",", ":")); h = hashlib.sha1(txt.encode()).hexdigest()[:10]
+    fn = f"{name}.{h}.json"
+    for alt in DATEN.glob(name + ".*.json"):
+        if alt.name != fn: alt.unlink()
+    (DATEN / fn).write_text(txt, encoding="utf-8"); return "daten/" + fn
+basis = {"fpv": fb["v"], "st": {n: [v["E"], v["N"], round(v["lat"], 5), round(v["lon"], 5)] for n, v in stations.items()},
+         "stx": {n: [v["E"], v["N"], v.get("a", "")] for n, v in stx.items()}, "lines": [[L["name"], L["type"], L["stops"], L["geo"]] for L in lines],
+         "kanten": kanten, "oev": oev_art, "stuic": load("stuic.json"), "tier0": netz["stufe0"], "tier1": netz["stufe1"]}
+web_daten = {"basis": daten_datei("basis", basis), "ersatz": daten_datei("ersatz", fahrplan)}
+(ROOT / "app" / "public" / "daten" / "index.json").write_text(json.dumps(web_daten), encoding="utf-8")
 (ROOT / "app" / "uics.json").write_text((D / "uics.json").read_text(encoding="utf-8"), encoding="utf-8")
 # Grundlage für die tägliche Sperrungsprüfung des Servers (nur Schweizer Netz)
 import sperren_daten
@@ -104,3 +118,4 @@ sp = sperren_daten.build(lines, load("stations.json"), load("stuic.json"),
 print(f"app/fahrplan_basis.json: Kennung {fb['v']}, {len(fb['kanten'])} Streckenteile")
 print(f"app/sperren.json: {len(sp['teile'])} Streckenteile, {len(sp['abfrage'])} Abfrage-Bahnhöfe")
 print(f"{out.relative_to(ROOT)}: {out.stat().st_size/1e6:.2f} MB")
+for k, f in web_daten.items(): print(f"app/public/{f}: {(ROOT / 'app' / 'public' / f).stat().st_size/1e6:.2f} MB")

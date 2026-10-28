@@ -231,3 +231,5 @@ function bauWagen(W){const k=schluessel(W);if(CACHE[k])return CACHE[k];
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(B.p,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(B.n,3));g.setAttribute("color",new THREE.Float32BufferAttribute(B.c,3));
   g.computeBoundingSphere();return CACHE[k]=g}
 return {T,bauWagen,schluessel,wagenTeile,ausFormation,rueckfall,REGELN}})();
+
+export { ZM };

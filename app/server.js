@@ -57,13 +57,17 @@ const log = (...a) => console.log(new Date().toLocaleString("de-CH", { timeZone:
 let RELIEF = null; try { RELIEF = fs.readFileSync(path.join(__dirname, "public", "relief.jpg")); } catch {}
 function seite(datei) {
   const raw = fs.readFileSync(path.join(__dirname, "public", datei), "utf8")
-    .replace("<script>", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script>");
+    .replace("<script", "<script>window.ZK_LOCAL=" + JSON.stringify({ mode: "server", version: VERSION }) + ";</script><script");
   return { raw: Buffer.from(raw), gz: zlib.gzipSync(raw, { level: 9 }), etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' };
 }
 const PAGE = seite("index.html");
 // CSP der 3D-Karte – gilt auch für den Web-Worker (lädt die Kacheln selbst)
 const CSP3D = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.geo.admin.ch https://tiles.mapterhorn.com; connect-src 'self' https://*.geo.admin.ch https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src 'self' blob:; frame-ancestors 'self'";
 let PAGE3D = null; try { PAGE3D = seite("3d.html"); } catch {}   // 3D-Karte (Prototyp, MapLibre)
+let PAGEV2 = null; try { PAGEV2 = seite("karte.html"); } catch {}   // neue Website aus web/ (Umbau 28.10.2026), vorerst unter /v2
+// Feste Dateien der neuen Website: js/app.<hash>.js und daten/*.<hash>.json – Name ändert sich mit dem Inhalt → lange zwischenspeicherbar
+const FEST = {};
+for (const dir of ["js", "daten"]) { try { for (const f of fs.readdirSync(path.join(__dirname, "public", dir))) { const b = fs.readFileSync(path.join(__dirname, "public", dir, f)); FEST["/" + dir + "/" + f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }), ct: f.endsWith(".js") ? "text/javascript; charset=utf-8" : "application/json; charset=utf-8", immer: /\.[0-9a-f]{10}\./.test(f) }; } } catch {} }
 // Bibliotheken der 3D-Karte (MapLibre GL, selbst ausgeliefert)
 const LIB = {}; try { for (const f of fs.readdirSync(path.join(__dirname, "public", "lib"))) { const b = fs.readFileSync(path.join(__dirname, "public", "lib", f)); LIB[f] = { raw: b, gz: zlib.gzipSync(b, { level: 9 }) }; } } catch {}
 
@@ -224,6 +228,27 @@ function json(req, res, code, obj, gz) {
   if (gz && gzOk(req)) { res.writeHead(code, { ...h, "Content-Encoding": "gzip" }); return res.end(gz); }
   res.writeHead(code, h); res.end(JSON.stringify(obj));
 }
+// Tagesfahrplan in Zeitfenstern zu 3 Stunden (Fenster f = 0 … 15, auch nach Mitternacht): nur Fahrten, die im Fenster
+// unterwegs sind (mit 90 Min. Reserve für Verspätungen). Die Seite lädt so nur, was sie gerade braucht.
+const FENSTER_MIN = 180, fpTage = new Map(), fpFenster = new Map();
+function fahrplanFenster(d, buf, f) {
+  if (!(f >= 0 && f < 16)) return buf;
+  let T = fpTage.get(d);
+  if (!T || T.buf !== buf) {
+    const j = JSON.parse(zlib.gunzipSync(buf)), zl = j.tt.split("\n"), kopf = zl.shift();
+    const zeilen = zl.filter(Boolean).map(l => { const b = l.indexOf("|"), h = l.slice(b + 1), a = h.split(";"), t = x => { const q = x.split(","); return [+q[1], +(q[2] ?? q[1])]; };
+      return { l, t0: t(a[0])[1], t1: t(a[a.length - 1])[0] }; });
+    T = { buf, j, kopf, zeilen }; fpTage.set(d, T); if (fpTage.size > 4) fpTage.delete(fpTage.keys().next().value);
+    for (const k of fpFenster.keys()) if (k.startsWith(d + "|")) fpFenster.delete(k);
+  }
+  const key = d + "|" + f; let gz = fpFenster.get(key);
+  if (!gz) {
+    const von = f * FENSTER_MIN, bis = von + FENSTER_MIN;
+    const tt = T.kopf + "\n" + T.zeilen.filter(z => z.t0 <= bis && z.t1 + 90 >= von).map(z => z.l).join("\n");
+    gz = zlib.gzipSync(JSON.stringify({ v: T.j.v, feed: T.j.feed, f, tt })); fpFenster.set(key, gz); if (fpFenster.size > 60) fpFenster.delete(fpFenster.keys().next().value);
+  }
+  return gz;
+}
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405, SEC); return res.end(); }
@@ -241,6 +266,17 @@ const server = http.createServer(async (req, res) => {
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE3D.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE3D.raw);
   }
+  if (url.pathname === "/v2" && PAGEV2) {
+    if (req.headers["if-none-match"] === PAGEV2.etag) { res.writeHead(304, { ...SEC, "Content-Security-Policy": CSP3D, ETag: PAGEV2.etag }); return res.end(); }
+    const h = { ...SEC, "Content-Security-Policy": CSP3D, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGEV2.etag, Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGEV2.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGEV2.raw);
+  }
+  if (FEST[url.pathname]) {
+    const f = FEST[url.pathname], h = { ...SEC, "Content-Type": f.ct, "Cache-Control": f.immer ? "public, max-age=31536000, immutable" : "no-cache", Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : f.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : f.raw);
+  }
   if (url.pathname.startsWith("/lib/") && LIB[url.pathname.slice(5)]) {
     const f = LIB[url.pathname.slice(5)], ct = url.pathname.endsWith(".css") ? "text/css; charset=utf-8" : url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/plain; charset=utf-8";
     const h = { ...SEC, "Content-Security-Policy": CSP3D, "Content-Type": ct, "Cache-Control": "public, max-age=86400", Vary: "Accept-Encoding" };
@@ -256,7 +292,8 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/sperrungen") { const p = zhParts(), d = `${p.year}-${p.month}-${p.day}`;
     return json(req, res, 200, sperr && sperr.datum === d ? { datum: sperr.datum, erstellt: sperr.erstellt, teile: sperr.teile } : { datum: null, teile: [] }); }
   if (url.pathname === "/api/fahrplan") {
-    const buf = FP.get(url.searchParams.get("d") || "");
+    let buf = FP.get(url.searchParams.get("d") || "");
+    if (buf && url.searchParams.has("f")) buf = fahrplanFenster(url.searchParams.get("d"), buf, +url.searchParams.get("f"));   // nur ein Zeitfenster (neue Website)
     if (!buf) return json(req, res, 404, { fehler: "Für dieses Datum gibt es keinen aufbereiteten Fahrplan." });
     const etag = '"' + crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + '"';   // neu erzeugte Fahrpläne sofort ausliefern
     if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ...SEC, ETag: etag }); return res.end(); }

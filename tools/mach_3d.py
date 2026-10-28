@@ -67,7 +67,7 @@ s = ersetze(s, 'Mit Mausrad oder zwei Fingern zoomen, Karte ziehen zum Verschieb
 # Sperrungen als Kartenebene
 s = zwischen(s, "function drawSperren(){", "async function sperrLaden(){", "function drawSperren(){sperrenKarte()}\n")
 # Fahrzeuge: Canvas → GeoJSON-Ebene
-s = zwischen(s, "// Zeichnen\nconst cv=", "// Zug-Details:", (ROOT / "src" / "zuege3d_modelle.js").read_text(encoding="utf-8") + "\n" + (ROOT / "src" / "zuege3d.js").read_text(encoding="utf-8") + "\n" + (ROOT / "src" / "karte3d_frame.js").read_text(encoding="utf-8"))
+s = zwischen(s, "// Zeichnen\nconst cv=", "// Zug-Details:", "\n".join(l for l in (ROOT / "web" / "src" / "karte" / "modelle.js").read_text(encoding="utf-8").split("\n") if not l.startswith("export ")) + "\n" + (ROOT / "src" / "zuege3d.js").read_text(encoding="utf-8") + "\n" + (ROOT / "src" / "karte3d_frame.js").read_text(encoding="utf-8"))
 s = ersetze(s, "legend();refreshLines();intro();apply();\nwindow.addEventListener(\"resize\",apply);",
             "legend();intro();\n"
             "map.once(\"load\",()=>{if(matchMedia(\"(max-width:760px)\").matches){const a=document.querySelector(\".maplibregl-ctrl-attrib\");if(a)a.classList.remove(\"maplibregl-compact-show\")}});\n"

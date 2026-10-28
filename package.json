@@ -1,0 +1,11 @@
+{
+  "name": "zugkarte",
+  "private": true,
+  "description": "ZugKarte – Bauwerkzeuge für die Website (der Server auf dem NAS braucht keine Pakete)",
+  "scripts": {
+    "bauen": "python3 tools/build.py && node tools/web_bauen.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}

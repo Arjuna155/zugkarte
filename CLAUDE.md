@@ -29,6 +29,14 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Kartenkoordinaten → WGS84 per swisstopo-Näherung; Linien mit Chaikin geglättet. `/2d` = alte Karte.
 - Schriften der swisstopo-Grundkarte nur bis U+00FF: Zeichen wie «–» oder «′» in Symbol-Ebenen lassen die ganze Quelle ausfallen (Labels werden bereinigt).
 
+## Neue Website aus Modulen (Umbau 28.10.2026, Branch `umbau`, unter `/v2`)
+- Quelle `web/`: `web/index.html` (Hülle + CSS) und `web/src/` als ES-Module, gebaut mit esbuild: `npm install` (einmalig, nur esbuild), dann `python3 tools/build.py && node tools/web_bauen.mjs` (oder `npm run bauen`). Ergebnis: `app/public/karte.html` + `app/public/js/app.<hash>.js` (committen). `ZK_LESBAR=1` baut ohne Verkleinern (zum Messen).
+- Aufbau: `kern/` (basis: Grunddaten + Netzgraph; zeit; fahrplan: Zeitfenster + Zeitindex; wege: Laufwege, trainPos, Sperrungen; echtzeit; formation), `karte/` (karte: MapLibre + Grundebenen; fahrzeuge: eigene WebGL-Punkte-Ebene; zuege3d + modelle: 3D-Züge), `ui/seite.js` (Seitenleiste, Details, Abfahrten, Suche), `main.js` (Bildschleife). Gemeinsamer Zustand in `zustand.js`, Ereignisse über `an`/`melde` (util.js).
+- Daten: build.py schreibt `app/public/daten/basis.<hash>.json` (Netz, Bahnhöfe, Kanten, UIC) und `ersatz.<hash>.json` (Wochentagsfahrplan, nur geladen, wenn der Server keinen Tagesfahrplan hat); Namen stehen als `window.ZK_DATEN` in der Seite. Server liefert `/js/*` und `/daten/*` mit `immutable`.
+- Leistungsregeln: Fahrplan in Zeitfenstern zu 3 h (`/api/fahrplan?d=…&f=0…15`); Zeitindex in 10-Min.-Fenstern (nur fahrende Züge prüfen); Fahrzeuge als WebGL-Punkte statt GeoJSON; Neuberechnung nur, wenn sich ein Zug um ≥ ½ Pixel bewegt haben kann (herausgezoomt ~1×/s); voller Durchgang 2×/s, dazwischen nur Züge nahe am Bildausschnitt; Beschriftungen 4×/s nur ab Zoom 12.5.
+- Messung (4× gedrosselte CPU, Playwright): alt → neu: Laden 3.9 MB → 0.6 MB, Speicher 209 → 52 MB, Skriptzeit Schweiz 404 → ~30 ms/s, Zürich mit 3D-Zügen 132 → ~100 ms/s.
+- Die alte 3D-Seite (`src/template3d.html` über `mach_3d.py`) bleibt bis zur Umstellung unter `/`; `web/src/karte/modelle.js` wird von beiden benutzt (mach_3d.py entfernt die `export`-Zeile).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
@@ -67,6 +75,11 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Neue Bahnhöfe, die auf bestehenden Strecken liegen (< 200 m, gleiche Spurweite), werden automatisch als Zwischenhalt eingefügt.
 - Schmalspur/Privatbahnen (25.10.): stationboards in `ch_sb_neu2.json.gz` (ohne Verkehrsmittelfilter, Busse entfernt; Forchbahn/Waldenburgerbahn laufen als «T»). Meterspur, die in OSM als light_rail/tram erfasst ist: `osm_ch_ergaenzung.json.gz`. Haltestellen «Ort, Bahnhof/Station» werden dem nahen Kartenbahnhof zugeordnet.
 - Ohne Daten bei transport.opendata.ch (Linie nur gezeichnet): zb Engelberg, MGB Visp–Zermatt, WAB Grindelwald Grund, BVB, Salvan, CJ Tavannes.
+
+## Vision (27.10.2026, ausführlich im Projekt-Dokument claude/vision-roadmap.md)
+Ganze Schweiz in 3D (Gelände, Gebäude, Brücken, Tunnels). Züge fahren in Echtzeit auf ihren Gleisen und halten wie in echt. Später kommen Trams, Bergbahnen, Schiffe und Busse dazu, als Erweiterungen Wetter und Verkehr (zuerst Autobahn). Alles ist als einzeln schaltbare Ebene gebaut (Datenteil auf dem Server, Zeichenteil auf der Karte), und die Karte muss auf dem Handy flüssig bleiben.
+Entscheid 28.10.: bleibt eine Website (keine Game-Engine), Leistung ist harte Anforderung (Nachladen bei Bedarf, Daten nach Gegend/Zeitfenster, Detailstufen nach Zoom, Instancing, auf dem Handy messen). Vor Etappe 2 Umbau zu Modulen (Kern + Ebenen, Bundler, mach_3d.py fällt weg).
+Etappen: 1 3D-Züge fertig → 2 Züge wie in echt (Gleis/Sektor, Anfahren/Bremsen) → 3 3D-Welt (Entscheid MapLibre oder Cesium) → 4 Trams 3D → 5 Bergbahnen/Schiffe → 6 Busse → 7 Wetter/Verkehr.
 
 ## Offene Punkte
 - Eingebauter Fallback-Fahrplan (data/fahrplan/*.txt) ist vom Fahrplan 2026; auf der Website ersetzt ihn der GTFS-Fahrplan. Für Artifact/Windows-Programm ggf. später aus GTFS neu erzeugen.
