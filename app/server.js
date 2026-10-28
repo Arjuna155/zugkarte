@@ -252,13 +252,13 @@ function fahrplanFenster(d, buf, f) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405, SEC); return res.end(); }
-  if ((url.pathname === "/" && !PAGE3D) || url.pathname === "/index.html" || url.pathname === "/2d") {   // 2D-Karte (Rückfall)
+  if ((url.pathname === "/" && !PAGE3D && !PAGEV2) || url.pathname === "/index.html" || url.pathname === "/2d") {   // 2D-Karte (Rückfall)
     if (req.headers["if-none-match"] === PAGE.etag) { res.writeHead(304, { ...SEC, ETag: PAGE.etag }); return res.end(); }
     const h = { ...SEC, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE.raw);
   }
-  if ((url.pathname === "/" || url.pathname === "/3d" || url.pathname === "/3d.html") && PAGE3D) {   // Hauptseite = 3D-Karte (seit 26.10.2026)
+  if (((url.pathname === "/" && !PAGEV2) || url.pathname === "/3d" || url.pathname === "/3d.html") && PAGE3D) {   // alte 3D-Karte (bis 28.10.2026 Hauptseite), jetzt unter /3d
     // 3D-Karte: Kacheln von swisstopo (Grundkarte) und Mapterhorn (Gelände)
     const csp = CSP3D;
     if (req.headers["if-none-match"] === PAGE3D.etag) { res.writeHead(304, { ...SEC, "Content-Security-Policy": csp, ETag: PAGE3D.etag }); return res.end(); }
@@ -266,7 +266,7 @@ const server = http.createServer(async (req, res) => {
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGE3D.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : PAGE3D.raw);
   }
-  if (url.pathname === "/v2" && PAGEV2) {
+  if ((url.pathname === "/" || url.pathname === "/v2") && PAGEV2) {   // Hauptseite: neue Website aus Modulen (seit 28.10.2026)
     if (req.headers["if-none-match"] === PAGEV2.etag) { res.writeHead(304, { ...SEC, "Content-Security-Policy": CSP3D, ETag: PAGEV2.etag }); return res.end(); }
     const h = { ...SEC, "Content-Security-Policy": CSP3D, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGEV2.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : PAGEV2.gz); }

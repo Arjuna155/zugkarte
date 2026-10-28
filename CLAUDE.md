@@ -23,19 +23,19 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Netz neu bauen: GTFS-Auszug + OSM im Browser holen (siehe oben), dann `python3 tools/oev_netz.py && python3 tools/build.py`.
 
 ## 3D-Karte (Etappe 2, Hauptseite seit 26.10.2026)
-- `src/template3d.html` → `app/public/3d.html` (build.py, gleiche Platzhalter), Server liefert sie unter `/` (und `/3d`) mit eigener CSP aus; die 2D-Karte unter `/2d`. MapLibre GL 5.6.0 (CSP-Build) liegt selbst ausgeliefert in `app/public/lib/` (`/lib/…`).
+- `src/template3d.html` → `app/public/3d.html` (build.py, gleiche Platzhalter), Server liefert sie seit 28.10. nur noch unter `/3d` aus (Hauptseite ist die neue Website aus `web/`); die 2D-Karte unter `/2d`. MapLibre GL 5.6.0 (CSP-Build) liegt selbst ausgeliefert in `app/public/lib/` (`/lib/…`).
 - Grundkarte: swisstopo-Vektorkacheln (`vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json`), Gelände: Mapterhorn (`tiles.mapterhorn.com/{z}/{x}/{y}.webp`, terrarium, 512 px), beide ohne Schlüssel.
 - `src/template3d.html` wird von `tools/mach_3d.py` aus `src/template.html` ERZEUGT (nicht von Hand ändern): ganze Logik der 2D-Karte (Fahrplan, Echtzeit, Sperrungen, Abfahrten, Suche, Seitenleiste) bleibt, die Darstellung (SVG/Canvas) wird durch `src/karte3d.js` (MapLibre, Ebenen, Klicks) und `src/karte3d_frame.js` (Fahrzeuge als GeoJSON ~15×/s) ersetzt. Nach Änderungen an der 2D-Vorlage: `python3 tools/mach_3d.py && python3 tools/build.py`.
 - Kartenkoordinaten → WGS84 per swisstopo-Näherung; Linien mit Chaikin geglättet. `/2d` = alte Karte.
 - Schriften der swisstopo-Grundkarte nur bis U+00FF: Zeichen wie «–» oder «′» in Symbol-Ebenen lassen die ganze Quelle ausfallen (Labels werden bereinigt).
 
-## Neue Website aus Modulen (Umbau 28.10.2026, Branch `umbau`, unter `/v2`)
+## Neue Website aus Modulen (Umbau 28.10.2026, Hauptseite `/`, auch `/v2`)
 - Quelle `web/`: `web/index.html` (Hülle + CSS) und `web/src/` als ES-Module, gebaut mit esbuild: `npm install` (einmalig, nur esbuild), dann `python3 tools/build.py && node tools/web_bauen.mjs` (oder `npm run bauen`). Ergebnis: `app/public/karte.html` + `app/public/js/app.<hash>.js` (committen). `ZK_LESBAR=1` baut ohne Verkleinern (zum Messen).
 - Aufbau: `kern/` (basis: Grunddaten + Netzgraph; zeit; fahrplan: Zeitfenster + Zeitindex; wege: Laufwege, trainPos, Sperrungen; echtzeit; formation), `karte/` (karte: MapLibre + Grundebenen; fahrzeuge: eigene WebGL-Punkte-Ebene; zuege3d + modelle: 3D-Züge), `ui/seite.js` (Seitenleiste, Details, Abfahrten, Suche), `main.js` (Bildschleife). Gemeinsamer Zustand in `zustand.js`, Ereignisse über `an`/`melde` (util.js).
 - Daten: build.py schreibt `app/public/daten/basis.<hash>.json` (Netz, Bahnhöfe, Kanten, UIC) und `ersatz.<hash>.json` (Wochentagsfahrplan, nur geladen, wenn der Server keinen Tagesfahrplan hat); Namen stehen als `window.ZK_DATEN` in der Seite. Server liefert `/js/*` und `/daten/*` mit `immutable`.
 - Leistungsregeln: Fahrplan in Zeitfenstern zu 3 h (`/api/fahrplan?d=…&f=0…15`); Zeitindex in 10-Min.-Fenstern (nur fahrende Züge prüfen); Fahrzeuge als WebGL-Punkte statt GeoJSON; Neuberechnung nur, wenn sich ein Zug um ≥ ½ Pixel bewegt haben kann (herausgezoomt ~1×/s); voller Durchgang 2×/s, dazwischen nur Züge nahe am Bildausschnitt; Beschriftungen 4×/s nur ab Zoom 12.5.
 - Messung (4× gedrosselte CPU, Playwright): alt → neu: Laden 3.9 MB → 0.6 MB, Speicher 209 → 52 MB, Skriptzeit Schweiz 404 → ~30 ms/s, Zürich mit 3D-Zügen 132 → ~100 ms/s.
-- Die alte 3D-Seite (`src/template3d.html` über `mach_3d.py`) bleibt bis zur Umstellung unter `/`; `web/src/karte/modelle.js` wird von beiden benutzt (mach_3d.py entfernt die `export`-Zeile).
+- Die alte 3D-Seite (`src/template3d.html` über `mach_3d.py`) liegt noch unter `/3d` (eingefroren, nicht mehr weiterentwickeln), die 2D-Karte unter `/2d`; `web/src/karte/modelle.js` wird von beiden benutzt (mach_3d.py entfernt die `export`-Zeile).
 
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
