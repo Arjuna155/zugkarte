@@ -1,5 +1,6 @@
 // ZugKarte – Einstieg: Grunddaten laden, Karte und Seitenleiste starten, Bildschleife
 import { ladeBasis } from "./kern/basis.js";
+import { bauwerkeLaden } from "./kern/bauwerke.js";
 import { fpBrauche } from "./kern/fahrplan.js";
 import { sperrLaden, SPERR } from "./kern/wege.js";
 import { echtzeitStart } from "./kern/echtzeit.js";
@@ -26,7 +27,7 @@ function bild(now) {
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
   an("karte", () => { welt3dStarten(); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
-  echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
+  bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen
   window.__zk = { S, K, zh, FZ, Z3, W3 };

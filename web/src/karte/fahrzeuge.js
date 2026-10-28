@@ -82,7 +82,7 @@ export function fahrzeugeBerechnen(now) {
     const tr = v.tr, late = S.colMode !== "vsp" && v.dl >= 180;
     const fill = S.colMode === "vsp" ? F[DCLS(v.rt ? v.dl : null)] : F[tr.cls], rand = v.sel ? F.sel : late ? F.late : F.weiss;
     const r = (tr.cls === "tr" ? .72 : 1) * (v.sel ? 1.5 : 1) * g7, w = v.sel ? 3.5 : late ? 2.4 : 1.3;
-    puffer.set([v.m[0] - ursprung[0], v.m[1] - ursprung[1], v.e, fill[0], fill[1], fill[2], rand[0], rand[1], rand[2], r, w, v.d3 ? 0 : 1], k); k += STRIDE;
+    puffer.set([v.m[0] - ursprung[0], v.m[1] - ursprung[1], v.e, fill[0], fill[1], fill[2], rand[0], rand[1], rand[2], r, w, v.d3 ? 0 : v.p.tunnel && ter ? .35 : 1], k); k += STRIDE;
   }
   // Beschriftungen (ab Zoom 12.5, Trams ab 14.5) 4-mal pro Sekunde
   if (now - letzteBeschriftung > 250) {

@@ -1,6 +1,7 @@
 // Karte: MapLibre GL mit swisstopo-Grundkarte und 3D-Gelände (Mapterhorn); Strecken, Bahnhöfe, Trams, Schiffe, Sperrungen
 import { B } from "../kern/basis.js";
 import { SPERR } from "../kern/wege.js";
+import { tunnelVon } from "../kern/bauwerke.js";
 import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
 
@@ -37,7 +38,7 @@ export function karteStarten() {
   $("z3d").setAttribute("aria-pressed", K.mit3d); $("z3d").onclick = () => setze3d(!K.mit3d);
   map.on("load", () => {
     const L = B.LINES;
-    const bahnFC = fc(L.map((Ln, i) => ({ type: "Feature", id: i, properties: { i, t: Ln.type, n: Ln.name }, geometry: { type: "MultiLineString", coordinates: Ln.parts.map(p => p.map(q => wgs(q[0], q[1]))) } })));
+    const bahnFC = bahnDaten();
     const stFC = fc(B.names.map((n, j) => ({ type: "Feature", id: j, properties: { n, t: B.tier(n) }, geometry: { type: "Point", coordinates: wgs(X(B.ST[n]), Y(B.ST[n])) } })));
     const oevFC = a => fc(B.OEV[a].map(k => ({ type: "Feature", properties: { n: k.replace("|", " - ") }, geometry: { type: "LineString", coordinates: glatt(dekodiere(B.KANTEN[k], (x, y) => [x / 10, y / 10])).map(q => wgs(q[0], q[1])) } })));
     map.addSource("dem", { type: "raster-dem", tiles: ["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"], encoding: "terrarium", tileSize: 512, maxzoom: 14 });
@@ -45,6 +46,7 @@ export function karteStarten() {
     map.addSource("schiff", { type: "geojson", data: B.MIT_OEV ? oevFC("s") : fc([]) });
     map.addSource("tram", { type: "geojson", data: B.MIT_OEV ? oevFC("t") : fc([]) });
     map.addSource("bahn", { type: "geojson", data: bahnFC });
+    an("bauwerke", () => { map.getSource("bahn").setData(bahnDaten()); kartenAuswahl(); });
     map.addSource("sperren", { type: "geojson", data: fc([]) });
     map.addSource("st", { type: "geojson", data: stFC });
     map.addLayer({ id: "schiff", type: "line", source: "schiff", paint: { "line-color": "#3d86b8", "line-width": 1.4, "line-dasharray": [3, 2], "line-opacity": .8 } });
@@ -57,6 +59,14 @@ export function karteStarten() {
         "line-opacity": ["case", ["boolean", ["feature-state", "dim"], false], .18, 1]
       }
     });
+    // Tunnel: gestrichelt und blasser (die Linie liegt sonst über dem Berg)
+    map.addLayer({
+      id: "bahn-tunnel", type: "line", source: "bahn", filter: ["==", ["get", "tun"], 1], paint: {
+        "line-color": ["match", ["get", "t"], "fv", FARBE_LN.fv, "sm", FARBE_LN.sm, FARBE_LN.rv], "line-dasharray": [1.2, 1.4],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, ["match", ["get", "t"], "fv", 1.6, 1.1], 14, ["match", ["get", "t"], "fv", 3.2, 2.4]],
+        "line-opacity": ["case", ["boolean", ["feature-state", "dim"], false], .1, .45]
+      }
+    }, "bahn");
     map.addLayer({ id: "sperren", type: "line", source: "sperren", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#e5484d", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 3, 14, 6], "line-dasharray": [2, 1.5] } });
     map.addLayer({ id: "sperren-z", type: "circle", source: "sperren", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": "#e5484d", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-pitch-alignment": "viewport" } });
     map.addLayer({ id: "sperren-zt", type: "symbol", source: "sperren", filter: ["==", ["geometry-type"], "Point"], layout: { "text-field": "-", "text-font": [SCHRIFT], "text-size": 18, "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#ffffff" } });
@@ -73,7 +83,7 @@ export function karteStarten() {
       }, paint: { "text-color": "#16222b", "text-halo-color": "#ffffff", "text-halo-width": 1.6 }
     });
     // Hinweise beim Überfahren; Fahrzeuge zuerst (eigene Ebene, siehe fahrzeuge.js)
-    const ebenen = ["st0", "st1", "st2", "bahn", "tram", "schiff", "sperren", "sperren-z"];
+    const ebenen = ["st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "sperren", "sperren-z"];
     const text = f => f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
     let tipT = 0;
     map.on("mousemove", e => {
@@ -87,7 +97,7 @@ export function karteStarten() {
       const p = e.point, box = [[p.x - 8, p.y - 8], [p.x + 8, p.y + 8]];
       if (K.fzTreffer && K.fzTreffer(p)) return;
       const s = map.queryRenderedFeatures(box, { layers: ["st0", "st1", "st2"] })[0]; if (s) { melde("bahnhof", s.properties.n); return; }
-      const l = map.queryRenderedFeatures(box, { layers: ["bahn"] })[0]; if (l) { melde("strecke", l.properties.i); return; }
+      const l = map.queryRenderedFeatures(box, { layers: ["bahn", "bahn-tunnel"] })[0]; if (l) { melde("strecke", l.properties.i); return; }
       melde("leer");
     });
     map.on("movestart", hideTip);
@@ -100,6 +110,29 @@ export function karteStarten() {
   an("sperren", sperrenKarte);
 }
 
+// Strecken als GeoJSON: je Strecke ein Merkmal für die offenen Stücke (id = i) und eines für die Tunnel (id = 100000 + i)
+function bahnDaten() {
+  const fs = [];
+  B.LINES.forEach((Ln, i) => {
+    const offen = [], tunnel = [];
+    Ln.parts.forEach((pt, j) => {
+      const ber = tunnelVon(i, j); if (!ber.length) { offen.push(pt); return; }
+      const cum = [0]; for (let k = 1; k < pt.length; k++)cum.push(cum[k - 1] + Math.hypot(pt[k][0] - pt[k - 1][0], pt[k][1] - pt[k - 1][1]));
+      const T = cum[cum.length - 1], stueck = (a, b) => {   // Teil zwischen den Längen a und b
+        const r = []; const bei = s => { let k = 1; while (k < pt.length - 1 && cum[k] < s) k++; const u = (s - cum[k - 1]) / ((cum[k] - cum[k - 1]) || 1); return [pt[k - 1][0] + (pt[k][0] - pt[k - 1][0]) * u, pt[k - 1][1] + (pt[k][1] - pt[k - 1][1]) * u]; };
+        r.push(bei(a)); for (let k = 0; k < pt.length; k++) if (cum[k] > a && cum[k] < b) r.push(pt[k]); r.push(bei(b)); return r;
+      };
+      let pos = 0;
+      for (const [a, b] of ber) { if (a * T > pos) offen.push(stueck(pos, a * T)); tunnel.push(stueck(a * T, b * T)); pos = b * T; }
+      if (pos < T) offen.push(stueck(pos, T));
+    });
+    const ll = arr => arr.filter(p => p.length > 1).map(p => p.map(q => wgs(q[0], q[1])));
+    fs.push({ type: "Feature", id: i, properties: { i, t: Ln.type, n: Ln.name, tun: 0 }, geometry: { type: "MultiLineString", coordinates: ll(offen) } });
+    if (tunnel.length) fs.push({ type: "Feature", id: 100000 + i, properties: { i, t: Ln.type, n: Ln.name + " (Tunnel)", tun: 1 }, geometry: { type: "MultiLineString", coordinates: ll(tunnel) } });
+  });
+  return fc(fs);
+}
+
 let stSel = null;
 export function markSt(n) {
   const map = K.map;
@@ -110,9 +143,11 @@ export function markSt(n) {
 // Auswahl und Filter der Strecken auf die Karte übertragen
 export function kartenAuswahl() {
   if (!K.bereit) return; const map = K.map;
-  map.setFilter("bahn", ["in", ["get", "t"], ["literal", Object.keys(S.onT).filter(t => S.onT[t])]]);
+  const arten = ["literal", Object.keys(S.onT).filter(t => S.onT[t])];
+  map.setFilter("bahn", ["all", ["in", ["get", "t"], arten], ["!=", ["get", "tun"], 1]]);
+  map.setFilter("bahn-tunnel", ["all", ["in", ["get", "t"], arten], ["==", ["get", "tun"], 1]]);
   map.setFilter("bahn-hl", ["==", ["get", "i"], S.selLn === null ? -1 : S.selLn]);
-  B.LINES.forEach((L, i) => map.setFeatureState({ source: "bahn", id: i }, { dim: (S.selLn !== null && S.selLn !== i) || (!!S.selSt && !B.byStation[S.selSt].lines.has(i)) }));
+  B.LINES.forEach((L, i) => { const dim = (S.selLn !== null && S.selLn !== i) || (!!S.selSt && !B.byStation[S.selSt].lines.has(i)); map.setFeatureState({ source: "bahn", id: i }, { dim }); map.setFeatureState({ source: "bahn", id: 100000 + i }, { dim }); });
 }
 // Gesperrte Abschnitte (Bahnersatz): rote Linie mit Zeichen in der Mitte
 function sperrenKarte() {

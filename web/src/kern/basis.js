@@ -31,7 +31,7 @@ export async function ladeBasis() {
   const G = B.G;
   B.LINES.forEach((L, i) => L.stops.forEach((s, j) => {
     if (!j) return; const a = L.stops[j - 1], pt = L.parts[j - 1], id = i + ":" + (j - 1), len = laenge(pt);
-    (G[a] = G[a] || []).push({ to: s, pts: pt, len, id }); (G[s] = G[s] || []).push({ to: a, pts: pt.slice().reverse(), len, id });
+    (G[a] = G[a] || []).push({ to: s, pts: pt, len, id, li: i, pj: j - 1, rev: false }); (G[s] = G[s] || []).push({ to: a, pts: pt.slice().reverse(), len, id, li: i, pj: j - 1, rev: true });
   }));
   for (const k in B.KANTEN) {   // Tram-, Metro- und Schiffskanten (und Grenzstrecken)
     const [a, b] = k.split("|"), pt = dekodiere(B.KANTEN[k], (x, y) => [x / 10, y / 10]), len = laenge(pt);

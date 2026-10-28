@@ -44,6 +44,11 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - `web/src/ui/ebenen.js`: Ebenen melden sich mit `ebene({id, name, an, setze})` an, Schalter in der Seitenleiste («Ebenen»), Wahl in localStorage `zk_ebenen`. Zurzeit: gebaeude, bauwerke, zuege3d (3D-Züge jetzt für alle an, abschaltbar; `?zuege3d=aus` schaltet ab).
 - Test ohne Netz: `/tmp`-Testwelt mit synthetischem Gelände (Terrarium-PNG) und Vektorkacheln (geojson-vt + vt-pbf) über Playwright-Routen.
 
+## Tunnel und Brücken auf den Bahnstrecken (28.10.2026)
+- `app/tunnel.js`: Server lädt einmal (Kacheln 60 Tage zwischengespeichert in `DATA_DIR/kacheln/13/`) die swisstopo-Kacheln ch.swisstopo.base.vt Zoom 13 entlang aller Strecken (~1400 Kacheln), liest sie mit eigenem MVT-Leser (ohne Pakete) und bestimmt je Teilstück die Bereiche mit `class=rail|transit`, `brunnel=tunnel|bridge` (Abstand < 15 m, alle 10 m geprüft). Eigener Prozess (`node tunnel.js --erzeugen DATA_DIR`), Start 90 s nach Serverstart, wenn `DATA_DIR/bauwerke.json` fehlt, zu alt ist oder nicht zur Basisdatei passt. `/api/bauwerke` ({tunnel, bruecke}: je Strecke/Teilstück [[von,bis],…] als Anteil der Länge), `/api/bauwerke/status`. Test: `ZK_TILEJSON` auf einen Mock.
+- Achtung: Die Gleise in `data/quellen/swisstopo_gleise.txt.gz` enthalten Tunnel (ohne Kennzeichnung); die OSM-Exporte haben keine Tunnelangabe (Feld 4 = Zahnrad).
+- Seite: `kern/bauwerke.js` lädt die Daten; Strecken je Linie als zwei Merkmale (offen id=i, Tunnel id=100000+i, Eigenschaft `tun`), Ebene `bahn-tunnel` gestrichelt und blass; Fahrzeugpunkte im Tunnel mit Gelände halb durchsichtig (`p.tunnel` aus trainPos).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
