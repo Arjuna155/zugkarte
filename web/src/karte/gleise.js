@@ -33,8 +33,8 @@ function aufbauen() {
   }
   GL.n = n; GL.bereit = n > 0;
 }
-// Punkt (Mercator) mit Fahrtrichtung (dx, dy in Mercator, y nach Süden) auf ein Gleis setzen; liefert Mercator-Punkt oder null
-export function einrasten(m, dx, dy) {
+// Punkt (Mercator) mit Fahrtrichtung (rechts = Rechtsverkehr, Trams) (dx, dy in Mercator, y nach Süden) auf ein Gleis setzen; liefert Mercator-Punkt oder null
+export function einrasten(m, dx, dy, rechts) {
   if (!GL.bereit) return null;
   const x = (m.x - o.x) / ms, y = (m.y - o.y) / ms, L = Math.hypot(dx, dy) || 1, lx = dy / L, ly = -dx / L;   // links (y nach Süden)
   const cx = Math.floor(x / ZELLE), cy = Math.floor(y / ZELLE); let best = null, bk = 1e9;
@@ -43,7 +43,7 @@ export function einrasten(m, dx, dy) {
     for (const s of a) {
       const ex = s[2] - s[0], ey = s[3] - s[1], l2 = ex * ex + ey * ey || 1e-9; let t = ((x - s[0]) * ex + (y - s[1]) * ey) / l2; t = Math.max(0, Math.min(1, t));
       const px = s[0] + ex * t, py = s[1] + ey * t, d = Math.hypot(px - x, py - y); if (d > RADIUS) continue;
-      const seite = (px - x) * lx + (py - y) * ly, kosten = d - 1.2 * Math.max(0, seite);   // linke Gleise bevorzugt
+      const seite = (px - x) * lx + (py - y) * ly, kosten = d - 1.2 * Math.max(0, rechts ? -seite : seite);   // Bahn: linke Gleise bevorzugt, Tram: rechte
       if (kosten < bk) { bk = kosten; best = [px, py]; }
     }
   }

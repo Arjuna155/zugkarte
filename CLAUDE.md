@@ -53,6 +53,12 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - `web/src/karte/gleise.js`: Gleise der Grundkarte (transportation class=rail/transit) im Ausschnitt ab Zoom 13 in ein 25-m-Raster; `einrasten()` setzt Vorder- und Hinterende jedes 3D-Wagens auf das nächste Gleis (≤ 7 m), linke Gleise in Fahrtrichtung bevorzugt (Linksverkehr auf Doppelspur). Ohne Gleise in der Nähe bleibt der Wagen auf unserer Streckenlinie.
 - Ebene «strecken» (Streckenlinien) in karte.js: blendet `bahn` und `bahn-tunnel` aus (Hervorhebung einer gewählten Strecke bleibt).
 
+## Trams in 3D (28.10.2026)
+- Trams und Metro fahren ab Zoom 13.2 als 3D-Modelle (Ebene «zuege3d»; Schiffe bleiben Punkte). Tagesfahrplan-Zeilen der Trams/Metro/Schiffe tragen jetzt «Kat,Linie,Ziel,,agency_id» (UMRECHNUNG 5).
+- `web/src/karte/modelle.js`: Tram-Baureihen (`TRAM(...)`: Niederflur, Gelenkwagen aus kurzen Modulen, Meterspur) je Unternehmen über `TRAM_AG` (3849/849 VBZ, 773 VBG, 823 BVB, 37 BLT, 827 Bernmobil, 41 Limmattalbahn, 881 TPG, 151 tl-Metro); Formation-Dienst gibt es für Trams nicht, immer `rueckfall`.
+- `zuege3d.js`: Tram steht mit der Spitze an der Haltestelle (Zug: Mitte am Bahnsteig), Richtung je Modul über ±5 m, enge Kurven gelten nicht als Wende, Abstecher am Halt (bis 60 m) werden gekürzt. Einrasten auf Kartengleise: Trams bevorzugen das RECHTE Gleis, Einrasten nur, wenn die Richtung passt (Kreuzungen).
+- `tools/oev_netz.py`: Weg im 20-m-Raster wird auf die echten OSM-Gleise zurückgelegt (auf demselben Gleis bleiben, Zacken entfernen, Halte auf den Weg projiziert). Neu `kanten1` (1 m genau) → in der Basisdatei als `kanten1`, die Seite rechnet mit `B.KF(k)` (100 statt 10). Alte Seiten /2d, /3d nutzen weiter `kanten` (10 m).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

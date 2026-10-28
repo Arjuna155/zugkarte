@@ -133,7 +133,7 @@ function heuteZH() { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: 
 function fpJahr(iso) { const y = +iso.slice(0, 4); const d1 = new Date(Date.UTC(y, 11, 1)); const ersterSo = 1 + (7 - d1.getUTCDay()) % 7; const wechsel = `${y}-12-${String(ersterSo + 7).padStart(2, "0")}`; return iso >= wechsel ? y + 1 : y; }
 
 // ---------- Umrechnung GTFS → Kartenfahrplan ----------
-const UMRECHNUNG = 4;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
+const UMRECHNUNG = 5;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
 const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt, auf der Karte Bahn)
 const OEV_NEIN = new Set(["7005", "617", "87_LEX"]);   // Agenturen ohne eigenes Netz auf der Karte (Riffelalp-Tram, Alpintrans, SNCF)
 // tage: ["JJJJ-MM-TT", …]; zips: [Pfad, …]; liefert {datum: {ziele:[…], zeilen:[…], feed}}
@@ -260,7 +260,7 @@ async function umrechnen(B, zips, tage, log) {
             const body = pc.map(([i, a, d]) => a === d ? `${i.toString(16)},${a + v}` : `${i.toString(16)},${a + v},${d + v}`).join(";");
             for (const d of F.tage) { const E = erg[isoAus(d)]; if (!E) continue;
               let zi = E.ziele.get(F.ziel); if (zi === undefined) E.ziele.set(F.ziel, zi = E.ziele.size);
-              E.zeilen.add(`${F.kat},${nr},${zi}` + (F.oev || !F.zn ? "" : `,${F.zn},${F.ag}`) + `|${body}`); }
+              E.zeilen.add(`${F.kat},${nr},${zi}` + (F.oev ? `,,${F.ag}` : !F.zn ? "" : `,${F.zn},${F.ag}`) + `|${body}`); }
             stats.laeufe++;
           }
         }

@@ -41,9 +41,10 @@ for did, (nm, x, y, art) in oev["halte"].items():
     k = 2
     while n in stations or n in stx: n = f"{nm} ({k})"; k += 1
     stx[n] = {"n": n, "E": round(x * 100 + 2480000), "N": round(1300000 - y * 100), "a": art}; oev_name[did] = n
-kanten = dict(grenze["kanten"]); oev_art = {"t": [], "s": []}
+kanten = dict(grenze["kanten"]); kanten1 = {}; oev_art = {"t": [], "s": []}
 for key, val in oev["kanten"].items():
     a, b = key.split("|"); kk = f"{oev_name[a]}|{oev_name[b]}"; kanten[kk] = val; oev_art[oev["art"][key]].append(kk)
+    if key in oev.get("kanten1", {}): kanten1[kk] = oev["kanten1"][key]
 sn = list(stations) + list(stx); sidx = {n: i for i, n in enumerate(sn)}
 for k, txt in fahrplan.items():
     zl = txt.split("\n"); head = zl[0].split("|"); rows = [l for l in zl[1:] if l]
@@ -106,7 +107,7 @@ def daten_datei(name, obj):
     (DATEN / fn).write_text(txt, encoding="utf-8"); return "daten/" + fn
 basis = {"fpv": fb["v"], "st": {n: [v["E"], v["N"], round(v["lat"], 5), round(v["lon"], 5)] for n, v in stations.items()},
          "stx": {n: [v["E"], v["N"], v.get("a", "")] for n, v in stx.items()}, "lines": [[L["name"], L["type"], L["stops"], L["geo"]] for L in lines],
-         "kanten": kanten, "oev": oev_art, "stuic": load("stuic.json"), "tier0": netz["stufe0"], "tier1": netz["stufe1"]}
+         "kanten": {k: v for k, v in kanten.items() if k not in kanten1}, "kanten1": kanten1, "oev": oev_art, "stuic": load("stuic.json"), "tier0": netz["stufe0"], "tier1": netz["stufe1"]}
 web_daten = {"basis": daten_datei("basis", basis), "ersatz": daten_datei("ersatz", fahrplan)}
 (ROOT / "app" / "public" / "daten" / "index.json").write_text(json.dumps(web_daten), encoding="utf-8")
 (ROOT / "app" / "uics.json").write_text((D / "uics.json").read_text(encoding="utf-8"), encoding="utf-8")

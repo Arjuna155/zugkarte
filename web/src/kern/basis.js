@@ -33,8 +33,10 @@ export async function ladeBasis() {
     if (!j) return; const a = L.stops[j - 1], pt = L.parts[j - 1], id = i + ":" + (j - 1), len = laenge(pt);
     (G[a] = G[a] || []).push({ to: s, pts: pt, len, id, li: i, pj: j - 1, rev: false }); (G[s] = G[s] || []).push({ to: a, pts: pt.slice().reverse(), len, id, li: i, pj: j - 1, rev: true });
   }));
+  const K1 = d.kanten1 || {};   // Tram-, Metro- und Schiffskanten auf 1 m genau (Kartenkoordinaten × 100)
+  for (const k in K1) B.KANTEN[k] = K1[k]; B.KF = k => k in K1 ? 100 : 10;
   for (const k in B.KANTEN) {   // Tram-, Metro- und Schiffskanten (und Grenzstrecken)
-    const [a, b] = k.split("|"), pt = dekodiere(B.KANTEN[k], (x, y) => [x / 10, y / 10]), len = laenge(pt);
+    const f = k in K1 ? 100 : 10, [a, b] = k.split("|"), pt = dekodiere(B.KANTEN[k], (x, y) => [x / f, y / f]), len = laenge(pt);
     (G[a] = G[a] || []).push({ to: b, pts: pt, len }); (G[b] = G[b] || []).push({ to: a, pts: pt.slice().reverse(), len });
   }
   return B;

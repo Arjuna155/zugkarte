@@ -173,6 +173,22 @@ def("ice",{name:"ICE",b:3.0,boden:1.1,hoehe:3.9,front:{art:"stromlinie",len:6,br
   tuerB:.9,lack:{grund:"#f3f3f3",dach:"#9aa0a4",unten:"#2b2e31",glas:"#16191c",tuer:"#f3f3f3",ende:"#33373a",fenster:[{z0:1.85,z1:2.8}],baender:[{z0:1.1,z1:1.35,c:"#ec0016"}],tuerFenster:[1.9,2.8]},strom:true,typischL:[25.8,24.8,24.8,24.8,24.8,24.8,24.8,25.8]});
 def("railjet",{name:"Railjet",b:2.9,boden:1.15,hoehe:4.05,front:{art:"stumpf",len:2.4,breiteSpitze:.8,hoeheSpitze:.85,schraeg:1.1,unten:.2,scheibe:[2.4,3.3],scheibeT:.85},
   tuerB:1.0,lack:{grund:"#8a1538",dach:"#7d8387",unten:"#2b2e31",glas:"#16191c",tuer:"#3c3f42",ende:"#33373a",fenster:[{z0:2.0,z1:2.95}],baender:[],tuerFenster:[2.0,2.95]},typischL:[26.5]});
+// Trams und Metro (Niederflur, Gelenkwagen aus kurzen Modulen; Meterspur)
+const TRAM=(id,name,lack,L,o={})=>def(id,Object.assign({name,b:2.4,boden:.35,hoehe:3.45,dachR:.3,spur:1.0,rad:.3,jak:true,tram:true,spalt:.15,strom:true,tuerB:1.3,fensterTeilung:1.5,
+  front:{art:"stumpf",len:1.4,breiteSpitze:.78,hoeheSpitze:.9,schraeg:.8,unten:.3,scheibe:[.95,2.75],scheibeT:.85},
+  lack:Object.assign({dach:"#c9cdd0",unten:"#2b2e31",glas:"#1d2328",ende:"#33373a",fenster:[{z0:1.05,z1:2.45}],tuerFenster:[.95,2.45]},lack,{steg:lack.steg||lack.grund}),typischL:L},o));
+TRAM("tram_vbz","VBZ-Tram (Flexity/Cobra)",{grund:"#f3f4f6",tuer:"#0a59a8",baender:[{z0:.35,z1:.85,c:"#0a59a8"},{z0:2.6,z1:2.75,c:"#0a59a8"}],nase:[{z0:.35,z1:1.0,c:"#0a59a8",t:1}]},[6.4,5.4,7.2,5.4,7.2,5.4,6.4]);
+TRAM("tram_cobra","VBZ Cobra",{grund:"#f3f4f6",tuer:"#0a59a8",baender:[{z0:.35,z1:.85,c:"#0a59a8"},{z0:2.6,z1:2.75,c:"#0a59a8"}],nase:[{z0:.35,z1:1.0,c:"#0a59a8",t:1}]},[8.2,6.4,6.6,6.4,8.2]);
+TRAM("tram_bvb","BVB-Tram (Flexity)",{grund:"#1f8a3c",tuer:"#e9ecec",baender:[{z0:.35,z1:.7,c:"#156c2d"},{z0:2.6,z1:2.8,c:"#e9ecec"}]},[6.3,5.6,7.0,5.6,7.0,5.6,6.3],{b:2.3});
+TRAM("tram_blt","BLT-Tram (Tango)",{grund:"#ffcf00",tuer:"#d0021b",baender:[{z0:.35,z1:.8,c:"#d0021b"}],nase:[{z0:.35,z1:1.0,c:"#d0021b",t:1}]},[9.5,6.3,9.3,6.3,9.5],{b:2.4,boden:.38});
+TRAM("tram_bern","Bernmobil-Tram (Combino)",{grund:"#dc0018",tuer:"#e9ecec",baender:[{z0:.35,z1:.7,c:"#8f1018"},{z0:2.6,z1:2.8,c:"#e9ecec"}]},[7.3,5.7,6.2,5.7,6.2,5.7,7.3],{b:2.3});
+TRAM("tram_tpg","TPG-Tram",{grund:"#eceeee",tuer:"#d6001c",baender:[{z0:.35,z1:.85,c:"#d6001c"}],nase:[{z0:.35,z1:1.0,c:"#d6001c",t:1}]},[8.0,6.0,8.0,6.0,8.0],{b:2.3});
+TRAM("tram_lb","Limmattalbahn (Flexity)",{grund:"#f3f4f6",tuer:"#009aa6",baender:[{z0:.35,z1:.85,c:"#009aa6"}],nase:[{z0:.35,z1:1.0,c:"#009aa6",t:1}]},[6.4,5.4,7.2,5.4,7.2,5.4,6.4]);
+TRAM("tram","Tram",{grund:"#eceeee",tuer:"#5b6670",baender:[{z0:.35,z1:.8,c:"#5b6670"}]},[7.5,6.0,7.5,6.0,7.5]);
+TRAM("metro","Metro (m1/m2)",{grund:"#f1f2f3",tuer:"#e2001a",baender:[{z0:.35,z1:.9,c:"#e2001a"}],nase:[{z0:.35,z1:1.1,c:"#e2001a",t:1}]},[15.3,15.3],{b:2.45,hoehe:3.3,front:{art:"stromlinie",len:2.2,breiteSpitze:.6,hoeheSpitze:.75,schraeg:1.1,unten:.3,scheibe:[1.05,2.6],scheibeT:.85},jak:false,spalt:.3});
+// Trams nach Unternehmen (GTFS agency_id)
+const TRAM_AG={"3849":"tram_vbz","849":"tram_vbz","773":"tram_cobra","823":"tram_bvb","37":"tram_blt","827":"tram_bern","41":"tram_lb","151":"metro","881":"tram_tpg"};
+
 // Rückfall: unbekannter Wagen
 def("wagen",{name:"Personenwagen",b:2.85,boden:1.15,hoehe:4.0,front:{art:"stumpf",len:2,breiteSpitze:.82,hoeheSpitze:.86,schraeg:.9,scheibe:[2.4,3.2]},
   tuerB:1.1,fensterTeilung:2.2,lack:{...SBB_FV,fenster:[{z0:2.05,z1:2.95}],baender:[{z0:1.15,z1:1.4,c:"#3a3e42"}],tuerFenster:[2.1,2.95]},typischL:[26.4]});
@@ -193,6 +209,9 @@ const AG_FAMILIE={"11":"flirt","65":"thurbo","33":"bls_flirt","82":"traverso","7
 
 // Zug ohne Formation: aus Kategorie, Linie und Unternehmen eine plausible Zusammensetzung
 function rueckfall(cat,linie,ag){const fv=/^(IC|IR|EC|ICE|TGV|RJX|RJ|EN|NJ)$/.test(cat);
+  if(cat==="Tram"||cat==="M"){let f=cat==="M"?"metro":TRAM_AG[ag]||(/gen[eè]v|tpg/i.test(ag)?"tram_tpg":"tram");
+    if(f==="tram_vbz"&&(+linie)%2===1)f="tram_cobra";   // Zürich: grob Flexity und Cobra gemischt
+    return T[f].typischL.map(L=>({f,L,k:"2",g:0}))}
   let f=AG_FAMILIE[ag]||"flirt";
   if(cat==="TGV")f="tgv";else if(cat==="ICE")f="ice";else if(cat==="RJX"||cat==="RJ")f="railjet";
   else if(ag==="11"&&fv){if(cat==="IC"&&/^(5|51|61)$/.test(linie))f="icn";else if(cat==="IC"&&/^(2|21)$/.test(linie))f="giruno";else if(cat==="EC")f="giruno";else if(cat==="IR"&&/^(13|70)$/.test(linie))f="fvdosto";else f="ic2000"}
@@ -216,9 +235,9 @@ function wagenTeile(wagen){const n=wagen.length;
     // Führerstand: Triebzug an den Einheitsenden; Lok immer; Wagenzug: Steuerwagen (Bt/«t» im Typ) am Zugende
     let kabV=istLok||(!gleichV&&t.strom&&!istLok),kabH=istLok||(!gleichH&&t.strom&&!istLok);
     if(!t.strom&&!istLok){const steuer=/t(_|$)|Bt|ABt/i.test(v.typ||"");if(steuer){kabV=!vorher;kabH=!nachher&&!kabV}}
-    const L=Math.max(5,v.L-.5),art=!!t.jak;   // Kasten etwas kürzer als über Puffer
-    const tuerAbst=L>20?L/2-3.2:L/2-2.2,tueren=istLok?[]:L<8?[]:t.id==="ew4"||t.id==="wagen"||t.id==="rhb_wagen"?[L/2-.9,-L/2+.9]:[tuerAbst,-tuerAbst];
-    return {T:t,L,kabV,kabH,tueren,rolle:istLok?"lok":"wagen",jakobs:art?{v:gleichV,h:gleichH}:null,spalt:.3,strom:t.strom===2||(t.strom&&i===mitteDerEinheit(wagen,i))?1:0}})}
+    const sp=t.spalt||.3,L=Math.max(3,v.L-sp*1.7),art=!!t.jak;   // Kasten etwas kürzer als über Puffer
+    const tuerAbst=L>20?L/2-3.2:L/2-2.2,tueren=t.tram?(L>=4?[kabV?-.8:kabH?.8:0]:[]):istLok?[]:L<8?[]:t.id==="ew4"||t.id==="wagen"||t.id==="rhb_wagen"?[L/2-.9,-L/2+.9]:[tuerAbst,-tuerAbst];
+    return {T:t,L,kabV,kabH,tueren,rolle:istLok?"lok":"wagen",jakobs:art?{v:gleichV,h:gleichH}:null,spalt:sp,strom:t.strom===2||(t.strom&&i===mitteDerEinheit(wagen,i))?1:0}})}
 function mitteDerEinheit(w,i){let a=i,b=i;while(a>0&&w[a-1].g===w[i].g&&w[a-1].f===w[i].f)a--;while(b<w.length-1&&w[b+1].g===w[i].g&&w[b+1].f===w[i].f)b++;return Math.floor((a+b)/2)}
 
 // Geometrie eines Wagens (zwischengespeichert nach Baureihe, Länge und Führerständen)
@@ -226,8 +245,8 @@ const CACHE={};
 const schluessel=W=>W._k||(W._k=[W.T.id,W.L.toFixed(1),+W.kabV,+W.kabH,W.jakobs?(+W.jakobs.v)+""+(+W.jakobs.h):"-",W.strom].join("|"));
 function bauWagen(W){const k=schluessel(W);if(CACHE[k])return CACHE[k];
   const B=new Puffer();kasten(B,W);fahrwerk(B,W);
-  if(W.strom)stromabnehmer(B,W.T,W.rolle==="lok"?W.L/2-4:W.L/4);
-  if(W.rolle!=="lok"&&W.T.strom)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
+  if(W.strom)stromabnehmer(B,W.T,W.T.tram?0:W.rolle==="lok"?W.L/2-4:W.L/4);
+  if(W.rolle!=="lok"&&W.T.strom&&W.L>8)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(B.p,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(B.n,3));g.setAttribute("color",new THREE.Float32BufferAttribute(B.c,3));
   g.computeBoundingSphere();return CACHE[k]=g}
 return {T,bauWagen,schluessel,wagenTeile,ausFormation,rueckfall,REGELN}})();

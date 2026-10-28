@@ -41,7 +41,7 @@ export function karteStarten() {
     const L = B.LINES;
     const bahnFC = bahnDaten();
     const stFC = fc(B.names.map((n, j) => ({ type: "Feature", id: j, properties: { n, t: B.tier(n) }, geometry: { type: "Point", coordinates: wgs(X(B.ST[n]), Y(B.ST[n])) } })));
-    const oevFC = a => fc(B.OEV[a].map(k => ({ type: "Feature", properties: { n: k.replace("|", " - ") }, geometry: { type: "LineString", coordinates: glatt(dekodiere(B.KANTEN[k], (x, y) => [x / 10, y / 10])).map(q => wgs(q[0], q[1])) } })));
+    const oevFC = a => fc(B.OEV[a].map(k => ({ type: "Feature", properties: { n: k.replace("|", " - ") }, geometry: { type: "LineString", coordinates: glatt(dekodiere(B.KANTEN[k], (x, y) => [x / B.KF(k), y / B.KF(k)])).map(q => wgs(q[0], q[1])) } })));
     map.addSource("dem", { type: "raster-dem", tiles: ["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"], encoding: "terrarium", tileSize: 512, maxzoom: 14 });
     try { map.setSky({ "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.4, "fog-ground-blend": 0.6 }); } catch (e) { }
     map.addSource("schiff", { type: "geojson", data: B.MIT_OEV ? oevFC("s") : fc([]) });
