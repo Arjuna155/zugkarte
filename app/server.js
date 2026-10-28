@@ -136,6 +136,8 @@ const FP = require("./fahrplan.js").start({ DATA_DIR, log });
 // Tunnel und Brücken auf den Bahnstrecken (aus swisstopo-Kacheln, siehe tunnel.js)
 const BW = require("./tunnel.js").start({ DATA_DIR, log });
 // Zugzusammensetzungen (Wagen, Typen, Längen) – lädt im Hintergrund, siehe formation.js
+// Wetter: aktuelle Messwerte der MeteoSchweiz-Stationen (alle 10 Min.), siehe wetter.js
+const WE = require("./wetter.js").start({ DATA_DIR, log });
 const FO = require("./formation.js").start({ DATA_DIR, log, fahrplan: FP, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 
 // ---- Sperrungen (Bahnersatz) ----
@@ -335,6 +337,8 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === "/api/bauwerke") { const gz = BW.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch nicht berechnet" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
   if (url.pathname === "/api/bauwerke/status") return json(req, res, 200, BW.status());
+  if (url.pathname === "/api/wetter") { const gz = WE.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch keine Wetterdaten" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
+  if (url.pathname === "/api/wetter/status") return json(req, res, 200, WE.status());
   if (url.pathname === "/api/formation/status") return json(req, res, 200, FO.status());
   if (url.pathname === "/api/verspaetungen") {
     try { const d = await getData(); return json(req, res, 200, d, d === cache ? cacheGz : null); }

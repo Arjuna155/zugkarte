@@ -71,6 +71,10 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - 3D (`modelle.js` `bauBergbahn`, `BB_TYP`): Standseilbahnwagen auf dem Gelände, beim Zeichnen geschert (Wände senkrecht); Kabinen/Sessel hängen am Seil. Seilprofil je Kante (`seilProfil` in zuege3d.js): 10 m über Grund, obere konvexe Hülle (spannt über Täler), Seile als Linien im Umkreis 8 km.
 - Test: /tmp-Skript baut eine kleine GTFS-ZIP (Polybahn, Rigiblick, Felsenegg, Titlis, Stoos) und rechnet sie mit `umrechnen()` um.
 
+## Wetter (28.10.2026)
+- `app/wetter.js`: alle 10 Min. (4 Min. nach dem Takt) die aktuellen 10-Minuten-Werte aller MeteoSchweiz-Stationen von data.geo.admin.ch (Open Data, ohne Schlüssel): SwissMetNet `ch.meteoschweiz.ogd-smn` + Niederschlagsstationen `ch.meteoschweiz.ogd-smn-precip`. Stationsliste `…/<sammlung>/<kurz>_meta_stations.csv` (täglich), je Station `…/<sammlung>/<abk>/<kurz>_<abk>_t_now.csv` (Rückfall: Pfad aus dem STAC-Eintrag), mit ETag. CSV: «;», Windows-1252, Zeit UTC «dd.mm.yyyy HH:MM». Kurznamen: tre200s0 Temp., rre150z0 Niederschlag 10 Min., fu3010z0 Wind km/h, dkl010z0 Richtung, fu3010z1 Böe, sre000z0 Sonne, ure200s0 Feuchte, htoauts0 Schnee, gre000z0 Strahlung. Ergebnis `DATA_DIR/wetter.json` → `/api/wetter`, `/api/wetter/status`. Test: `ZK_WETTER_URL` auf einen Mock, `ZK_WETTER_START_MS`.
+- Seite `web/src/karte/wetter.js` (Ebene «wetter»): Stationen als Temperaturpunkte (+ «12°», Windpfeile ab Zoom 8), Niederschlag der letzten Stunde als Heatmap, Klick = Messwerte. Bildmitte: gewichtetes Mittel der 4 nächsten Stationen → grauer Himmel ohne Sonne/bei Regen, ab Zoom 11 Regen (Striche) oder Schnee (< 1 °C, Punkte) als three.js-Ebene «wetter3d» im Kasten zwischen Kamera und Bildmitte, mit Wind.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
