@@ -70,6 +70,7 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 
 ## Vision (27.10.2026, ausführlich im Projekt-Dokument claude/vision-roadmap.md)
 Ganze Schweiz in 3D (Gelände, Gebäude, Brücken, Tunnels). Züge fahren in Echtzeit auf ihren Gleisen und halten wie in echt. Später kommen Trams, Bergbahnen, Schiffe und Busse dazu, als Erweiterungen Wetter und Verkehr (zuerst Autobahn). Alles ist als einzeln schaltbare Ebene gebaut (Datenteil auf dem Server, Zeichenteil auf der Karte), und die Karte muss auf dem Handy flüssig bleiben.
+Entscheid 28.10.: bleibt eine Website (keine Game-Engine), Leistung ist harte Anforderung (Nachladen bei Bedarf, Daten nach Gegend/Zeitfenster, Detailstufen nach Zoom, Instancing, auf dem Handy messen). Vor Etappe 2 Umbau zu Modulen (Kern + Ebenen, Bundler, mach_3d.py fällt weg).
 Etappen: 1 3D-Züge fertig → 2 Züge wie in echt (Gleis/Sektor, Anfahren/Bremsen) → 3 3D-Welt (Entscheid MapLibre oder Cesium) → 4 Trams 3D → 5 Bergbahnen/Schiffe → 6 Busse → 7 Wetter/Verkehr.
 
 ## Offene Punkte
