@@ -29,6 +29,14 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Kartenkoordinaten → WGS84 per swisstopo-Näherung; Linien mit Chaikin geglättet. `/2d` = alte Karte.
 - Schriften der swisstopo-Grundkarte nur bis U+00FF: Zeichen wie «–» oder «′» in Symbol-Ebenen lassen die ganze Quelle ausfallen (Labels werden bereinigt).
 
+## Neue Website aus Modulen (Umbau 28.10.2026, Branch `umbau`, unter `/v2`)
+- Quelle `web/`: `web/index.html` (Hülle + CSS) und `web/src/` als ES-Module, gebaut mit esbuild: `npm install` (einmalig, nur esbuild), dann `python3 tools/build.py && node tools/web_bauen.mjs` (oder `npm run bauen`). Ergebnis: `app/public/karte.html` + `app/public/js/app.<hash>.js` (committen). `ZK_LESBAR=1` baut ohne Verkleinern (zum Messen).
+- Aufbau: `kern/` (basis: Grunddaten + Netzgraph; zeit; fahrplan: Zeitfenster + Zeitindex; wege: Laufwege, trainPos, Sperrungen; echtzeit; formation), `karte/` (karte: MapLibre + Grundebenen; fahrzeuge: eigene WebGL-Punkte-Ebene; zuege3d + modelle: 3D-Züge), `ui/seite.js` (Seitenleiste, Details, Abfahrten, Suche), `main.js` (Bildschleife). Gemeinsamer Zustand in `zustand.js`, Ereignisse über `an`/`melde` (util.js).
+- Daten: build.py schreibt `app/public/daten/basis.<hash>.json` (Netz, Bahnhöfe, Kanten, UIC) und `ersatz.<hash>.json` (Wochentagsfahrplan, nur geladen, wenn der Server keinen Tagesfahrplan hat); Namen stehen als `window.ZK_DATEN` in der Seite. Server liefert `/js/*` und `/daten/*` mit `immutable`.
+- Leistungsregeln: Fahrplan in Zeitfenstern zu 3 h (`/api/fahrplan?d=…&f=0…15`); Zeitindex in 10-Min.-Fenstern (nur fahrende Züge prüfen); Fahrzeuge als WebGL-Punkte statt GeoJSON; Neuberechnung nur, wenn sich ein Zug um ≥ ½ Pixel bewegt haben kann (herausgezoomt ~1×/s); voller Durchgang 2×/s, dazwischen nur Züge nahe am Bildausschnitt; Beschriftungen 4×/s nur ab Zoom 12.5.
+- Messung (4× gedrosselte CPU, Playwright): alt → neu: Laden 3.9 MB → 0.6 MB, Speicher 209 → 52 MB, Skriptzeit Schweiz 404 → ~30 ms/s, Zürich mit 3D-Zügen 132 → ~100 ms/s.
+- Die alte 3D-Seite (`src/template3d.html` über `mach_3d.py`) bleibt bis zur Umstellung unter `/`; `web/src/karte/modelle.js` wird von beiden benutzt (mach_3d.py entfernt die `export`-Zeile).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

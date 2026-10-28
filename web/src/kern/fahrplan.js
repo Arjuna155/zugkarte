@@ -7,47 +7,55 @@ import { melde } from "../util.js";
 
 export const TCLS = c => c === "S" ? "s" : c === "Tram" || c === "M" ? "tr" : c === "BAT" || c === "FAE" ? "sch" : /^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c) ? "fv" : "rv";
 let RID = 0;
-function parseDay(txt) {
-  const L = txt.split("\n"), D = L.shift().split("|");
-  return L.filter(Boolean).map(l => {
-    const bar = l.indexOf("|"), [cat, num, di, zn, ag] = l.slice(0, bar).split(",");
-    const st = l.slice(bar + 1).split(";").map(x => { const a = x.split(","); const t1 = +a[1], t2 = a.length > 2 ? +a[2] : t1; return { i: parseInt(a[0], 16), a: t1, d: t2 }; });
-    return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
-  });
+function zeile(l, D) {
+  const bar = l.indexOf("|"), [cat, num, di, zn, ag] = l.slice(0, bar).split(",");
+  const st = l.slice(bar + 1).split(";").map(x => { const a = x.split(","); const t1 = +a[1], t2 = a.length > 2 ? +a[2] : t1; return { i: parseInt(a[0], 16), a: t1, d: t2 }; });
+  return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
 }
+// Zeilen zu einem Tag hinzufügen (Fahrten, die in mehreren Zeitfenstern vorkommen, nur einmal)
+function hinzu(R, txt) {
+  const L = txt.split("\n"), D = L.shift().split("|");
+  for (const l of L) { if (!l || R.keys.has(l)) continue; R.keys.add(l); const r = zeile(l, D); R.push(r); indexiere(R, r); }
+  return R;
+}
+const neuerTag = () => { const R = []; R.idx = []; R.keys = new Set(); return R; };
+function parseDay(txt) { return hinzu(neuerTag(), txt); }
 // Zeitindex: Fenster zu 10 Minuten; eine Fahrt steht in allen Fenstern von 5 Min. vor Abfahrt bis 90 Min. nach Ankunft (Verspätungen)
 const FENSTER = 10, VOR = 5, NACH = 90;
-function mitIndex(runs) {
-  const idx = [];
-  for (const r of runs) for (let k = Math.max(0, Math.floor((r.t0 - VOR) / FENSTER)); k <= Math.floor((r.t1 + NACH) / FENSTER); k++)(idx[k] || (idx[k] = [])).push(r);
-  runs.idx = idx; return runs;
-}
+function indexiere(R, r) { for (let k = Math.max(0, Math.floor((r.t0 - VOR) / FENSTER)); k <= Math.floor((r.t1 + NACH) / FENSTER); k++)(R.idx[k] || (R.idx[k] = [])).push(r); }
 export const aktiv = (runs, t) => (runs && runs.idx && runs.idx[Math.floor(t / FENSTER)]) || [];
 
 export const DATED = {}; const fpStatus = {}; export const FP = { feed: null };
 let ERSATZ = null, ersatzLaedt = false;
 async function ersatzLaden() {
   if (ERSATZ || ersatzLaedt) return; ersatzLaedt = true;
-  try { const j = await (await fetch(B.ersatzUrl)).json(); ERSATZ = {}; for (const k in j) ERSATZ[k] = mitIndex(parseDay(j[k])); melde("fahrplan"); }
+  try { const j = await (await fetch(B.ersatzUrl)).json(); ERSATZ = {}; for (const k in j) ERSATZ[k] = parseDay(j[k]); melde("fahrplan"); }
   catch (e) { ersatzLaedt = false; }
 }
+// Fahrplan vom Server in Zeitfenstern zu 3 Stunden (/api/fahrplan?d=…&f=…): geladen wird nur, was gerade gebraucht wird
+const FMIN = 180;
 export function tagRuns(z) {
   if (DATED[z.date]) return DATED[z.date];
-  const s = fpStatus[z.date]; if (s && !s.lauf && !s.ok) ersatzLaden();   // Server hat (noch) keinen Fahrplan → Ersatz
+  const s = fpStatus[z.date]; if (s && s.fehler) ersatzLaden();   // Server hat (noch) keinen Fahrplan → Ersatz
   return ERSATZ ? ERSATZ[dayType(z.wd)] : null;
 }
 export const istDatiert = date => !!DATED[date];
-async function fpLaden(datum) {
-  const s = fpStatus[datum]; if (s && (s.ok || s.lauf || Date.now() - s.t < 10 * 60000)) return;
-  fpStatus[datum] = { lauf: true, t: Date.now() };
+async function fpLaden(datum, f) {
+  const key = datum + "|" + f, s = fpStatus[key]; if (s && (s.ok || s.lauf || Date.now() - s.t < 10 * 60000)) return;
+  fpStatus[key] = { lauf: true, t: Date.now() };
   try {
-    const r = await fetch("/api/fahrplan?d=" + datum); if (!r.ok) throw 0; const j = await r.json(); if (j.v !== B.FPV || !j.tt) throw 0;
-    DATED[datum] = mitIndex(parseDay(j.tt)); if (datum === zh(Date.now()).date) FP.feed = j.feed; fpStatus[datum] = { ok: true };
-    melde("fahrplan", datum);
-  } catch (e) { fpStatus[datum] = { t: Date.now() }; if (datum === zh(Date.now()).date) ersatzLaden(); }
+    const r = await fetch("/api/fahrplan?d=" + datum + "&f=" + f); if (!r.ok) throw 0; const j = await r.json(); if (j.v !== B.FPV || !j.tt) throw 0;
+    hinzu(DATED[datum] || (DATED[datum] = neuerTag()), j.tt); if (datum === zh(Date.now()).date) FP.feed = j.feed;
+    fpStatus[key] = { ok: true }; melde("fahrplan", datum);
+  } catch (e) { fpStatus[key] = { t: Date.now() }; fpStatus[datum] = { fehler: true }; if (!DATED[datum]) ersatzLaden(); }
 }
-// gestern, heute, morgen bereithalten (Züge nach Mitternacht gehören zum Vortag)
-export function fpBrauche(ms) { for (const d of [-1, 0, 1]) { const z = zh(ms + d * 86400000); if (!DATED[z.date]) fpLaden(z.date); } }
+// gebraucht: heute ab 10 Min. vor bis 75 Min. nach der aktuellen Zeit, dasselbe für den Vortag (Fahrten nach Mitternacht)
+// und kurz vor Mitternacht der Anfang von morgen (Abfahrten)
+export function fpBrauche(ms) {
+  const z = zh(ms), zg = zh(ms - 86400000), zm = zh(ms + 86400000);
+  const lade = (datum, von, bis) => { for (let f = Math.max(0, Math.floor(von / FMIN)); f <= Math.min(15, Math.floor(bis / FMIN)); f++)fpLaden(datum, f); };
+  lade(z.date, z.t - 10, z.t + 75); lade(zg.date, z.t + 1430, z.t + 1515); if (z.t > 1365) lade(zm.date, 0, z.t + 75 - 1440);
+}
 // Aktive Betriebstage: heute (Versatz 0) und gestern (Versatz +1440, Züge nach Mitternacht)
 export function services(ms) {
   const z = zh(ms), zg = zh(ms - 86400000);

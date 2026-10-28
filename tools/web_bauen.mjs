@@ -12,6 +12,9 @@ const js = r.outputFiles[0].contents, h = createHash("sha1").update(js).digest("
 fs.mkdirSync(path.join(OUT, "js"), { recursive: true });
 for (const f of fs.readdirSync(path.join(OUT, "js"))) if (/^app\.[0-9a-f]+\.js$/.test(f) && f !== `app.${h}.js`) fs.unlinkSync(path.join(OUT, "js", f));
 fs.writeFileSync(path.join(OUT, "js", `app.${h}.js`), js);
-const html = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8").replace("__APP__", `js/app.${h}.js`);
+// Datennamen direkt in die Seite (spart eine Abfrage) und die Grunddaten sofort mitladen
+const daten = JSON.parse(fs.readFileSync(path.join(OUT, "daten", "index.json"), "utf8"));
+const html = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8").replace("__APP__", `js/app.${h}.js`)
+  .replace("</head>", `<link rel="preload" href="${daten.basis}" as="fetch" crossorigin><link rel="preload" href="lib/maplibre-gl-csp.js" as="script"><script>window.ZK_DATEN=${JSON.stringify(daten)}</script></head>`);
 fs.writeFileSync(path.join(OUT, "karte.html"), html);
 console.log(`app/public/karte.html, app/public/js/app.${h}.js: ${(js.length / 1024).toFixed(0)} KB`);

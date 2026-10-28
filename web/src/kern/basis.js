@@ -8,7 +8,7 @@ export const B = {
 };
 
 export async function ladeBasis() {
-  const idx = await (await fetch("daten/index.json", { cache: "no-cache" })).json();
+  const idx = window.ZK_DATEN || await (await fetch("daten/index.json", { cache: "no-cache" })).json();
   const d = await (await fetch(idx.basis)).json();
   B.ersatzUrl = idx.ersatz;
   B.FPV = d.fpv; B.TIER0 = d.tier0; B.TIER1 = d.tier1; B.OEV = d.oev; B.KANTEN = d.kanten;
