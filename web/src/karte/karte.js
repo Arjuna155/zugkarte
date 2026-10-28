@@ -2,6 +2,7 @@
 import { B } from "../kern/basis.js";
 import { SPERR } from "../kern/wege.js";
 import { tunnelVon } from "../kern/bauwerke.js";
+import { BB } from "../kern/bergbahnen.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
@@ -46,11 +47,15 @@ export function karteStarten() {
     try { map.setSky({ "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.4, "fog-ground-blend": 0.6 }); } catch (e) { }
     map.addSource("schiff", { type: "geojson", data: B.MIT_OEV ? oevFC("s") : fc([]) });
     map.addSource("tram", { type: "geojson", data: B.MIT_OEV ? oevFC("t") : fc([]) });
+    const bbFC = () => fc(BB.kanten.map(([a, z, p, kat]) => ({ type: "Feature", properties: { n: a + " - " + z, fun: kat === "FUN" ? 1 : 0 }, geometry: { type: "LineString", coordinates: p.map(q => wgs(q[0], q[1])) } })));
+    map.addSource("bergbahn", { type: "geojson", data: bbFC() }); an("bergbahnen", () => map.getSource("bergbahn").setData(bbFC()));
     map.addSource("bahn", { type: "geojson", data: bahnFC });
     an("bauwerke", () => { map.getSource("bahn").setData(bahnDaten()); kartenAuswahl(); });
     map.addSource("sperren", { type: "geojson", data: fc([]) });
     map.addSource("st", { type: "geojson", data: stFC });
     map.addLayer({ id: "schiff", type: "line", source: "schiff", paint: { "line-color": "#3d86b8", "line-width": 1.4, "line-dasharray": [3, 2], "line-opacity": .8 } });
+    map.addLayer({ id: "bergbahn", type: "line", source: "bergbahn", minzoom: 9, paint: { "line-color": "#6b4a2b", "line-width": ["interpolate", ["linear"], ["zoom"], 9, .7, 16, 2], "line-dasharray": [4, 1, 1, 1], "line-opacity": .85 }, filter: ["==", ["get", "fun"], 0] });
+    map.addLayer({ id: "bergbahn-fun", type: "line", source: "bergbahn", minzoom: 9, filter: ["==", ["get", "fun"], 1], paint: { "line-color": "#6b4a2b", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1, 16, 3], "line-opacity": .9 } });
     map.addLayer({ id: "tram", type: "line", source: "tram", minzoom: 11, paint: { "line-color": "#5f7380", "line-width": ["interpolate", ["linear"], ["zoom"], 11, .8, 16, 2.5], "line-opacity": .75 } });
     map.addLayer({ id: "bahn-hl", type: "line", source: "bahn", filter: ["==", ["get", "i"], -1], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#e3a008", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 6, 14, 10] } });
     map.addLayer({
@@ -84,8 +89,8 @@ export function karteStarten() {
       }, paint: { "text-color": "#16222b", "text-halo-color": "#ffffff", "text-halo-width": 1.6 }
     });
     // Hinweise beim Überfahren; Fahrzeuge zuerst (eigene Ebene, siehe fahrzeuge.js)
-    const ebenen = ["st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "sperren", "sperren-z"];
-    const text = f => f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
+    const ebenen = ["st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z"];
+    const text = f => f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
     let tipT = 0;
     map.on("mousemove", e => {
       const jetzt = performance.now(); if (jetzt - tipT < 50) return; tipT = jetzt;

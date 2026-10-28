@@ -8,6 +8,8 @@ import { wgs } from "../util.js";
 import { ladeThree, szeneMitLicht } from "./drei.js";
 import { einrasten } from "./gleise.js";
 import { ebene } from "../ui/ebenen.js";
+import { B } from "../kern/basis.js";
+import { BB } from "../kern/bergbahnen.js";
 
 // Ein-/ausschalten über die Ebenen in der Seitenleiste (alte Adresse ?zuege3d=aus schaltet weiterhin ab)
 export let Z3D = 13.2;
@@ -67,16 +69,27 @@ function punkt(pf, s) {
 // Höhe des Gleises aus dem Gelände. Brücken (Senken bis 800 m) gerade überspannt, Tunnels gerade unterfahren, sonst auf dem
 // Gelände. Abschnittsweise je 4 km, beim Hineinzoomen genauer neu berechnet.
 const H_SCHRITT = .25, H_STUECK = 160, H_RAND = 40;
+// Rechenzeit für Geländehöhen je Durchgang: 2 Stücke sicher, sonst bis 8 ms (Verfeinern beim Hineinzoomen nur bis 5 ms)
+// Fahrzeuge nahe der Bildmitte zuerst (Z3.prio wird je Fahrzeug in z3Zug gesetzt)
+function hZeit(dringend) { if (Z3.prio && Z3.hBudget > 0) { Z3.hBudget--; return true; } const t = performance.now(); return t < Z3.hBis - (dringend && Z3.prio ? 0 : dringend ? 4 : 5); }
 function hoehe(pf, s, steil) {
   const map = K.map, T = map.getTerrain(), ex = T ? T.exaggeration || 1 : 0; if (!ex) return 0;
   const k = Math.floor(s / (H_SCHRITT * H_STUECK)), zs = Math.min(14, Math.floor(map.getZoom())); let h = pf.h[k];
-  if ((!h || h.z < zs || h.ex !== ex) && Z3.hBudget > 0) { Z3.hBudget--; const neu = gleisHoehe(pf, k, steil, ex); if (neu) { neu.z = zs; neu.ex = ex; pf.h[k] = h = neu; } }
+  const fehlt = !h || h.ex !== ex;
+  if ((fehlt || h.z < zs) && hZeit(fehlt)) { const neu = gleisHoehe(pf, k, steil, ex); if (neu) { neu.z = zs; neu.ex = ex; pf.h[k] = h = neu; } }
   if (!h) return null;
   const f = (s - h.s0) / H_SCHRITT, i = Math.max(0, Math.min(h.length - 2, Math.floor(f))), u = f - i; return h[i] * (1 - u) + h[i + 1] * u;
 }
 function gleisHoehe(pf, k, steil, ex) {
   const map = K.map, n = H_STUECK + 2 * H_RAND + 1, s0 = (k * H_STUECK - H_RAND) * H_SCHRITT, dem = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const p = punkt(pf, s0 + i * H_SCHRITT), e = map.queryTerrainElevation(wgs(p[0], p[1])); if (e === null || e === undefined) return null; dem[i] = e; }
+  // Punkte ohne geladenes Gelände (ausserhalb des Bildes) mit dem nächsten bekannten Wert füllen – sonst scheitert das ganze Stück
+  // (nur auf dem Laufweg und 50 m darüber hinaus abfragen; kurze Wege wie Standseilbahnen liegen sonst fast ganz «daneben»)
+  const E = pf.cum[pf.cum.length - 1]; let gut = 0, im = 0;
+  for (let i = 0; i < n; i++) { const s = s0 + i * H_SCHRITT; dem[i] = NaN; if (s < -.5 || s > E + .5) continue; im++;
+    const p = punkt(pf, s), e = map.queryTerrainElevation(wgs(p[0], p[1])); if (e !== null && e !== undefined) { dem[i] = e; gut++; } }
+  if (!gut || gut < im * .25) return null;
+  for (let i = 1; i < n; i++) if (isNaN(dem[i])) dem[i] = dem[i - 1]; for (let i = n - 2; i >= 0; i--) if (isNaN(dem[i])) dem[i] = dem[i + 1];
+  if (steil === "fun") { const h = new Float32Array(n); for (let i = 0; i < n; i++) h[i] = dem[i] + .2; h.s0 = s0; return h; }   // Standseilbahn: auf dem Gelände
   if (steil === "wasser") {   // Schiff: Wasserspiegel = tiefster Punkt im Umkreis von ±300 m (Ufer und Landestege sind höher)
     const h = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 1e9; for (let q = Math.max(0, i - 12); q <= Math.min(n - 1, i + 12); q++) m = Math.min(m, dem[q]); h[i] = m; } h.s0 = s0; return h;
   }
@@ -95,34 +108,66 @@ function gleisHoehe(pf, k, steil, ex) {
 // Unternehmen mit Normalspur (sonst: Schmal-/Zahnradbahn, steilere Strecken erlaubt)
 const NORMALSPUR = new Set(["11", "33", "65", "82", "78", "351", "81____", "87_LEX", "06____", "800693", "L7____", "817000"]);
 
+// Seilprofil einer Bergbahn-Kante: Seil 10 m über Grund, straff über alle Geländepunkte (obere konvexe Hülle) –
+// so spannt es über Täler und liegt über Kuppen wie auf Masten. Zwischengespeichert je Kante und Zoomstufe.
+const SEIL = new Map(), SEIL_UEBER = 10;
+function seilProfil(A, Z) {
+  const k = A < Z ? A + "|" + Z : Z + "|" + A, zs = Math.min(14, Math.floor(K.map.getZoom())); let P = SEIL.get(k);
+  if (P && (P.z >= zs || !hZeit(false))) return P;
+  const T = K.map.getTerrain(), ex = T ? T.exaggeration || 1 : 0, sa = B.STX[k.split("|")[0]], sz = B.STX[k.split("|")[1]]; if (!sa || !sz) return null;
+  const xa = (sa.E - 2480000) / 100, ya = (1300000 - sa.N) / 100, xz = (sz.E - 2480000) / 100, yz = (1300000 - sz.N) / 100, len = Math.hypot(xz - xa, yz - ya);
+  const n = Math.max(8, Math.min(240, Math.ceil(len * 100 / 20))), pt = [];
+  if (!P && !hZeit(true)) return null;
+  let gut = 0;
+  for (let i = 0; i <= n; i++) { const u = i / n; let e = 0; if (ex) { e = K.map.queryTerrainElevation(wgs(xa + (xz - xa) * u, ya + (yz - ya) * u)); if (e === null || e === undefined) e = NaN; else gut++; } else gut++; pt.push([u, e + SEIL_UEBER * (ex || 1)]); }
+  if (gut < (n + 1) * .5) return P || null;
+  for (let i = 1; i <= n; i++) if (isNaN(pt[i][1])) pt[i][1] = pt[i - 1][1]; for (let i = n - 1; i >= 0; i--) if (isNaN(pt[i][1])) pt[i][1] = pt[i + 1][1];
+  const H = [];   // obere Hülle (Monotone Chain)
+  for (const q of pt) { while (H.length > 1) { const a = H[H.length - 2], b = H[H.length - 1]; if ((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0]) >= 0) H.pop(); else break; } H.push(q); }
+  P = { z: zs, H, A: k.split("|")[0], len, xa, ya, xz, yz }; SEIL.set(k, P); return P;
+}
+function seilHoehe(A, Z, f) {
+  const P = seilProfil(A, Z); if (!P) return null; const u = P.A === A ? f : 1 - f, H = P.H;
+  for (let i = 1; i < H.length; i++) if (u <= H[i][0]) { const a = H[i - 1], b = H[i], w = (u - a[0]) / ((b[0] - a[0]) || 1); return a[1] + (b[1] - a[1]) * w; }
+  return H[H.length - 1][1];
+}
 export function z3Laden() {
   if (Z3.laden) return; Z3.laden = true;
   ladeThree().then(() => { try { K.map.addLayer(z3Ebene(), "fz"); Z3.bereit = true; } catch (e) { console.error(e); } });
 }
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
-export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter()); Z3.ms = Z3.ursprung.meterInMercatorCoordinateUnits(); if (Z3.hBudget < 3) Z3.hBudget = 3; }
+export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter()); Z3.ms = Z3.ursprung.meterInMercatorCoordinateUnits(); Z3.hBudget = 2; Z3.hBis = performance.now() + 8;
+  const c = K.map.getCanvas(), mpp = 40075016 * Math.cos(K.map.getCenter().lat * Math.PI / 180) / (512 * 2 ** K.map.getZoom()); Z3.prioR = .6 * Math.hypot(c.clientWidth, c.clientHeight) * mpp; }
 export function z3Ende() { }
 // Wagen eines Zuges: Lage, Richtung und Neigung jedes Wagens
 export function z3Zug(tr, o, p, isSel) {
-  const tram = tr.cls === "tr", schiff = tr.cls === "sch";
+  const tram = tr.cls === "tr", schiff = tr.cls === "sch", bb = tr.cls === "bb";
   const PF = pfad(tr); if (!PF || p.j === undefined) return false; const Z = wagenJetzt(wagenVon(tr, o), p);
   // fahrend: auf dem Abschnitt j→j+1; stehend: Zugmitte am Bahnsteig (Tram: Spitze an der Haltestelle) (Abschnitt der Weiterfahrt, am Ziel der Ankunft)
   const nL = PF.legSec.length, j = p.moving ? p.j : Math.min(p.j, nL - 1), amEnde = !p.moving && p.j >= nL;
   const pf = PF.teile[PF.legSec[j]], basis = amEnde ? PF.legS1[j] : PF.legS0[j] + (PF.legS1[j] - PF.legS0[j]) * (p.moving ? p.f : 0), E = pf.cum[pf.cum.length - 1];
-  // Tram: Spitze an der Haltestelle; Zug: Mitte am Bahnsteig; Schiff: Mitte an der Station (legt längsseits an), am Anfang mit dem Heck, am Ziel mit dem Bug (sonst stünde es an Land)
-  const kl = x => Math.max(0, Math.min(1, x)), kopf = basis + (tram ? .01 : schiff ? Z.L / 2 * (1 + kl(1 - basis / Z.L) - kl(1 - (E - basis) / Z.L)) : Z.L / 2);
+  // Tram: Spitze an der Haltestelle; Zug: Mitte am Bahnsteig; Schiff und Standseilbahn: Mitte an der Station (legt längsseits an), am Anfang mit dem Heck, am Ziel mit dem Bug (sonst stünde es an Land)
+  const kl = x => Math.max(0, Math.min(1, x)), kopf = basis + (tram ? .01 : schiff || bb ? Z.L / 2 * (1 + kl(1 - basis / Z.L) - kl(1 - (E - basis) / Z.L)) : Z.L / 2);
   const os = Z3.ursprung, ms = Z3.ms, aus = [];
+  { const q = mc(wgs(...punkt(pf, basis))); Z3.prio = Math.hypot(q.x - os.x, q.y - os.y) / ms < Z3.prioR || isSel; }
+  if (bb && Z.teile[0].W.T.art !== "FUN") {   // Kabine/Sessel: am Seil, Höhe aus dem Seilprofil der Kante, immer waagrecht
+    const t = Z.teile[0], lj = amEnde ? nL - 1 : j, f = amEnde ? 1 : p.moving ? p.f : 0, A = tr.st[lj], E2 = tr.st[lj + 1]; if (!E2) return false;
+    const z = seilHoehe(B.SN[A.i], B.SN[E2.i], f); if (z === null) return false;
+    const pm = punkt(pf, basis), pv = punkt(pf, basis + .05), ph = punkt(pf, basis - .05), llm = wgs(pm[0], pm[1]), mm = mc(llm), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1]));
+    Z3.liste.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z, dreh: Math.atan2((mv.y - mh.y) / ms, (mv.x - mh.x) / ms), neig: 0, sel: isSel, ll: llm, tr, o });
+    return true;
+  }
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = tram ? Math.max(t.L * .42, .05) : t.L * .42,   // Tram: kurze Glieder, Richtung über ±5 m (ruhiger)
       pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
-    const steil = schiff ? "wasser" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
+    const steil = schiff ? "wasser" : bb ? "fun" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
-    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && einrasten(mv, rx, ry, tram), gh = !schiff && einrasten(mh, rx, ry, tram);
+    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && einrasten(mv, rx, ry, tram), gh = !schiff && !bb && einrasten(mh, rx, ry, tram);
     if (gv && gh && ((gv.x - gh.x) * rx + (gv.y - gh.y) * ry) > .9 * Math.hypot(gv.x - gh.x, gv.y - gh.y) * Math.hypot(rx, ry)) { mv = gv;   // nur wenn die Richtung passt (Kreuzungen, Weichen)
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
-    aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: schiff ? Math.min(zv, zh_) : (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: schiff ? 0 : Math.atan2(zv - zh_, len), sel: isSel, ll: llm, tr, o });
+    aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: schiff ? Math.min(zv, zh_) : (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: schiff ? 0 : Math.atan2(zv - zh_, len), scher: bb, sel: isSel, ll: llm, tr, o });
   }
   for (const c of aus) Z3.liste.push(c); return true;
 }
@@ -136,11 +181,33 @@ function z3Ebene() {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
       this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false; this.r.outputColorSpace = THREE.SRGBColorSpace;
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netze = new Map();
-      this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(0, 0, 0, "ZYX"); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(1, 1, 1);
+      this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(0, 0, 0, "ZYX"); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(1, 1, 1); this.SH = new THREE.Matrix4();
       this.weiss = new THREE.Color(1, 1, 1); this.gelb = new THREE.Color(1, .82, .35);
+      this.seile = new Map(); this.seilMat = new THREE.LineBasicMaterial({ color: 0x2f353a });
+    },
+    // Tragseile der Luftseilbahnen in der Nähe (Linien entlang des Seilprofils)
+    seileZeichnen(o) {
+      const an = K.map.getZoom() >= Z3D, ms = Z3.ms, da = new Set();
+      if (an) for (const kt of BB.kanten) {
+        if (kt[3] === "FUN") continue;
+        const m = kt[4] || (kt[4] = mc(wgs((kt[2][0][0] + kt[2][1][0]) / 2, (kt[2][0][1] + kt[2][1][1]) / 2)));
+        if (Math.hypot(m.x - o.x, m.y - o.y) / ms > 8000) continue;
+        const P = seilProfil(kt[0], kt[1]); if (!P) continue;
+        const key = kt[0] + "|" + kt[1]; let e = this.seile.get(key);
+        if (!e || e.P !== P) {
+          if (e) { this.szene.remove(e.l); e.l.geometry.dispose(); }
+          const mA = mc(wgs(P.xa, P.ya)), pos = [];
+          for (const [u, z] of P.H) { const q = mc(wgs(P.xa + (P.xz - P.xa) * u, P.ya + (P.yz - P.ya) * u)); pos.push((q.x - mA.x) / ms, (q.y - mA.y) / ms, z); }
+          const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+          e = { P, l: new THREE.Line(g, this.seilMat), mA }; e.l.frustumCulled = false; this.seile.set(key, e); this.szene.add(e.l);
+        }
+        e.l.visible = true; e.l.position.set((e.mA.x - o.x) / ms, (e.mA.y - o.y) / ms, 0); da.add(key);
+      }
+      for (const [k, e] of this.seile) if (!da.has(k)) e.l.visible = false;
     },
     render(gl, args) {
       const L = Z3.liste, o = Z3.ursprung; if (!o) return;
+      this.seileZeichnen(o);
       const zahl = new Map(); for (const c of L) zahl.set(c.g, (zahl.get(c.g) || 0) + 1);
       for (const [g, n] of this.netze) if (!zahl.has(g)) n.count = 0;
       const idx = new Map();
@@ -151,7 +218,8 @@ function z3Ebene() {
           n = new THREE.InstancedMesh(c.geo, this.mat, Math.max(8, bedarf * 2)); n.frustumCulled = false;
           n.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n.instanceMatrix.count * 3).fill(1), 3); this.netze.set(c.g, n); this.szene.add(n);
         }
-        const i = idx.get(c.g) || 0; idx.set(c.g, i + 1); this.E.set(0, -c.neig, c.dreh); this.Q.setFromEuler(this.E); this.V.set(c.x, c.y, c.z); this.M.compose(this.V, this.Q, this.S);
+        const i = idx.get(c.g) || 0; idx.set(c.g, i + 1); this.E.set(0, c.scher ? 0 : -c.neig, c.dreh); this.Q.setFromEuler(this.E); this.V.set(c.x, c.y, c.z); this.M.compose(this.V, this.Q, this.S);
+        if (c.scher) { const k = Math.tan(c.neig); this.SH.set(1, 0, 0, 0, 0, 1, 0, 0, k, 0, 1, 0, 0, 0, 0, 1); this.M.multiply(this.SH); }   // Standseilbahn: Wände bleiben senkrecht
         n.setMatrixAt(i, this.M); n.setColorAt(i, c.sel ? this.gelb : this.weiss);
       }
       for (const [g, n] of this.netze) if (zahl.has(g)) { n.count = zahl.get(g); n.instanceMatrix.needsUpdate = true; n.instanceColor.needsUpdate = true; }

@@ -233,6 +233,21 @@ function json(req, res, code, obj, gz) {
 // Tagesfahrplan in Zeitfenstern zu 3 Stunden (Fenster f = 0 … 15, auch nach Mitternacht): nur Fahrten, die im Fenster
 // unterwegs sind (mit 90 Min. Reserve für Verspätungen). Die Seite lädt so nur, was sie gerade braucht.
 const FENSTER_MIN = 180, fpTage = new Map(), fpFenster = new Map();
+// Ganzer Tag für die alten Seiten (/2d, /3d): ohne Bergbahnen (deren Halte kennen sie nicht)
+const BB_KAT = require("./fahrplan.js").BB_KAT, fpOhneBB = new Map();
+function fahrplanOhneBB(d, buf) {
+  const c = fpOhneBB.get(d); if (c && c.buf === buf) return c.gz;
+  const j = JSON.parse(zlib.gunzipSync(buf)), zl = j.tt.split("\n");
+  j.tt = zl.filter((l, i) => !i || !BB_KAT.has(l.slice(0, l.indexOf(",")))).join("\n");
+  const gz = zlib.gzipSync(JSON.stringify(j)); fpOhneBB.set(d, { buf, gz }); if (fpOhneBB.size > 4) fpOhneBB.delete(fpOhneBB.keys().next().value); return gz;
+}
+// Bergbahn-Netz (Halte + gerade Kanten), vom Fahrplan-Prozess aus dem GTFS erzeugt
+let bbCache = null;
+function bergbahnen() {
+  const f = path.join(DATA_DIR, "fahrplan", "bergbahnen.json"); let m; try { m = fs.statSync(f).mtimeMs; } catch { return null; }
+  if (!bbCache || bbCache.m !== m) { const raw = fs.readFileSync(f); bbCache = { m, gz: zlib.gzipSync(raw), raw, etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' }; }
+  return bbCache;
+}
 function fahrplanFenster(d, buf, f) {
   if (!(f >= 0 && f < 16)) return buf;
   let T = fpTage.get(d);
@@ -247,7 +262,7 @@ function fahrplanFenster(d, buf, f) {
   if (!gz) {
     const von = f * FENSTER_MIN, bis = von + FENSTER_MIN;
     const tt = T.kopf + "\n" + T.zeilen.filter(z => z.t0 <= bis && z.t1 + 90 >= von).map(z => z.l).join("\n");
-    gz = zlib.gzipSync(JSON.stringify({ v: T.j.v, feed: T.j.feed, f, tt })); fpFenster.set(key, gz); if (fpFenster.size > 60) fpFenster.delete(fpFenster.keys().next().value);
+    gz = zlib.gzipSync(JSON.stringify({ v: T.j.v, bbv: T.j.bbv, feed: T.j.feed, f, tt })); fpFenster.set(key, gz); if (fpFenster.size > 60) fpFenster.delete(fpFenster.keys().next().value);
   }
   return gz;
 }
@@ -296,6 +311,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/fahrplan") {
     let buf = FP.get(url.searchParams.get("d") || "");
     if (buf && url.searchParams.has("f")) buf = fahrplanFenster(url.searchParams.get("d"), buf, +url.searchParams.get("f"));   // nur ein Zeitfenster (neue Website)
+    else if (buf) buf = fahrplanOhneBB(url.searchParams.get("d"), buf);
     if (!buf) return json(req, res, 404, { fehler: "Für dieses Datum gibt es keinen aufbereiteten Fahrplan." });
     const etag = '"' + crypto.createHash("sha1").update(buf).digest("hex").slice(0, 16) + '"';   // neu erzeugte Fahrpläne sofort ausliefern
     if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ...SEC, ETag: etag }); return res.end(); }
@@ -304,6 +320,13 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : zlib.gunzipSync(buf));
   }
   if (url.pathname === "/api/fahrplan/status") return json(req, res, 200, FP.status());
+  if (url.pathname === "/api/bergbahnen") {
+    const c = bergbahnen(); if (!c) return json(req, res, 404, { fehler: "Noch kein Bergbahn-Netz (Fahrplan wird aufbereitet)." });
+    if (req.headers["if-none-match"] === c.etag) { res.writeHead(304, { ...SEC, ETag: c.etag }); return res.end(); }
+    const h = { ...SEC, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache", ETag: c.etag, Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : c.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : c.raw);
+  }
   if (url.pathname === "/api/formation") {
     const d = url.searchParams.get("d") || "", w = url.searchParams.get("w");
     if (!/^\d{4}-\d\d-\d\d$/.test(d)) return json(req, res, 400, { fehler: "Datum fehlt" });

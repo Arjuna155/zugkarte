@@ -64,6 +64,13 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - `zuege3d.js`: Schiffe ohne Abschnitte (nie «Wende»), Mitte an der Station (legt längsseits an), am Startort mit dem Heck, am Ziel mit dem Bug an der Station; Höhe = tiefstes Gelände im Umkreis ±300 m (Wasserspiegel), keine Neigung, kein Einrasten.
 - Test ohne GTFS: /tmp-Skript baut aus den Haltefolgen in `gtfs_oev.json.gz` einen künstlichen Schiffsfahrplan (ZIP) und rechnet ihn mit `umrechnen()` um.
 
+## Bergbahnen (28.10.2026)
+- Standseilbahnen (FUN) und Luftseilbahnen (PB Pendelbahn, GB Gondelbahn, SL Sesselbahn) kommen direkt aus dem GTFS des Servers – ohne Netz in der Basisdatei. `fahrplan.js` (`bergbahnArt`: route_desc bzw. route_type 1300–1499/1700–1799/5–7, ohne Aufzüge/Skilifte): Halte je Station (Didok bzw. parent_station) mit Index ab `offset` = Anzahl Kartenhalte (`B.st.length`), Kanten gerade, Tempo < 60 km/h. Schreibt `DATA_DIR/fahrplan/bergbahnen.json` ({v, basis, offset, halte [[Name,E,N]], kanten [[a,b,Art]]}); Tagesdateien tragen `bbv` (UMRECHNUNG 6).
+- server.js: `/api/bergbahnen`; Fahrplanfenster liefern `bbv`; ganzer Tag (alte Seiten /2d, /3d) ohne Bergbahn-Zeilen (`fahrplanOhneBB`).
+- Seite: `kern/bergbahnen.js` lädt das Netz vor dem ersten Fenster mit `bbv` und hängt Halte an `SN` (nur wenn `SN.length === offset`), Zeilen mit unbekannten Halten werden weggelassen. Klasse `bb` («Bergbahn», Farbe `--tbb`), Punkte ab Zoom 10, Linien `bergbahn` (gestrichelt) und `bergbahn-fun`.
+- 3D (`modelle.js` `bauBergbahn`, `BB_TYP`): Standseilbahnwagen auf dem Gelände, beim Zeichnen geschert (Wände senkrecht); Kabinen/Sessel hängen am Seil. Seilprofil je Kante (`seilProfil` in zuege3d.js): 10 m über Grund, obere konvexe Hülle (spannt über Täler), Seile als Linien im Umkreis 8 km.
+- Test: /tmp-Skript baut eine kleine GTFS-ZIP (Polybahn, Rigiblick, Felsenegg, Titlis, Stoos) und rechnet sie mit `umrechnen()` um.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

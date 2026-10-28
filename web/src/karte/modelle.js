@@ -260,6 +260,29 @@ function schiffTyp(ag,fae,schluesselZahl){const a=SCHIFF_AG[ag]||[34,7,"#2b5d8a"
   const id="schiff_"+ag+"_"+art;if(!T[id])def(id,{name:art==="dampfer"?"Raddampfer":art==="faehre"?"Autofähre":"Motorschiff",schiff:true,art,b,fb:art==="faehre"?1.25:art==="klein"?.9:1.45,
     farben:SCHIFF_FARBEN(a[2],art==="dampfer"?{wand:"#f2ead6",deck:"#a8865a",dach:"#efe7d2"}:art==="faehre"?{deck:"#5a5f64",streifen:"#2b2e31"}:{}),typischL:[L]});return id}
 
+// ---- Bergbahnen: Standseilbahnwagen (wird beim Zeichnen geschert, Wände bleiben senkrecht), Kabinen und Sessel ----
+// Kabinen: Ursprung = Tragseil (z = 0), die Kabine hängt darunter.
+function bauBergbahn(W){const S=W.T,B=new Puffer(),L=W.L,b=S.b;
+  if(S.art==="FUN"){const fa={wand:S.farbe,glas:"#1d2328",dach:"#d6d9da"};
+    B.kiste(-L/2+.6,L/2-.6,-b/2+.3,b/2-.3,.1,.75,"#2b2e31");B.kiste(-L/2,L/2,-b/2,b/2,.75,1.5,S.farbe);B.kiste(-L/2,L/2,-b/2,b/2,1.5,3.25,"#f2f2f0");
+    for(let x=-L/2+.4;x+1.1<=L/2-.3;x+=1.5){B.kiste(x,x+1.1,b/2,b/2+.04,1.75,2.95,fa.glas);B.kiste(x,x+1.1,-b/2-.04,-b/2,1.75,2.95,fa.glas)}
+    for(const e of [-1,1])B.kiste(e>0?L/2:-L/2-.04,e>0?L/2+.04:-L/2,-b/2+.3,b/2-.3,1.7,3.0,fa.glas);
+    B.kiste(-L/2-.05,L/2+.05,-b/2-.05,b/2+.05,3.25,3.42,fa.dach,false);return B}
+  // Laufwerk am Seil und Gehänge
+  const hz=S.haenge;B.kiste(-S.lw/2,S.lw/2,-.25,.25,-.35,.35,"#4a4f54",false);B.stab([0,0,-.2],[0,0,-hz],.18,"#5b6166");
+  if(S.art==="SL"){B.kiste(-.35,.35,-b/2,b/2,-hz-.1,-hz+.05,"#3a3f44",false);B.kiste(-.45,.35,-b/2,b/2,-hz-.55,-hz-.4,S.farbe,false);B.kiste(-.5,-.38,-b/2,b/2,-hz-.4,-hz+.2,S.farbe,false);
+    B.kiste(.35,.75,-b/2,b/2,-hz-1.25,-hz-1.15,"#3a3f44",false);B.kiste(-.05,.05,-b/2,-b/2+.08,-hz-.05,-hz+1.2,"#3a3f44",false);return B}
+  const kh=S.kh,z1=-hz,z0=z1-kh;
+  B.kiste(-L/2,L/2,-b/2,b/2,z0,z0+.5,S.farbe,false);B.kiste(-L/2,L/2,-b/2,b/2,z0+.5,z1-.35,"#c9d3d8",false);B.kiste(-L/2+.1,L/2-.1,-b/2+.1,b/2-.1,z1-.35,z1,S.farbe,false);
+  const gl="#22303a";for(const e of [-1,1]){B.kiste(-L/2+.15,L/2-.15,e>0?b/2:-b/2-.04,e>0?b/2+.04:-b/2,z0+.65,z1-.5,gl);B.kiste(e>0?L/2:-L/2-.04,e>0?L/2+.04:-L/2,-b/2+.15,b/2-.15,z0+.65,z1-.5,gl)}
+  return B}
+const BB_TYP={FUN:{art:"FUN",b:2.7,L:16,farbe:"#c8102e"},PB:{art:"PB",b:3.0,L:6.5,haenge:5.2,kh:2.7,lw:4.5,farbe:"#c8102e"},GB:{art:"GB",b:1.9,L:2.3,haenge:2.4,kh:2.1,lw:.9,farbe:"#d01f2a"},
+  SL:{art:"SL",b:3.6,L:1.2,haenge:2.4,lw:.7,farbe:"#e8761a"},LB:"PB",SB:"PB",KB:"GB"};
+const GONDEL_FARBEN=["#d01f2a","#1f5fae","#e8a317","#2f8f46","#9aa5ab"];
+function bergbahnTyp(cat,zahl){let t=BB_TYP[cat];if(typeof t==="string")t=BB_TYP[t];if(!t)t=BB_TYP.PB;
+  const farbe=t.art==="GB"?GONDEL_FARBEN[zahl%GONDEL_FARBEN.length]:t.farbe,id="bb_"+t.art+"_"+farbe.slice(1);
+  if(!T[id])def(id,Object.assign({name:{FUN:"Standseilbahn",PB:"Luftseilbahn",GB:"Gondelbahn",SL:"Sesselbahn"}[t.art],bergbahn:true,typischL:[t.L]},t,{farbe}));return id}
+
 // Rückfall: unbekannter Wagen
 def("wagen",{name:"Personenwagen",b:2.85,boden:1.15,hoehe:4.0,front:{art:"stumpf",len:2,breiteSpitze:.82,hoeheSpitze:.86,schraeg:.9,scheibe:[2.4,3.2]},
   tuerB:1.1,fensterTeilung:2.2,lack:{...SBB_FV,fenster:[{z0:2.05,z1:2.95}],baender:[{z0:1.15,z1:1.4,c:"#3a3e42"}],tuerFenster:[2.1,2.95]},typischL:[26.4]});
@@ -280,6 +303,7 @@ const AG_FAMILIE={"11":"flirt","65":"thurbo","33":"bls_flirt","82":"traverso","7
 
 // Zug ohne Formation: aus Kategorie, Linie und Unternehmen eine plausible Zusammensetzung
 function rueckfall(cat,linie,ag,zahl){const fv=/^(IC|IR|EC|ICE|TGV|RJX|RJ|EN|NJ)$/.test(cat);
+  if(BB_TYP[cat]){const f=bergbahnTyp(cat,Math.abs(zahl|0));return [{f,L:T[f].typischL[0]+(T[f].art==="FUN"?0:.6),k:"2",g:0}]}
   if(/^(BAT|FAE|SCH|Schiff)$/i.test(cat)){const f=schiffTyp(ag,/^FAE$/i.test(cat),Math.abs(zahl|0)*2654435761>>>0);return [{f,L:T[f].typischL[0],k:"2",g:0}]}
   if(cat==="Tram"||cat==="M"){let f=cat==="M"?"metro":TRAM_AG[ag]||(/gen[eè]v|tpg/i.test(ag)?"tram_tpg":"tram");
     if(f==="tram_vbz"&&(+linie)%2===1)f="tram_cobra";   // Zürich: grob Flexity und Cobra gemischt
@@ -316,9 +340,9 @@ function mitteDerEinheit(w,i){let a=i,b=i;while(a>0&&w[a-1].g===w[i].g&&w[a-1].f
 const CACHE={};
 const schluessel=W=>W._k||(W._k=[W.T.id,W.L.toFixed(1),+W.kabV,+W.kabH,W.jakobs?(+W.jakobs.v)+""+(+W.jakobs.h):"-",W.strom].join("|"));
 function bauWagen(W){const k=schluessel(W);if(CACHE[k])return CACHE[k];
-  const B=W.T.schiff?bauSchiff(W):new Puffer();if(!W.T.schiff){kasten(B,W);fahrwerk(B,W);}
-  if(W.strom&&!W.T.schiff)stromabnehmer(B,W.T,W.T.tram?0:W.rolle==="lok"?W.L/2-4:W.L/4);
-  if(!W.T.schiff&&W.rolle!=="lok"&&W.T.strom&&W.L>8)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
+  const sonder=W.T.schiff||W.T.bergbahn,B=W.T.schiff?bauSchiff(W):W.T.bergbahn?bauBergbahn(W):new Puffer();if(!sonder){kasten(B,W);fahrwerk(B,W);}
+  if(W.strom&&!sonder)stromabnehmer(B,W.T,W.T.tram?0:W.rolle==="lok"?W.L/2-4:W.L/4);
+  if(!sonder&&W.rolle!=="lok"&&W.T.strom&&W.L>8)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(B.p,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(B.n,3));g.setAttribute("color",new THREE.Float32BufferAttribute(B.c,3));
   g.computeBoundingSphere();return CACHE[k]=g}
 return {T,bauWagen,schluessel,wagenTeile,ausFormation,rueckfall,REGELN}})();

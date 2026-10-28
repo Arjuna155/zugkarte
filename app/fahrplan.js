@@ -133,12 +133,28 @@ function heuteZH() { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: 
 function fpJahr(iso) { const y = +iso.slice(0, 4); const d1 = new Date(Date.UTC(y, 11, 1)); const ersterSo = 1 + (7 - d1.getUTCDay()) % 7; const wechsel = `${y}-12-${String(ersterSo + 7).padStart(2, "0")}`; return iso >= wechsel ? y + 1 : y; }
 
 // ---------- Umrechnung GTFS → Kartenfahrplan ----------
-const UMRECHNUNG = 5;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
+const UMRECHNUNG = 6;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
 const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt, auf der Karte Bahn)
 const OEV_NEIN = new Set(["7005", "617", "87_LEX"]);   // Agenturen ohne eigenes Netz auf der Karte (Riffelalp-Tram, Alpintrans, SNCF)
+// Bergbahnen: Standseilbahnen (FUN) und Luftseilbahnen (PB Pendelbahn, GB Gondelbahn, SL Sesselbahn). Kein eigenes Netz in der
+// Basisdatei: Halte und (gerade) Kanten entstehen hier aus dem GTFS und gehen als bergbahnen.json an die Seite.
+const BB_KAT = new Set(["FUN", "PB", "GB", "SL", "LB", "SB", "KB"]);
+function bergbahnArt(t, desc) {
+  const d = (desc || "").toUpperCase();
+  if (d === "ASC" || t === 1303 || t === 1305 || t === 1702) return null;   // Aufzüge, Skilifte, Pferdebahn
+  if (BB_KAT.has(d)) return d;
+  if (t === 7 || (t >= 1400 && t < 1500)) return "FUN";
+  if (t === 6 || t === 5 || (t >= 1300 && t < 1400) || (t >= 1700 && t < 1800)) return t === 1304 ? "SL" : t === 1301 || t === 1306 ? "GB" : "PB";
+  return null;
+}
 // tage: ["JJJJ-MM-TT", …]; zips: [Pfad, …]; liefert {datum: {ziele:[…], zeilen:[…], feed}}
 async function umrechnen(B, zips, tage, log) {
   const weg = graph(B), tageSet = new Set(tage.map(ymd)), erg = {};
+  // Bergbahn-Halte: Index ab BBO (nach allen Kartenhalten), je Station einmal (über alle Feeds dieses Laufs)
+  const BBO = B.st.length, BBI = new Map(), BBL = [], bbKanten = new Map();
+  const bbHalt = h => { if (!isFinite(h[1])) return -1; const k = h[4]; let i = BBI.get(k);
+    if (i === undefined) { i = BBO + BBL.length; BBI.set(k, i); BBL.push([h[5], Math.round(h[1] * 100 + 2480000), Math.round(1300000 - h[2] * 100)]); }
+    return i; };
   for (const t of tage) erg[t] = { ziele: new Map(), zeilen: new Set(), feed: null };
   const stats = { fahrten: 0, laeufe: 0, ok: 0, verworfen: 0 };
   const erledigt = new Set();   // Datum schon aus einem neueren/passenden Feed
@@ -157,6 +173,8 @@ async function umrechnen(B, zips, tage, log) {
     await lesen(file, zip, "routes.txt", (f, k) => { const t = +f[k.route_type], ag = f[k.agency_id], kurz = (f[k.route_short_name] || "").trim();
       const bahn = (t >= 100 && t < 200) || (t === 900 && TRAM_JA.has(ag + "/" + kurz));
       const oev = !bahn && mitOev && (t === 900 || t === 400 || t === 401 || t === 1000) && !OEV_NEIN.has(ag);
+      const bb = !bahn && !oev ? bergbahnArt(t, f[k.route_desc]) : null;
+      if (bb) { linien.set(f[k.route_id], { kat: bb, linie: "", oev: false, bb: true, ag }); return; }
       if (!bahn && !oev) return;
       // Anzeige wie bisher: Linie («S 5», «IR 13», «Tram 4»), sonst Zug-/Kursnummer
       let kat = f[k.route_desc] || kurz || "";
@@ -181,7 +199,7 @@ async function umrechnen(B, zips, tage, log) {
       const f = csv(line); const L = linien.get(f[k.route_id]); if (!L) return;
       const s = dienst.get(f[k.service_id]); if (!s || !s.size) return;
       const zn = (f[k.trip_short_name] || "").trim();
-      fahrten.set(f[k.trip_id], { kat: L.kat, oev: L.oev, nr: L.linie || zn, zn: /^\d+$/.test(zn) ? String(+zn) : "", ag: L.ag, ziel: (f[k.trip_headsign] || "").replace(/\s*[|\r\n]+\s*/g, " / ").trim(), tage: [...s], halte: [] });
+      fahrten.set(f[k.trip_id], { kat: L.kat, oev: L.oev, bb: L.bb, nr: L.linie || zn, zn: /^\d+$/.test(zn) ? String(+zn) : "", ag: L.ag, ziel: (f[k.trip_headsign] || "").replace(/\s*[|\r\n]+\s*/g, " / ").trim(), tage: [...s], halte: [] });
     }, true);
     dienst.clear();
     // Halte → Kartenbahnhof (UIC; sonst naher Halt mit passendem Namen)
@@ -197,7 +215,8 @@ async function umrechnen(B, zips, tage, log) {
         i = best;
       }
       const o = B.oev ? B.oev[u] : undefined;
-      halt.set(f[k.stop_id], haltListe.length); haltListe.push([i, x, y, o === undefined ? -1 : o]);
+      const sta = (f[k.parent_station] || "").trim();   // Bergbahnen: Halt = Station (Mutterhalt), sonst Didok-Nummer
+      halt.set(f[k.stop_id], haltListe.length); haltListe.push([i, x, y, o === undefined ? -1 : o, u || sta || f[k.stop_id], f[k.stop_name] || ""]);
     });
     // Takt-Fahrten (frequencies.txt)
     const takt = new Map();
@@ -215,9 +234,9 @@ async function umrechnen(B, zips, tage, log) {
     for (const [tid, F] of fahrten) {
       if (!F.halte.length) continue; stats.fahrten++;
       const H = F.halte, ord = []; for (let q = 0; q < H.length; q += 4) ord.push(q); ord.sort((p, q) => H[p] - H[q]);
-      const seq = ord.map(q => { const h = H[q + 3] >= 0 ? haltListe[H[q + 3]] : [-1, NaN, NaN, -1]; let A = H[q + 1], D = H[q + 2]; if (A < 0) A = D; if (D < 0) D = A; return { i: F.oev ? h[3] : h[0], x: h[1], y: h[2], a: A, d: D }; });
+      const seq = ord.map(q => { const h = H[q + 3] >= 0 ? haltListe[H[q + 3]] : [-1, NaN, NaN, -1]; let A = H[q + 1], D = H[q + 2]; if (A < 0) A = D; if (D < 0) D = A; return { i: F.bb ? bbHalt(h) : F.oev ? h[3] : h[0], x: h[1], y: h[2], a: A, d: D }; });
       F.halte = null;
-      if (F.oev) {   // Trams/Schiffe: Halte in derselben Minute gleichmässig verteilen, sonst wäre der Abschnitt ohne Fahrzeit
+      if (F.oev || F.bb) {   // Trams/Schiffe/Bergbahnen: Halte in derselben Minute gleichmässig verteilen, sonst wäre der Abschnitt ohne Fahrzeit
         for (let q = 1; q < seq.length; q++) {
           const t0 = seq[q - 1].d; if (seq[q].a > t0) continue;
           let j = q; while (j < seq.length && seq[j].a <= t0) j++;
@@ -230,7 +249,12 @@ async function umrechnen(B, zips, tage, log) {
         if (s.i < 0) { zw.push(s); continue; }
         if (last && last.i === s.i) { last.d = s.d; if (cur) cur[cur.length - 1][2] = s.d; zw = []; continue; }   // zweiter Halt im selben Bahnhof
         if (last) {
-          const dep = last.d, arr = s.a; let gut = false; const P = weg(last.i, s.i);
+          const dep = last.d, arr = s.a; let gut = false;
+          if (F.bb) {   // Bergbahn: gerade Linie, langsam erlaubt
+            const A = BBL[last.i - BBO], Z = BBL[s.i - BBO], km = Math.hypot(A[1] - Z[1], A[2] - Z[2]) / 1000;
+            gut = arr > dep && km > 0.03 && km < 15 && km / ((arr - dep) / 60) < 60; if (gut) bbKanten.set(Math.min(last.i, s.i) + "-" + Math.max(last.i, s.i), F.kat);
+          }
+          const P = F.bb ? null : weg(last.i, s.i);
           if (P && arr > dep) {
             const kmh = (P.len / 10) / ((arr - dep) / 60);
             if (kmh > 8 && kmh < 240) {
@@ -260,7 +284,7 @@ async function umrechnen(B, zips, tage, log) {
             const body = pc.map(([i, a, d]) => a === d ? `${i.toString(16)},${a + v}` : `${i.toString(16)},${a + v},${d + v}`).join(";");
             for (const d of F.tage) { const E = erg[isoAus(d)]; if (!E) continue;
               let zi = E.ziele.get(F.ziel); if (zi === undefined) E.ziele.set(F.ziel, zi = E.ziele.size);
-              E.zeilen.add(`${F.kat},${nr},${zi}` + (F.oev ? `,,${F.ag}` : !F.zn ? "" : `,${F.zn},${F.ag}`) + `|${body}`); }
+              E.zeilen.add(`${F.kat},${nr},${zi}` + (F.oev || F.bb ? `,,${F.ag}` : !F.zn ? "" : `,${F.zn},${F.ag}`) + `|${body}`); }
             stats.laeufe++;
           }
         }
@@ -270,7 +294,11 @@ async function umrechnen(B, zips, tage, log) {
   }
   const out = {};
   for (const [d, E] of Object.entries(erg)) if (E.feed) out[d] = { feed: E.feed, tt: [...E.ziele.keys()].join("|") + "\n" + [...E.zeilen].join("\n"), zuege: E.zeilen.size };
-  return { tage: out, stats };
+  // nur Bergbahn-Halte, die in einem gültigen Lauf vorkommen (Indizes bleiben gleich, ungenutzte bekommen leere Namen)
+  const genutzt = new Set(); for (const k of bbKanten.keys()) for (const x of k.split("-")) genutzt.add(+x);
+  const bb = { offset: BBO, halte: BBL.map((h, i) => genutzt.has(BBO + i) ? h : ["", 0, 0]), kanten: [...bbKanten].map(([k, kat]) => [...k.split("-").map(Number), kat]) };
+  stats.bergbahnHalte = genutzt.size; stats.bergbahnKanten = bbKanten.size;
+  return { tage: out, stats, bb };
 }
 
 // ---------- Dateien / Laden ----------
@@ -300,9 +328,11 @@ async function erzeugenProzess(DATA_DIR) {
   // neueste Ausgabe zuerst (Fahrplanjahr absteigend), damit pro Datum der passende Feed gilt
   const zips = Object.keys(st.feeds || {}).sort().reverse().map(j => path.join(V.gtfs, `fp${j}.zip`)).filter(f => fs.existsSync(f));
   if (!zips.length) throw new Error("keine GTFS-Datei vorhanden");
-  const t0 = Date.now(); const { tage: erg, stats } = await umrechnen(B, zips, tage, log);
+  const t0 = Date.now(); const { tage: erg, stats, bb } = await umrechnen(B, zips, tage, log);
+  const bbv = require("crypto").createHash("sha1").update(JSON.stringify(bb)).digest("hex").slice(0, 10);
+  fs.writeFileSync(path.join(V.fp, "bergbahnen.json.tmp"), JSON.stringify({ v: bbv, basis: B.v, ...bb })); fs.renameSync(path.join(V.fp, "bergbahnen.json.tmp"), path.join(V.fp, "bergbahnen.json"));
   for (const [d, x] of Object.entries(erg)) {
-    const buf = zlib.gzipSync(JSON.stringify({ v: B.v, datum: d, feed: x.feed, tt: x.tt }));
+    const buf = zlib.gzipSync(JSON.stringify({ v: B.v, bbv, datum: d, feed: x.feed, tt: x.tt }));
     fs.writeFileSync(path.join(V.fp, d + ".json.gz.tmp"), buf); fs.renameSync(path.join(V.fp, d + ".json.gz.tmp"), path.join(V.fp, d + ".json.gz"));
   }
   for (const f of fs.readdirSync(V.fp)) { const m = f.match(/^(\d{4}-\d{2}-\d{2})\.json\.gz$/); if (m && m[1] < plusTage(heute, -2)) fs.unlinkSync(path.join(V.fp, f)); }
@@ -373,7 +403,7 @@ function start({ DATA_DIR, log }) {
   };
 }
 
-module.exports = { start, umrechnen, zipEintraege, fpJahr, plusTage };
+module.exports = { start, umrechnen, zipEintraege, fpJahr, plusTage, BB_KAT };
 if (require.main === module && process.argv[2] === "--erzeugen") {
   erzeugenProzess(process.argv[3] || process.env.ZK_DATA || "/data").catch(e => { console.error(new Date().toISOString(), "Fahrplan: Umrechnung fehlgeschlagen:", e.stack || e.message); process.exit(1); });
 }

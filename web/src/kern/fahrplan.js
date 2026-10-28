@@ -4,18 +4,20 @@
 import { B } from "./basis.js";
 import { zh, dayType } from "./zeit.js";
 import { melde } from "../util.js";
+import { bbBrauche, BBNAME } from "./bergbahnen.js";
 
-export const TCLS = c => c === "S" ? "s" : c === "Tram" || c === "M" ? "tr" : c === "BAT" || c === "FAE" ? "sch" : /^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c) ? "fv" : "rv";
+export const TCLS = c => c === "S" ? "s" : c === "Tram" || c === "M" ? "tr" : c === "BAT" || c === "FAE" ? "sch" : BBNAME[c] ? "bb" : /^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c) ? "fv" : "rv";
 let RID = 0;
 function zeile(l, D) {
   const bar = l.indexOf("|"), [cat, num, di, zn, ag] = l.slice(0, bar).split(",");
   const st = l.slice(bar + 1).split(";").map(x => { const a = x.split(","); const t1 = +a[1], t2 = a.length > 2 ? +a[2] : t1; return { i: parseInt(a[0], 16), a: t1, d: t2 }; });
-  return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
+  return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : BBNAME[cat] ? BBNAME[cat] : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
 }
 // Zeilen zu einem Tag hinzufügen (Fahrten, die in mehreren Zeitfenstern vorkommen, nur einmal)
 function hinzu(R, txt) {
   const L = txt.split("\n"), D = L.shift().split("|");
-  for (const l of L) { if (!l || R.keys.has(l)) continue; R.keys.add(l); const r = zeile(l, D); R.push(r); indexiere(R, r); }
+  const n = B.SN.length;
+  for (const l of L) { if (!l || R.keys.has(l)) continue; const r = zeile(l, D); if (r.st.some(s => !(s.i < n))) continue; R.keys.add(l); R.push(r); indexiere(R, r); }   // unbekannte Halte (Bergbahn-Netz fehlt): weglassen
   return R;
 }
 const neuerTag = () => { const R = []; R.idx = []; R.keys = new Set(); return R; };
@@ -44,7 +46,7 @@ async function fpLaden(datum, f) {
   const key = datum + "|" + f, s = fpStatus[key]; if (s && (s.ok || s.lauf || Date.now() - s.t < 10 * 60000)) return;
   fpStatus[key] = { lauf: true, t: Date.now() };
   try {
-    const r = await fetch("/api/fahrplan?d=" + datum + "&f=" + f); if (!r.ok) throw 0; const j = await r.json(); if (j.v !== B.FPV || !j.tt) throw 0;
+    const r = await fetch("/api/fahrplan?d=" + datum + "&f=" + f); if (!r.ok) throw 0; const j = await r.json(); if (j.v !== B.FPV || !j.tt) throw 0; await bbBrauche(j.bbv);
     hinzu(DATED[datum] || (DATED[datum] = neuerTag()), j.tt); if (datum === zh(Date.now()).date) FP.feed = j.feed;
     fpStatus[key] = { ok: true }; melde("fahrplan", datum);
   } catch (e) { fpStatus[key] = { t: Date.now() }; fpStatus[datum] = { fehler: true }; if (!DATED[datum]) ersatzLaden(); }
