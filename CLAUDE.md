@@ -37,6 +37,13 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Messung (4× gedrosselte CPU, Playwright): alt → neu: Laden 3.9 MB → 0.6 MB, Speicher 209 → 52 MB, Skriptzeit Schweiz 404 → ~30 ms/s, Zürich mit 3D-Zügen 132 → ~100 ms/s.
 - Die alte 3D-Seite (`src/template3d.html` über `mach_3d.py`) liegt noch unter `/3d` (eingefroren, nicht mehr weiterentwickeln), die 2D-Karte unter `/2d`; `web/src/karte/modelle.js` wird von beiden benutzt (mach_3d.py entfernt die `export`-Zeile).
 
+## 3D-Welt, erste Fassung (28.10.2026) und Ebenen-Schalter
+- `web/src/karte/welt3d.js`: Gebäude als `fill-extrusion` aus der Grundkarten-Quelle (source-layer `building`, `render_height`/`render_min_height`, ab Zoom 14). Brücken (Fahrbahn, Brüstungen, Pfeiler) und Tunnelportale per three.js aus `transportation` mit `brunnel` bridge/tunnel (Klassen rail, transit, motorway … minor), nach jedem Verschieben neu für den Ausschnitt (ab Zoom 14, nur mit Gelände). Brückenhöhe: «Wasserstand» zwischen den Talseiten (Stück ± 150 m), an echten Enden (gleichartige Strecke ohne Brücke schliesst an) Geländehöhe. Portale nur an echten Enden.
+- Quelle und Ebenennamen werden aus dem Stil gesucht (ändern mit der Stilversion). Nur Daten, die die Grundkarte ohnehin lädt.
+- `web/src/karte/drei.js`: three.js gemeinsam und erst bei Bedarf laden.
+- `web/src/ui/ebenen.js`: Ebenen melden sich mit `ebene({id, name, an, setze})` an, Schalter in der Seitenleiste («Ebenen»), Wahl in localStorage `zk_ebenen`. Zurzeit: gebaeude, bauwerke, zuege3d (3D-Züge jetzt für alle an, abschaltbar; `?zuege3d=aus` schaltet ab).
+- Test ohne Netz: `/tmp`-Testwelt mit synthetischem Gelände (Terrarium-PNG) und Vektorkacheln (geojson-vt + vt-pbf) über Playwright-Routen.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
@@ -62,7 +69,7 @@ Grössere Umbauten zuerst auf einem Branch, mit Arjuna absprechen, dann mergen.
 - Reihenfolge der Suche: durchgehender Weg auf swisstopo-Gleisen (Korridor 2.5/6/12), dann OSM-Gleise als Ersatz (fehlende Kacheln, z. B. Bonfol), erst zuletzt Lücken gerade überbrücken. Prüfung: /tmp-Skript qual.py-Logik – kein Stück > 50 m weg von swisstopo UND OSM (Ausnahmen: Waldenburgerbahn, Forchbahn, CEVA – Tunnel/Stadtbahn, in OSM richtig).
 - 3D: Ecken nur noch leicht gerundet (max. 15 m).
 
-## 3D-Züge mit echter Zusammensetzung (Vorschau seit 27.10.2026, nur mit `?zuege3d`)
+## 3D-Züge mit echter Zusammensetzung (seit 28.10.2026 für alle, Ebene «zuege3d»)
 - `app/formation.js`: Train Formation Service (`/formation/v2/formations_vehicle_based`, gleicher Schlüssel wie SIRI-ET). Hintergrund-Lader ≤ 40 Abfragen/Min. (`ZK_FORMATION_PRO_MIN`), zuerst Züge der nächsten 3 h, dann heute, dann morgen. Speichert `DATA_DIR/formation/JJJJ-MM-TT.json` und `typisch.json` (letzte Zusammensetzung je «EVU:Zugnr» als Rückfall). Zuordnung GTFS agency_id → EVU in `EVU`. `/api/formation?d=…[&w=EVU:Nr]`, `/api/formation/status`. Bei 401/403: Schlüssel nicht für den Dienst abonniert (Pause 1 h), 429: Pause 10 Min.
 - Kompaktformat je Wagen «Typ,Länge,Klasse,Einheit[,von,bis]» (Einheit = gleiche parentEvn).
 - Tagesfahrplan-Zeilen tragen jetzt «Kat,Linie,Ziel,Zugnr,agency_id» (UMRECHNUNG 4).

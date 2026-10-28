@@ -93,6 +93,7 @@ aside{background:var(--panel);border-left:1px solid var(--line);overflow:auto;mi
 .legend b{font-weight:600}
 .legend span.n{font:500 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .sw{height:0;border-top:3px solid}
+.eb{width:16px;height:16px;border-radius:3px;justify-self:center;background:var(--muted,#8a959b)}.eb.gebaeude{background:#cfcac0;box-shadow:inset 0 -6px 0 #b9b3a8}.eb.bauwerke{background:#a9a59c;height:6px;border-radius:2px}.eb.zuege3d{background:var(--ts,#2f6fdf);border-radius:4px 8px 8px 4px;height:10px}
 .sw.fv{border-color:var(--fv);border-top-width:3.5px}.sw.rv{border-color:var(--rv)}.sw.sm{border-color:var(--sm)}
 .card h2{margin:0 0 2px;font-size:22px;font-weight:700;font-stretch:82%;text-wrap:balance}
 .card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
@@ -211,6 +212,10 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
     <section>
       <p class="eyebrow">Strecken</p>
       <div class="legend" id="legend"></div>
+    </section>
+    <section>
+      <p class="eyebrow">Ebenen</p>
+      <div class="legend" id="ebenen"></div>
     </section>
     <section>
       <p class="eyebrow">Züge <span class="live" id="live"></span></p>

@@ -5,9 +5,13 @@ import { wagenVon, wagenJetzt } from "../kern/formation.js";
 import { ZM } from "./modelle.js";
 import { K } from "./karte.js";
 import { wgs } from "../util.js";
+import { ladeThree, szeneMitLicht } from "./drei.js";
+import { ebene } from "../ui/ebenen.js";
 
-const Z3D_AN = (() => { try { const q = new URLSearchParams(location.search).get("zuege3d"); if (q !== null) localStorage.setItem("zk_zuege3d", q === "aus" ? "aus" : "an"); return localStorage.getItem("zk_zuege3d") === "an"; } catch (e) { return /zuege3d/.test(location.search); } })();
-export const Z3D = Z3D_AN ? 13.2 : 99;
+// Ein-/ausschalten über die Ebenen in der Seitenleiste (alte Adresse ?zuege3d=aus schaltet weiterhin ab)
+export let Z3D = 13.2;
+try { if (new URLSearchParams(location.search).get("zuege3d") === "aus") localStorage.setItem("zk_ebenen", JSON.stringify({ ...JSON.parse(localStorage.getItem("zk_ebenen") || "{}"), zuege3d: false })); } catch (e) { }
+export function zuege3dSchalter() { ebene({ id: "zuege3d", name: "Züge in 3D (beim Hineinzoomen)", an: true, setze: an => { Z3D = an ? 13.2 : 99; if (!an) { Z3.liste = []; K.map && K.map.triggerRepaint(); } } }); }
 export const Z3 = { laden: false, bereit: false, liste: [], ursprung: null, ms: 1, hBudget: 0, wagenBei: () => null };
 
 // Laufweg eines Zuges als Linienzüge mit Längen (Kartenkoordinaten). An Kopfbahnhöfen (Zug wendet, z. B. Zürich HB,
@@ -65,8 +69,8 @@ function gleisHoehe(pf, k, steil, ex) {
 const NORMALSPUR = new Set(["11", "33", "65", "82", "78", "351", "81____", "87_LEX", "06____", "800693", "L7____", "817000"]);
 
 export function z3Laden() {
-  if (Z3.laden) return; Z3.laden = true; const s = document.createElement("script"); s.src = "lib/three.min.js";
-  s.onload = () => { try { K.map.addLayer(z3Ebene(), "fz"); Z3.bereit = true; } catch (e) { console.error(e); } }; document.head.appendChild(s);
+  if (Z3.laden) return; Z3.laden = true;
+  ladeThree().then(() => { try { K.map.addLayer(z3Ebene(), "fz"); Z3.bereit = true; } catch (e) { console.error(e); } });
 }
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter()); Z3.ms = Z3.ursprung.meterInMercatorCoordinateUnits(); if (Z3.hBudget < 3) Z3.hBudget = 3; }
@@ -94,8 +98,7 @@ function z3Ebene() {
   return {
     id: "zuege3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
-      this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
-      this.szene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.7)); const d = new THREE.DirectionalLight(0xffffff, 1.5); d.position.set(-.5, -.4, .9); this.szene.add(d);
+      this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
       this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false; this.r.outputColorSpace = THREE.SRGBColorSpace;
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netze = new Map();
       this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(0, 0, 0, "ZYX"); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(1, 1, 1);
