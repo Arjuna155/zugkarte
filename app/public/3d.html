@@ -716,6 +716,77 @@ TRAM("metro","Metro (m1/m2)",{grund:"#f1f2f3",tuer:"#e2001a",baender:[{z0:.35,z1
 // Trams nach Unternehmen (GTFS agency_id)
 const TRAM_AG={"3849":"tram_vbz","849":"tram_vbz","773":"tram_cobra","823":"tram_bvb","37":"tram_blt","827":"tram_bern","41":"tram_lb","151":"metro","881":"tram_tpg"};
 
+// ---- Schiffe: Rumpf mit spitzem Bug, Deckhäuser mit Fenstern, Dampfer mit Schaufelradkästen und Kamin, Fähren mit Autodeck ----
+// Ursprung = Wasserlinie Mitte; Länge L, Breite b (Rumpf), Freibord fb
+function flaeche(B,P,col,innen){const n0=norm(kreuz(sub(P[1],P[0]),sub(P[2],P[0])));const m=P.reduce((a,q)=>[a[0]+q[0]/P.length,a[1]+q[1]/P.length,a[2]+q[2]/P.length],[0,0,0]);
+  const n=(n0[0]*(m[0]-innen[0])+n0[1]*(m[1]-innen[1])+n0[2]*(m[2]-innen[2]))<0?[-n0[0],-n0[1],-n0[2]]:n0;
+  if(P.length===3)B.dreieck(P[0],P[1],P[2],n,n,n,F(col));else B.viereck(P[0],P[1],P[2],P[3],n,n,n,n,F(col))}
+function zylinder(B,cx,cy,r,z0,z1,col,deckel,n=12){for(let i=0;i<n;i++){const a=i/n*2*Math.PI,b=(i+1)/n*2*Math.PI,ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b);
+  const na=[ca,sa,0],nb=[cb,sb,0];B.viereck([cx+r*ca,cy+r*sa,z0],[cx+r*cb,cy+r*sb,z0],[cx+r*cb,cy+r*sb,z1],[cx+r*ca,cy+r*sa,z1],na,nb,nb,na,F(col));
+  if(deckel)B.dreieck([cx,cy,z1],[cx+r*ca,cy+r*sa,z1],[cx+r*cb,cy+r*sb,z1],[0,0,1],[0,0,1],[0,0,1],F(deckel))}}
+function rumpf(B,S){const L=S.L,hb=S.b/2,N=32,fa=S.farben,X=[],Wd=[],Z=[];
+  for(let i=0;i<=N;i++){const t=i/N;let w;
+    if(S.art==="faehre"){const e=Math.min(t,1-t);w=hb*(e<.08?.55+.45*e/.08:1)}
+    else if(t>.66){const u=(t-.66)/.34;w=hb*Math.sqrt(Math.max(0,1-u*u))}
+    else if(t<.1)w=hb*(.7+.3*Math.sin(t/.1*Math.PI/2));else w=hb;
+    X.push(-L/2+t*L);Wd.push(Math.max(w,.04));Z.push(S.fb+(S.art!=="faehre"&&t>.6?.8*((t-.6)/.4)**2:0))}
+  for(let i=0;i<N;i++){const j=i+1,xa=X[i],xb=X[j],wa=Wd[i],wb=Wd[j],innen=[(xa+xb)/2,0,S.fb/2];
+    const baender=[[()=>-.5,()=>.18,fa.boden],[()=>.18,k=>Z[k]-.5,fa.rumpf],[k=>Z[k]-.5,k=>Z[k],fa.streifen]];
+    for(const sd of [1,-1])for(const [u,o,c] of baender)flaeche(B,[[xa,sd*wa,u(i)],[xb,sd*wb,u(j)],[xb,sd*wb,o(j)],[xa,sd*wa,o(i)]],c,innen);
+    flaeche(B,[[xa,-wa,Z[i]],[xb,-wb,Z[j]],[xb,wb,Z[j]],[xa,wa,Z[i]]],fa.deck,[innen[0],0,-5]);
+    // Reling (helle Brüstung) am Deckrand
+    for(const sd of [1,-1])flaeche(B,[[xa,sd*(wa-.03),Z[i]],[xb,sd*(wb-.03),Z[j]],[xb,sd*(wb-.03),Z[j]+.95],[xa,sd*(wa-.03),Z[i]+.95]],fa.reling,innen)}
+  const heck=k=>flaeche(B,[[X[k],-Wd[k],-.5],[X[k],Wd[k],-.5],[X[k],Wd[k],Z[k]],[X[k],-Wd[k],Z[k]]],fa.rumpf,[0,0,S.fb/2]);
+  heck(0);if(S.art==="faehre")heck(N);return {X,Wd,Z}}
+// Deckhaus mit Fensterband (einzelne Scheiben), Dach mit Überstand
+function haus(B,x0,x1,b,z0,h,fa,fe,ohneDach){B.kiste(x0,x1,-b/2,b/2,z0,z0+h,fa.wand);
+  if(fe){const f0=z0+fe[0],f1=z0+fe[1],tl=fe[2]||1.25,sp=fe[3]||.3;
+    for(let x=x0+.5;x+tl<=x1-.3;x+=tl+sp){B.kiste(x,x+tl,b/2,b/2+.04,f0,f1,fa.glas);B.kiste(x,x+tl,-b/2-.04,-b/2,f0,f1,fa.glas)}
+    B.kiste(x1,x1+.04,-b/2+.3,b/2-.3,f0,f1,fa.glas);B.kiste(x0-.04,x0,-b/2+.5,b/2-.5,f0,f1,fa.glas)}
+  if(!ohneDach)B.kiste(x0-.3,x1+.3,-b/2-.3,b/2+.3,z0+h,z0+h+.18,fa.dach,false)}
+function flagge(B,x,z){B.stab([x,0,z],[x,0,z+3.2],.07,"#d8d8d8");B.kiste(x-1.3,x-.05,-.02,.02,z+2.25,z+3.1,"#d52b1e",false);
+  B.kiste(x-.83,x-.52,-.03,.03,z+2.45,z+2.9,"#ffffff",false);B.kiste(x-.9,x-.45,-.03,.03,z+2.6,z+2.75,"#ffffff",false)}
+function bauSchiff(W){const S=W.T,L=W.L,hb=S.b/2,fa=S.farben,B=new Puffer();const R=rumpf(B,{...S,L});const fb=S.fb;
+  if(S.art==="faehre"){
+    const yh=hb*.42;B.kiste(-L*.3,L*.3,yh,hb-.15,fb,fb+2.6,fa.wand);   // Aufbau an der Seite
+    for(let x=-L*.3+.6;x<L*.3-1.5;x+=1.6)B.kiste(x,x+1.2,yh-.04,yh,fb+1.1,fb+2.1,fa.glas);
+    B.kiste(-L*.32,L*.32,yh-.2,hb+.1,fb+2.6,fb+2.78,fa.dach,false);
+    B.kiste(-L*.06,L*.06,-hb+.3,hb-.2,fb+4.6,fb+6.6,fa.wand);B.kiste(-L*.06-.04,L*.06+.04,-hb+.6,hb-.5,fb+5.4,fb+6.3,fa.glas);   // Brücke quer über das Deck
+    B.kiste(-L*.07,L*.07,-hb+.2,hb-.1,fb+6.6,fb+6.8,fa.dach,false);B.kiste(-L*.03,L*.03,-hb+.3,-hb+1.0,fb,fb+4.6,fa.wand);
+    const autos=["#b3121b","#2a2d30","#d7d9db","#1f4e8c","#8a8f94","#e6e6e6","#3b5f3a","#5a3b2a"];let k=0;
+    for(let y=-hb+1.7;y<yh-1.3;y+=2.5)for(let x=-L*.42;x<L*.42-4.5;x+=5.6){if((k*7+3)%5===0){k++;continue}const c=autos[k++%autos.length];
+      B.kiste(x,x+4.4,y-.9,y+.9,fb,fb+.8,c);B.kiste(x+1.1,x+3.4,y-.8,y+.8,fb+.8,fb+1.45,c);B.kiste(x+1.15,x+3.35,y-.82,y+.82,fb+.9,fb+1.35,"#20262b")}
+    return B}
+  if(S.art==="klein"){haus(B,-L*.32,L*.26,S.b*.78,fb,2.2,fa,[.7,1.85,1.1,.25]);flagge(B,-L/2+.5,fb);return B}
+  if(S.art==="dampfer"){
+    // Schaufelradkästen (halbe Scheiben quer zum Schiff)
+    const xc=-L*.02,Rk=2.7,zc=.2,n=10;for(const sd of [1,-1]){const y0=sd*hb,y1=sd*(hb+1.7);
+      for(let i=0;i<n;i++){const a=i/n*Math.PI,b=(i+1)/n*Math.PI,pa=[xc+Rk*Math.cos(a),zc+Rk*Math.sin(a)],pb=[xc+Rk*Math.cos(b),zc+Rk*Math.sin(b)];
+        flaeche(B,[[pa[0],y0,pa[1]],[pb[0],y0,pb[1]],[pb[0],y1,pb[1]],[pa[0],y1,pa[1]]],fa.rumpf,[xc,(y0+y1)/2,zc]);
+        flaeche(B,[[xc,y1,zc],[pa[0],y1,pa[1]],[pb[0],y1,pb[1]]],i%2?fa.rumpf:fa.streifen,[xc,y0,zc])}}
+    haus(B,-L*.38,L*.3,S.b*.86,fb,2.5,fa,[.85,2.0,1.4,.35]);
+    haus(B,-L*.2,L*.06,S.b*.62,fb+2.68,2.2,fa,[.7,1.7,1.2,.3]);
+    B.kiste(xc-.9,xc+.9,-hb-1.7,hb+1.7,fb+2.68,fb+2.95,fa.dach,false);B.kiste(xc-1.1,xc+1.1,-1.3,1.3,fb+2.95,fb+4.8,fa.wand);B.kiste(xc+1.1,xc+1.14,-1.0,1.0,fb+3.7,fb+4.5,fa.glas);
+    zylinder(B,xc-3.2,0,.85,fb+2.6,fb+8.6,fa.kamin);zylinder(B,xc-3.2,0,.87,fb+8.6,fb+9.4,"#1d1d1d","#111111");
+    B.stab([L*.36,0,R.Z[28]],[L*.36,0,R.Z[28]+6],.12,"#cfcfcf");flagge(B,-L/2+.6,fb);return B}
+  // Motorschiff
+  haus(B,-L*.4,L*.22,S.b*.84,fb,2.5,fa,[.85,2.05]);
+  haus(B,-L*.28,L*.1,S.b*.7,fb+2.68,2.3,fa,[.8,1.85]);
+  haus(B,L*.03,L*.14,S.b*.46,fb+5.16,1.9,fa,[.75,1.55,1.0,.2]);
+  B.stab([L*.12,0,fb+7.24],[L*.12,0,fb+10.2],.12,"#d0d0d0");flagge(B,-L/2+.6,fb);return B}
+const SCHIFF_FARBEN=(streifen,o={})=>Object.assign({rumpf:"#f3f3f1",streifen,boden:"#26292c",deck:"#9a9fa4",reling:"#e9eaea",wand:"#f1f1ee",glas:"#1d2328",dach:"#d6d9da",kamin:"#d9a92f"},o);
+// Unternehmen (GTFS agency_id) → Grösse, Farben, Anteil Raddampfer (welches Schiff auf einer Fahrt läuft, steht nicht im Fahrplan)
+const SCHIFF_AG={"185":[50,9.5,"#1b3d7a",.25],"194":[50,9,"#0a59a8",.15],"183":[42,8.2,"#1f6f43",.1],"192":[46,8.6,"#1f6f43",.08],"184":[56,10,"#c4161c",.35],
+  "189":[40,8,"#1c4f9c"],"188":[36,7.4,"#003d7c"],"190":[36,7.4,"#003d7c"],"360":[52,10,"#c8102e"],"195":[50,9.6,"#c8102e"],"199":[16,4.6,"#e8b400",0,"klein"],
+  "182":[42,8,"#0067b1"],"181":[33,7,"#2a7ab0"],"197":[32,7,"#0a4f8a"],"3181":[22,5.5,"#2f6f9f",0,"klein"],"186":[38,7.5,"#005ca9"],"179":[29,6.5,"#1f6b9a"],
+  "191":[56,9.5,"#1b4d9b"],"180":[28,6.4,"#2a6f97"],"193":[40,7.8,"#2e7d32"],"3183":[24,5.6,"#1e5f8c",0,"klein"],"3199":[24,6,"#0e4c7a",0,"klein"],"3182":[13,4.5,"#3c8d2f",0,"klein"]};
+const FAEHRE_AG={"196":[60,14],"3190":[44,11],"360":[70,16],"195":[70,16]};
+function schiffTyp(ag,fae,schluesselZahl){const a=SCHIFF_AG[ag]||[34,7,"#2b5d8a"];
+  let art=a[4]||"ms",L=a[0],b=a[1];if(fae){art="faehre";const f=FAEHRE_AG[ag]||[40,10.5];L=f[0];b=f[1]}
+  else if(a[3]&&(schluesselZahl%1000)/1000<a[3]){art="dampfer";L=Math.max(L,58);b=Math.max(8.4,b*.9)}
+  const id="schiff_"+ag+"_"+art;if(!T[id])def(id,{name:art==="dampfer"?"Raddampfer":art==="faehre"?"Autofähre":"Motorschiff",schiff:true,art,b,fb:art==="faehre"?1.25:art==="klein"?.9:1.45,
+    farben:SCHIFF_FARBEN(a[2],art==="dampfer"?{wand:"#f2ead6",deck:"#a8865a",dach:"#efe7d2"}:art==="faehre"?{deck:"#5a5f64",streifen:"#2b2e31"}:{}),typischL:[L]});return id}
+
 // Rückfall: unbekannter Wagen
 def("wagen",{name:"Personenwagen",b:2.85,boden:1.15,hoehe:4.0,front:{art:"stumpf",len:2,breiteSpitze:.82,hoeheSpitze:.86,schraeg:.9,scheibe:[2.4,3.2]},
   tuerB:1.1,fensterTeilung:2.2,lack:{...SBB_FV,fenster:[{z0:2.05,z1:2.95}],baender:[{z0:1.15,z1:1.4,c:"#3a3e42"}],tuerFenster:[2.1,2.95]},typischL:[26.4]});
@@ -735,7 +806,8 @@ const REGELN=[
 const AG_FAMILIE={"11":"flirt","65":"thurbo","33":"bls_flirt","82":"traverso","72":"allegra","86":"zb","78":"flirt","22":"schmalspur","88":"schmalspur","35":"schmalspur","48":"schmalspur","93":"schmalspur","55":"schmalspur","23":"schmalspur","43":"schmalspur","29":"schmalspur","53":"schmalspur"};
 
 // Zug ohne Formation: aus Kategorie, Linie und Unternehmen eine plausible Zusammensetzung
-function rueckfall(cat,linie,ag){const fv=/^(IC|IR|EC|ICE|TGV|RJX|RJ|EN|NJ)$/.test(cat);
+function rueckfall(cat,linie,ag,zahl){const fv=/^(IC|IR|EC|ICE|TGV|RJX|RJ|EN|NJ)$/.test(cat);
+  if(/^(BAT|FAE|SCH|Schiff)$/i.test(cat)){const f=schiffTyp(ag,/^FAE$/i.test(cat),Math.abs(zahl|0)*2654435761>>>0);return [{f,L:T[f].typischL[0],k:"2",g:0}]}
   if(cat==="Tram"||cat==="M"){let f=cat==="M"?"metro":TRAM_AG[ag]||(/gen[eè]v|tpg/i.test(ag)?"tram_tpg":"tram");
     if(f==="tram_vbz"&&(+linie)%2===1)f="tram_cobra";   // Zürich: grob Flexity und Cobra gemischt
     return T[f].typischL.map(L=>({f,L,k:"2",g:0}))}
@@ -771,9 +843,9 @@ function mitteDerEinheit(w,i){let a=i,b=i;while(a>0&&w[a-1].g===w[i].g&&w[a-1].f
 const CACHE={};
 const schluessel=W=>W._k||(W._k=[W.T.id,W.L.toFixed(1),+W.kabV,+W.kabH,W.jakobs?(+W.jakobs.v)+""+(+W.jakobs.h):"-",W.strom].join("|"));
 function bauWagen(W){const k=schluessel(W);if(CACHE[k])return CACHE[k];
-  const B=new Puffer();kasten(B,W);fahrwerk(B,W);
-  if(W.strom)stromabnehmer(B,W.T,W.T.tram?0:W.rolle==="lok"?W.L/2-4:W.L/4);
-  if(W.rolle!=="lok"&&W.T.strom&&W.L>8)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
+  const B=W.T.schiff?bauSchiff(W):new Puffer();if(!W.T.schiff){kasten(B,W);fahrwerk(B,W);}
+  if(W.strom&&!W.T.schiff)stromabnehmer(B,W.T,W.T.tram?0:W.rolle==="lok"?W.L/2-4:W.L/4);
+  if(!W.T.schiff&&W.rolle!=="lok"&&W.T.strom&&W.L>8)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(B.p,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(B.n,3));g.setAttribute("color",new THREE.Float32BufferAttribute(B.c,3));
   g.computeBoundingSphere();return CACHE[k]=g}
 return {T,bauWagen,schluessel,wagenTeile,ausFormation,rueckfall,REGELN}})();

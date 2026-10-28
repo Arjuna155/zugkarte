@@ -21,7 +21,7 @@ function pfad(tr) {
   if (tr._pf !== undefined) return tr._pf; const LG = legs(tr); if (!LG.length || LG.some(x => !x)) return tr._pf = null;
   const teile = [], legSec = [], legS0 = [], legS1 = []; let T = null;
   // Trams biegen in der Stadt eng ab: kürzeres Stück für die Richtung und nur fast volle Umkehr gilt als Wende
-  const tram = tr.cls === "tr", wl = tram ? .3 : 2, wende = tram ? -.85 : -.35;
+  const tram = tr.cls === "tr", schiff = tr.cls === "sch", wl = tram ? .3 : 2, wende = schiff ? -2 : tram ? -.85 : -.35;   // Schiffe: nie neuer Abschnitt
   const richtung = (pts, vonEnde) => {
     const n = pts.length; let A = vonEnde ? pts[n - 1] : pts[0], Bq = A, acc = 0;
     for (let q = 1; q < n && acc < wl; q++) { const P = vonEnde ? pts[n - 1 - q] : pts[q]; acc += Math.hypot(P[0] - Bq[0], P[1] - Bq[1]); Bq = P; }
@@ -31,7 +31,7 @@ function pfad(tr) {
   LG.forEach(P => {
     let Q = P.pts;
     // Tram: Abstecher am Halt (Haltepunkt liegt hinter einer Abzweigung: Weg läuft bis dort und zurück) – bis 60 m kürzen
-    if (tram && T && T.pts.length > 1 && Q.length > 1) {
+    if ((tram || schiff) && T && T.pts.length > 1 && Q.length > 1) {
       Q = Q.slice(); let weg = 0;
       while (T.pts.length > 1 && Q.length > 1 && weg < .6) {
         const e = T.pts[T.pts.length - 1], a = T.pts[T.pts.length - 2], ux = e[0] - a[0], uy = e[1] - a[1], wx = Q[1][0] - Q[0][0], wy = Q[1][1] - Q[0][1], lu = Math.hypot(ux, uy), lw = Math.hypot(wx, wy);
@@ -77,6 +77,9 @@ function hoehe(pf, s, steil) {
 function gleisHoehe(pf, k, steil, ex) {
   const map = K.map, n = H_STUECK + 2 * H_RAND + 1, s0 = (k * H_STUECK - H_RAND) * H_SCHRITT, dem = new Float32Array(n);
   for (let i = 0; i < n; i++) { const p = punkt(pf, s0 + i * H_SCHRITT), e = map.queryTerrainElevation(wgs(p[0], p[1])); if (e === null || e === undefined) return null; dem[i] = e; }
+  if (steil === "wasser") {   // Schiff: Wasserspiegel = tiefster Punkt im Umkreis von ±300 m (Ufer und Landestege sind höher)
+    const h = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 1e9; for (let q = Math.max(0, i - 12); q <= Math.min(n - 1, i + 12); q++) m = Math.min(m, dem[q]); h[i] = m; } h.s0 = s0; return h;
+  }
   const g = (steil ? .25 : .05) * ex * H_SCHRITT * 100, v = new Float32Array(n), r = new Float32Array(n), h = new Float32Array(n);
   v[0] = dem[0]; for (let i = 1; i < n; i++)v[i] = Math.min(Math.max(dem[i], v[i - 1] - g), v[i - 1] + g);
   r[n - 1] = dem[n - 1]; for (let i = n - 2; i >= 0; i--)r[i] = Math.min(Math.max(dem[i], r[i + 1] - g), r[i + 1] + g);
@@ -101,23 +104,25 @@ export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter());
 export function z3Ende() { }
 // Wagen eines Zuges: Lage, Richtung und Neigung jedes Wagens
 export function z3Zug(tr, o, p, isSel) {
-  const tram = tr.cls === "tr";
+  const tram = tr.cls === "tr", schiff = tr.cls === "sch";
   const PF = pfad(tr); if (!PF || p.j === undefined) return false; const Z = wagenJetzt(wagenVon(tr, o), p);
   // fahrend: auf dem Abschnitt j→j+1; stehend: Zugmitte am Bahnsteig (Tram: Spitze an der Haltestelle) (Abschnitt der Weiterfahrt, am Ziel der Ankunft)
   const nL = PF.legSec.length, j = p.moving ? p.j : Math.min(p.j, nL - 1), amEnde = !p.moving && p.j >= nL;
-  const pf = PF.teile[PF.legSec[j]], kopf = (amEnde ? PF.legS1[j] : PF.legS0[j] + (PF.legS1[j] - PF.legS0[j]) * (p.moving ? p.f : 0)) + (tram ? .01 : Z.L / 2);   // Tram: Spitze an der Haltestelle, Zug: Mitte am Bahnsteig
+  const pf = PF.teile[PF.legSec[j]], basis = amEnde ? PF.legS1[j] : PF.legS0[j] + (PF.legS1[j] - PF.legS0[j]) * (p.moving ? p.f : 0), E = pf.cum[pf.cum.length - 1];
+  // Tram: Spitze an der Haltestelle; Zug: Mitte am Bahnsteig; Schiff: Mitte an der Station (legt längsseits an), am Anfang mit dem Heck, am Ziel mit dem Bug (sonst stünde es an Land)
+  const kl = x => Math.max(0, Math.min(1, x)), kopf = basis + (tram ? .01 : schiff ? Z.L / 2 * (1 + kl(1 - basis / Z.L) - kl(1 - (E - basis) / Z.L)) : Z.L / 2);
   const os = Z3.ursprung, ms = Z3.ms, aus = [];
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = tram ? Math.max(t.L * .42, .05) : t.L * .42,   // Tram: kurze Glieder, Richtung über ±5 m (ruhiger)
       pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
-    const steil = t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
+    const steil = schiff ? "wasser" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
-    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = einrasten(mv, rx, ry, tram), gh = einrasten(mh, rx, ry, tram);
+    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && einrasten(mv, rx, ry, tram), gh = !schiff && einrasten(mh, rx, ry, tram);
     if (gv && gh && ((gv.x - gh.x) * rx + (gv.y - gh.y) * ry) > .9 * Math.hypot(gv.x - gh.x, gv.y - gh.y) * Math.hypot(rx, ry)) { mv = gv;   // nur wenn die Richtung passt (Kreuzungen, Weichen)
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
-    aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: Math.atan2(zv - zh_, len), sel: isSel, ll: llm, tr, o });
+    aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: schiff ? Math.min(zv, zh_) : (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: schiff ? 0 : Math.atan2(zv - zh_, len), sel: isSel, ll: llm, tr, o });
   }
   for (const c of aus) Z3.liste.push(c); return true;
 }

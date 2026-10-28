@@ -59,6 +59,11 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - `zuege3d.js`: Tram steht mit der Spitze an der Haltestelle (Zug: Mitte am Bahnsteig), Richtung je Modul über ±5 m, enge Kurven gelten nicht als Wende, Abstecher am Halt (bis 60 m) werden gekürzt. Einrasten auf Kartengleise: Trams bevorzugen das RECHTE Gleis, Einrasten nur, wenn die Richtung passt (Kreuzungen).
 - `tools/oev_netz.py`: Weg im 20-m-Raster wird auf die echten OSM-Gleise zurückgelegt (auf demselben Gleis bleiben, Zacken entfernen, Halte auf den Weg projiziert). Neu `kanten1` (1 m genau) → in der Basisdatei als `kanten1`, die Seite rechnet mit `B.KF(k)` (100 statt 10). Alte Seiten /2d, /3d nutzen weiter `kanten` (10 m).
 
+## Schiffe in 3D (28.10.2026)
+- Schiffe fahren ab Zoom 13.2 als 3D-Modelle (Ebene «zuege3d»). `modelle.js`: `bauSchiff()` (Rumpf mit spitzem Bug, Reling, Deckhäuser mit Fenstern, Flagge) in vier Arten: Motorschiff, Raddampfer (Schaufelradkästen, Kamin), Autofähre (Brücke quer, Autos auf Deck), kleines Schiff. `SCHIFF_AG` je Unternehmen (Länge, Breite, Farbe, Anteil Raddampfer), `FAEHRE_AG` für FAE. Welches Schiff eine Fahrt fährt, steht nicht im Fahrplan → Raddampfer nach festem Zufall (Abfahrtszeit + erster Halt), also plausibel, nicht echt.
+- `zuege3d.js`: Schiffe ohne Abschnitte (nie «Wende»), Mitte an der Station (legt längsseits an), am Startort mit dem Heck, am Ziel mit dem Bug an der Station; Höhe = tiefstes Gelände im Umkreis ±300 m (Wasserspiegel), keine Neigung, kein Einrasten.
+- Test ohne GTFS: /tmp-Skript baut aus den Haltefolgen in `gtfs_oev.json.gz` einen künstlichen Schiffsfahrplan (ZIP) und rechnet ihn mit `umrechnen()` um.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

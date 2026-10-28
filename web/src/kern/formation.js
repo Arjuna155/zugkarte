@@ -24,7 +24,7 @@ export function wagenVon(tr, o) {
   if (tr._wg && tr._wgv === ver) return tr._wg;
   let w = null, echt = -1; const key = F && F.evu && F.evu[tr.ag] && tr.zn ? F.evu[tr.ag] + ":" + tr.zn : null;
   if (key && F.z[key]) { const [i, e] = F.z[key]; w = ZM.ausFormation(F.f[i]); echt = e; }
-  if (!w || !w.length) { w = ZM.rueckfall(tr.cat, tr.num, tr.ag); echt = -1; }
+  if (!w || !w.length) { w = ZM.rueckfall(tr.cat, tr.num, tr.ag, Math.round(tr.t0 * 10) + (tr.st[0] ? tr.st[0].i : 0) * 131); echt = -1; }
   const halt = u => { const si = B.UIC2IDX[u]; if (si === undefined) return -2; return tr.st.findIndex(St => St.i === si); };
   for (const v of w) { const a = v.von ? halt(v.von) : -1, b = v.bis ? halt(v.bis) : -1; v.kv = a >= 0 ? a : -1; v.kb = b >= 0 ? b : 1e9; }
   tr._wg = { w, echt, sub: {} }; tr._wgv = ver; return tr._wg;

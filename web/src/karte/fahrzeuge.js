@@ -60,7 +60,7 @@ export function fahrzeugeBerechnen(now) {
     if (voll && ll[0] > RW && ll[0] < RE && ll[1] > RS && ll[1] < RN) kandidaten.push(tr, sv.o);
     if (ll[0] < W0 || ll[0] > E0 || ll[1] < S0 || ll[1] > N0) return;
     v.tr = tr; v.o = sv.o; v.rt = rt; v.dl = dl; v.ll = ll; v.m = merc(ll[0], ll[1]); v.sel = !!S.sel && S.sel.tr === tr;
-    v.d3 = z3 && tr.cls !== "sch" && z3Zug(tr, sv.o, p, v.sel);
+    v.d3 = z3 && z3Zug(tr, sv.o, p, v.sel);
     // Höhe auf dem Gelände (zwischengespeichert, alle 2 s neu)
     if (ter) { const k = tr.id + "|" + sv.o; let h = hoeheCache.get(k); if (!h || now - h.t > 2000) { h = { e: map.queryTerrainElevation(ll) || 0, t: now }; hoeheCache.set(k, h); } v.e = h.e * mpu; } else v.e = 0;
     n++;
