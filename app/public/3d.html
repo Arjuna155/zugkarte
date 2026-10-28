@@ -759,6 +759,7 @@ function bauWagen(W){const k=schluessel(W);if(CACHE[k])return CACHE[k];
   g.computeBoundingSphere();return CACHE[k]=g}
 return {T,bauWagen,schluessel,wagenTeile,ausFormation,rueckfall,REGELN}})();
 
+
 // ===== 3D-Züge: echte Zusammensetzung (Formation-Dienst), jeder Wagen folgt dem Gleis =====
 // Ab Zoom Z3D werden Fernverkehr, Regio und S-Bahn als 3D-Modelle gezeichnet (three.js, eigene Ebene in MapLibre).
 // Zusammensetzung: /api/formation (Server lädt sie im Hintergrund), sonst typischer Zug der Linie (ZM.rueckfall).
