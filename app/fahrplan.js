@@ -133,7 +133,7 @@ function heuteZH() { const p = {}; new Intl.DateTimeFormat("en-CA", { timeZone: 
 function fpJahr(iso) { const y = +iso.slice(0, 4); const d1 = new Date(Date.UTC(y, 11, 1)); const ersterSo = 1 + (7 - d1.getUTCDay()) % 7; const wechsel = `${y}-12-${String(ersterSo + 7).padStart(2, "0")}`; return iso >= wechsel ? y + 1 : y; }
 
 // ---------- Umrechnung GTFS → Kartenfahrplan ----------
-const UMRECHNUNG = 7;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
+const UMRECHNUNG = 8;   // erhöhen, wenn sich die Umrechnung ändert → Server rechnet neu
 const TRAM_JA = new Set(["37/19", "46/18"]);   // Agentur/Linie: Waldenburgerbahn, Forchbahn (in GTFS als Tram geführt, auf der Karte Bahn)
 const OEV_NEIN = new Set(["7005", "617", "87_LEX"]);   // Agenturen ohne eigenes Netz auf der Karte (Riffelalp-Tram, Alpintrans, SNCF)
 // Bergbahnen: Standseilbahnen (FUN) und Luftseilbahnen (PB Pendelbahn, GB Gondelbahn, SL Sesselbahn). Kein eigenes Netz in der
@@ -141,6 +141,7 @@ const OEV_NEIN = new Set(["7005", "617", "87_LEX"]);   // Agenturen ohne eigenes
 const BB_KAT = new Set(["FUN", "PB", "GB", "SL", "LB", "SB", "KB"]);
 function bergbahnArt(t, desc) {
   const d = (desc || "").toUpperCase();
+  if (t === 3 || (t >= 700 && t < 800)) return null;   // Busse («KB» = Kleinbus, nicht Kabinenbahn)
   if (d === "ASC" || t === 1303 || t === 1305 || t === 1702) return null;   // Aufzüge, Skilifte, Pferdebahn
   if (BB_KAT.has(d)) return d;
   if (t === 7 || (t >= 1400 && t < 1500)) return "FUN";
@@ -305,6 +306,110 @@ async function umrechnen(B, zips, tage, log) {
   return { tage: out, stats, bb, gleise };
 }
 
+// ---------- Busse (eigener Durchgang, nur gestern … übermorgen) ----------
+// Halte je Haltestelle (Didok), Index ab «offset» (nach Karten- und Bergbahnhalten). Die Fahrten gehen nach Tag,
+// Zeitfenster (3 h) und Kachel (10 km) in eigene Dateien – die Seite lädt nur, was sie beim Hineinzoomen sieht.
+// Den Weg auf der Strasse rechnet die Seite selbst (Strassen der Grundkarte).
+const BUS_KAT = new Set(["B", "BN", "EXB", "KLB", "EV"]);
+function busArt(t, desc) {
+  const d = (desc || "").toUpperCase();
+  if (!(t === 3 || (t >= 700 && t < 800)) || t === 715 || /^(RUB|TX|ALT|RFB|BAT)$/.test(d)) return null;   // ohne Rufbus/Taxi
+  return d === "BN" || t === 705 ? "BN" : d === "EXB" || t === 702 ? "EXB" : d === "KB" ? "KLB" : d === "EV" || t === 714 ? "EV" : "B";
+}
+const busKachel = (x, y) => Math.floor(x / 100) + "_" + Math.floor(y / 100);   // Kartenkoordinaten (100 m) → 10-km-Kachel
+async function busseUmrechnen(zips, tage, BUSO, log) {
+  const tageSet = new Set(tage.map(ymd)), erledigt = new Set(), BI = new Map(), BL = [], ZEILEN = new Map();
+  const stats = { fahrten: 0, laeufe: 0, verworfen: 0 };
+  for (const file of zips) {
+    const zip = zipEintraege(file);
+    let fStart = "00000000", fEnde = "99999999";
+    await lesen(file, zip, "feed_info.txt", (f, k) => { fStart = f[k.feed_start_date] || fStart; fEnde = f[k.feed_end_date] || fEnde; });
+    const meine = [...tageSet].filter(d => d >= fStart && d <= fEnde && !erledigt.has(d)); if (!meine.length) continue;
+    meine.forEach(d => erledigt.add(d)); const meineSet = new Set(meine);
+    const linien = new Map();
+    await lesen(file, zip, "routes.txt", (f, k) => { const kat = busArt(+f[k.route_type], f[k.route_desc]); if (!kat) return;
+      const kurz = (f[k.route_short_name] || "").trim().replace(/[,|;\r\n]/g, " ").slice(0, 10);
+      linien.set(f[k.route_id], { kat, linie: kurz, ag: f[k.agency_id] }); });
+    const dienst = new Map(), wdSp = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const wdVon = d => new Date(Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8))).getUTCDay();
+    await lesen(file, zip, "calendar.txt", (f, k) => { for (const d of meine) if (d >= f[k.start_date] && d <= f[k.end_date] && f[k[wdSp[wdVon(d)]]] === "1") { let s = dienst.get(f[k.service_id]); if (!s) dienst.set(f[k.service_id], s = new Set()); s.add(d); } });
+    await lesen(file, zip, "calendar_dates.txt", (line, k) => { const f = csv(line), d = f[k.date]; if (!meineSet.has(d)) return; let s = dienst.get(f[k.service_id]);
+      if (f[k.exception_type] === "1") { if (!s) dienst.set(f[k.service_id], s = new Set()); s.add(d); } else if (s) s.delete(d); }, true);
+    const fahrten = new Map();
+    await lesen(file, zip, "trips.txt", (line, k) => { const f = csv(line), L = linien.get(f[k.route_id]); if (!L) return; const s = dienst.get(f[k.service_id]); if (!s || !s.size) return;
+      fahrten.set(f[k.trip_id], { L, ziel: (f[k.trip_headsign] || "").replace(/\s*[|\r\n]+\s*/g, " / ").trim(), tage: [...s], halte: [] }); }, true);
+    dienst.clear();
+    const halt = new Map(), HL = [];   // stop_id → [Schlüssel, Name, x, y, genutzt]
+    await lesen(file, zip, "stops.txt", (f, k) => { const lat = +f[k.stop_lat], lon = +f[k.stop_lon]; if (!lat || !lon) return; const [x, y] = lv95(lat, lon);
+      const id = f[k.stop_id]; let u = f[k.didok] || ""; if (!u) { const m = id.match(/sloid:(\d+)/i); u = m ? "85" + m[1].padStart(5, "0") : (id.match(/^(\d{7})/) || [])[1] || (f[k.parent_station] || "").trim() || id; }
+      halt.set(id, HL.length); HL.push([u, (f[k.stop_name] || "").trim(), x, y, false]); });
+    const takt = new Map();
+    await lesen(file, zip, "frequencies.txt", (f, k) => { if (!fahrten.has(f[k.trip_id])) return; const z = s => { const [h, m, x] = s.split(":").map(Number); return h * 3600 + m * 60 + (x || 0); };
+      (takt.get(f[k.trip_id]) || takt.set(f[k.trip_id], []).get(f[k.trip_id])).push([z(f[k.start_time]), z(f[k.end_time]), +f[k.headway_secs]]); });
+    const min = s => { if (!s) return null; const [h, m] = s.split(":"); return +h * 60 + +m; };
+    await lesen(file, zip, "stop_times.txt", (line, k) => {
+      const tid = line.charCodeAt(0) === 34 ? line.slice(1, line.indexOf('"', 1)) : line.slice(0, line.indexOf(","));
+      const F = fahrten.get(tid); if (!F) return; const f = csv(line), h = halt.get(f[k.stop_id]);
+      F.halte.push(+f[k.stop_sequence], min(f[k.arrival_time]) ?? -1, min(f[k.departure_time]) ?? -1, h === undefined ? -1 : h);
+    }, true);
+    const busHalt = h => { const H = HL[h], key = H[0]; let i = BI.get(key);
+      if (i === undefined) { i = BL.length; BI.set(key, i); BL.push([H[1], 0, 0, 0, false]); }
+      if (!H[4]) { H[4] = true; const b = BL[i]; b[1] += H[2]; b[2] += H[3]; b[3]++; }   // Lage = Mittel der Kanten
+      return i; };
+    for (const [tid, F] of fahrten) {
+      if (!F.halte.length) continue; stats.fahrten++;
+      const H = F.halte, ord = []; for (let q = 0; q < H.length; q += 4) if (H[q + 3] >= 0) ord.push(q); ord.sort((p, q) => H[p] - H[q]);
+      const seq = ord.map(q => { let A = H[q + 1], D = H[q + 2]; if (A < 0) A = D; if (D < 0) D = A; const h = H[q + 3]; return { h, i: busHalt(h), x: HL[h][2], y: HL[h][3], a: A, d: D }; }).filter(s => s.a >= 0);
+      F.halte = null;
+      for (let q = 1; q < seq.length; q++) {   // Halte in derselben Minute gleichmässig verteilen
+        const t0 = seq[q - 1].d; if (seq[q].a > t0) continue;
+        let j = q; while (j < seq.length && seq[j].a <= t0) j++;
+        const t1 = j < seq.length ? seq[j].a : t0 + 0.5 * (j - q + 1), n = j - q + 1;
+        for (let m = q; m < j; m++) { const v = Math.round((t0 + (t1 - t0) * (m - q + 1) / n) * 100) / 100; if (seq[m].a === seq[m].d) seq[m].a = seq[m].d = v; else seq[m].a = Math.min(v, seq[m].d); }
+      }
+      const runs = []; let cur = null, last = null;
+      for (const s of seq) {
+        if (last && last.i === s.i) { last.d = s.d; if (cur) cur[cur.length - 1][2] = s.d; continue; }
+        if (last) {
+          const km = Math.hypot(s.x - last.x, s.y - last.y) / 10, dt = s.a - last.d;
+          if (dt > 0 && km < 40 && km / (dt / 60) < 110) { if (!cur) cur = [[last.i, last.a, last.d, last.x, last.y]]; cur.push([s.i, s.a, s.d, s.x, s.y]); }
+          else { stats.verworfen++; if (cur && cur.length > 1) runs.push(cur); cur = null; }
+        }
+        last = { i: s.i, a: s.a, d: s.d, x: s.x, y: s.y };
+      }
+      if (cur && cur.length > 1) runs.push(cur);
+      const versaetze = [0], tk = takt.get(tid);
+      if (tk && seq.length) { versaetze.length = 0; const t0 = seq[0].d * 60; for (const [von, bis, hw] of tk) if (hw > 0) for (let t = von; t < bis; t += hw) versaetze.push(Math.round((t - t0) / 60)); }
+      for (const s of runs) {
+        const stuecke = [[]];   // Standzeit > 20 Min. → teilen
+        s.forEach((h, k) => { if (stuecke[stuecke.length - 1].length && k > 0 && k < s.length - 1 && h[2] - h[1] > 20) { stuecke[stuecke.length - 1].push([h[0], h[1], h[1], h[3], h[4]]); stuecke.push([[h[0], h[2], h[2], h[3], h[4]]]); } else stuecke[stuecke.length - 1].push(h); });
+        for (let pc of stuecke) {
+          if (pc.length < 2) continue;
+          const n = pc.length; pc = pc.map((h, k) => k === 0 ? [h[0], h[2], h[2], h[3], h[4]] : k === n - 1 ? [h[0], h[1], h[1], h[3], h[4]] : h);
+          const kacheln = [...new Set(pc.map(h => busKachel(h[3], h[4])))];
+          for (const v of versaetze) {
+            const body = pc.map(([i, a, d]) => a === d ? `${(BUSO + i).toString(16)},${a + v}` : `${(BUSO + i).toString(16)},${a + v},${d + v}`).join(";");
+            const key = F.L.kat + "," + F.L.linie + "|" + body + "|" + F.ziel; let Z = ZEILEN.get(key);
+            if (!Z) ZEILEN.set(key, Z = { kopf: F.L.kat + "," + F.L.linie, ag: F.L.ag, body, ziel: F.ziel, t0: pc[0][2] + v, t1: pc[n - 1][1] + v, k: kacheln, tage: new Set() });
+            for (const d of F.tage) if (tageSet.has(d)) Z.tage.add(d);
+            stats.laeufe++;
+          }
+        }
+      }
+    }
+    fahrten.clear(); halt.clear(); HL.length = 0;
+  }
+  // je Tag, Zeitfenster und Kachel: «Ziele|…\nZeile\nZeile» (Ziele je Kachel nummeriert)
+  const aus = {};
+  for (const d of tage) { aus[d] = []; for (let f = 0; f < 16; f++) aus[d].push(new Map()); }
+  for (const Z of ZEILEN.values()) for (const dd of Z.tage) { const d = isoAus(dd), A = aus[d]; if (!A) continue;
+    for (let f = Math.max(0, Math.floor(Z.t0 / 180)); f <= Math.min(15, Math.floor((Z.t1 + 90) / 180)); f++) for (const k of Z.k) { let T = A[f].get(k); if (!T) A[f].set(k, T = { ziele: new Map(), z: [] });
+      let zi = T.ziele.get(Z.ziel); if (zi === undefined) T.ziele.set(Z.ziel, zi = T.ziele.size); T.z.push(`${Z.kopf},${zi},,${Z.ag}|${Z.body}`); } }
+  const halte = BL.map(([n, sx, sy, c]) => c ? [n, Math.round(sx / c * 100 + 2480000), Math.round(1300000 - sy / c * 100)] : ["", 0, 0]);
+  stats.halte = BL.length; stats.zeilen = ZEILEN.size; ZEILEN.clear();
+  return { aus, halte, stats };
+}
+
 // ---------- Dateien / Laden ----------
 function verzeichnisse(DATA_DIR) { const d = { gtfs: path.join(DATA_DIR, "gtfs"), fp: path.join(DATA_DIR, "fahrplan") }; for (const x of Object.values(d)) fs.mkdirSync(x, { recursive: true }); return d; }
 const UA = { "User-Agent": "ZugKarte (privat; Fahrplan 2x pro Woche)" };
@@ -321,6 +426,22 @@ async function herunterladen(jahr, ziel) {
   await pipeline(Readable.fromWeb(r.body), ws);
   const z = zipEintraege(tmp); if (!z.has("stop_times.txt") || !z.has("trips.txt")) throw new Error("Download " + jahr + ": unvollständige GTFS-Datei");
   fs.renameSync(tmp, ziel);
+}
+
+// Busse umrechnen und schreiben: busse.json (Halte) und bus/JJJJ-MM-TT/FF.json.gz (Fahrten je Fenster und Kachel)
+async function busseErzeugen(zips, heute, bb, bbv, B, V, log) {
+  const tb = []; for (let i = -1; i <= 2; i++) tb.push(plusTage(heute, i));
+  const R = await busseUmrechnen(zips, tb, bb.offset + bb.halte.length, log);
+  const busv = require("crypto").createHash("sha1").update(bbv + JSON.stringify(R.halte)).digest("hex").slice(0, 10), BD = path.join(V.fp, "bus");
+  fs.writeFileSync(path.join(V.fp, "busse.json.tmp"), JSON.stringify({ v: busv, basis: B.v, bbv, offset: bb.offset + bb.halte.length, halte: R.halte })); fs.renameSync(path.join(V.fp, "busse.json.tmp"), path.join(V.fp, "busse.json"));
+  for (const [d, F] of Object.entries(R.aus)) {
+    const dir = path.join(BD, d), tmp = dir + ".tmp"; fs.rmSync(tmp, { recursive: true, force: true }); fs.mkdirSync(tmp, { recursive: true });
+    F.forEach((M, f) => { const k = {}; for (const [kk, T] of M) k[kk] = [...T.ziele.keys()].join("|") + "\n" + T.z.join("\n");
+      fs.writeFileSync(path.join(tmp, String(f).padStart(2, "0") + ".json.gz"), zlib.gzipSync(JSON.stringify({ v: busv, bbv, datum: d, f, k }))); });
+    fs.rmSync(dir, { recursive: true, force: true }); fs.renameSync(tmp, dir);
+  }
+  for (const d of fs.readdirSync(BD)) if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < plusTage(heute, -2)) fs.rmSync(path.join(BD, d), { recursive: true, force: true });
+  return R.stats;
 }
 
 // Läuft als eigener Prozess: node fahrplan.js --erzeugen <DATA_DIR>
@@ -341,10 +462,16 @@ async function erzeugenProzess(DATA_DIR) {
     fs.writeFileSync(path.join(V.fp, d + ".json.gz.tmp"), buf); fs.renameSync(path.join(V.fp, d + ".json.gz.tmp"), path.join(V.fp, d + ".json.gz"));
   }
   for (const f of fs.readdirSync(V.fp)) { const m = f.match(/^(\d{4}-\d{2}-\d{2})\.json\.gz$/); if (m && m[1] < plusTage(heute, -2)) fs.unlinkSync(path.join(V.fp, f)); }
+  const tageZahl = Object.fromEntries(Object.entries(erg).map(([d, x]) => [d, x.zuege]));
+  for (const d in erg) delete erg[d];   // Speicher frei für die Busse
+  // Busse: zweiter Durchgang (gestern … übermorgen), Fehler hier lassen den Bahnfahrplan stehen
+  let busStats = null;
+  try { busStats = await busseErzeugen(zips, heute, bb, bbv, B, V, log); }
+  catch (e) { log("Fahrplan: Busse fehlgeschlagen:", e.stack || e.message); busStats = { fehler: e.message }; }
   const s2 = lesStatus(DATA_DIR);
-  s2.erzeugt = { zeit: Date.now(), v: B.v, u: UMRECHNUNG, bis: tage[tage.length - 1], tage: Object.fromEntries(Object.entries(erg).map(([d, x]) => [d, x.zuege])), stats, dauer: Math.round((Date.now() - t0) / 1000) };
+  s2.erzeugt = { zeit: Date.now(), v: B.v, u: UMRECHNUNG, bis: tage[tage.length - 1], tage: tageZahl, stats, busse: busStats, dauer: Math.round((Date.now() - t0) / 1000) };
   schreibStatus(DATA_DIR, s2);
-  log("Fahrplan: erzeugt", Object.keys(erg).length, "Tage in", s2.erzeugt.dauer, "s |", JSON.stringify(stats));
+  log("Fahrplan: erzeugt", Object.keys(tageZahl).length, "Tage in", s2.erzeugt.dauer, "s |", JSON.stringify(stats), "| Busse", JSON.stringify(busStats));
 }
 function lesStatus(DATA_DIR) { try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "fahrplan", "status.json"), "utf8")); } catch { return { feeds: {} }; } }
 function schreibStatus(DATA_DIR, s) { const f = path.join(DATA_DIR, "fahrplan", "status.json"); fs.writeFileSync(f + ".tmp", JSON.stringify(s)); fs.renameSync(f + ".tmp", f); }
@@ -379,7 +506,7 @@ function start({ DATA_DIR, log }) {
       for (const j of Object.keys(st.feeds)) if (!jahre.includes(+j) && +j < Math.min(...jahre)) { try { fs.unlinkSync(path.join(V.gtfs, `fp${j}.zip`)); } catch {} delete st.feeds[j]; schreibStatus(DATA_DIR, st); }
       letztePruefung = Date.now();
       const e = st.erzeugt;
-      const noetig = neu || !e || e.v !== B.v || e.u !== UMRECHNUNG || !e.bis || e.bis < plusTage(heute, 5) || !fs.existsSync(path.join(V.fp, heute + ".json.gz"));
+      const noetig = neu || !e || e.v !== B.v || e.u !== UMRECHNUNG || !e.bis || e.bis < plusTage(heute, 5) || !fs.existsSync(path.join(V.fp, heute + ".json.gz")) || !fs.existsSync(path.join(V.fp, "bus", plusTage(heute, 1)));
       if (!noetig) { log("Fahrplan: aktuell (" + grund + ")"); return; }
       log("Fahrplan: erzeuge (" + grund + (neu ? ", neue Ausgabe" : "") + ") …");
       await new Promise((res, rej) => {
@@ -408,7 +535,7 @@ function start({ DATA_DIR, log }) {
   };
 }
 
-module.exports = { start, umrechnen, zipEintraege, fpJahr, plusTage, BB_KAT };
+module.exports = { start, umrechnen, busseUmrechnen, busseErzeugen, verzeichnisse, zipEintraege, fpJahr, plusTage, BB_KAT, BUS_KAT };
 if (require.main === module && process.argv[2] === "--erzeugen") {
   erzeugenProzess(process.argv[3] || process.env.ZK_DATA || "/data").catch(e => { console.error(new Date().toISOString(), "Fahrplan: Umrechnung fehlgeschlagen:", e.stack || e.message); process.exit(1); });
 }

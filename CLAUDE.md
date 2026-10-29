@@ -85,6 +85,17 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Gleis: `fahrplan.js` (UMRECHNUNG 7) hängt an jeden Bahnhalt «@Gleis» (GTFS `platform_code`), z. B. `19,420,422@7`; schreibt `DATA_DIR/fahrplan/gleise.json` ({basis, gleise: {Bahnhofsindex: {Gleis: [E,N]}}}, Mittel der Kanten) → `/api/gleise`. Ganzer Tag für alte Seiten ohne «@…»; server.js/formation.js lesen Zeiten ohne «@…». Echtzeit: SIRI-ET `DeparturePlatformName`/`ArrivalPlatformName` als 7. Feld je Halt → `rt.G` (Gleisänderungen).
 - Seite: `kern/gleislage.js` (`gleisPunkt(i, gl)`), `zuege3d.js`: im Bahnhof und 600 m davor/danach Zugmitte auf Höhe der Kante (weich eingeblendet), Einrasten auf das Gleis neben der Kante (Abfragepunkt seitlich verschoben, ohne Links-Vorzug). Sektoren noch nicht (keine Sektorlage in den Daten).
 
+## Busse (29.10.2026)
+- `app/fahrplan.js` (UMRECHNUNG 8): eigener zweiter Durchgang `busseUmrechnen` nach der Bahn (Speicher frei), nur gestern … übermorgen. Busse = route_type 3/700–799 ohne Rufbus (715, RUB/TX/ALT); Kategorien B, BN (Nachtbus), EXB, KLB (route_desc «KB» = Kleinbus – nicht mehr als Kabinenbahn gewertet), EV (Bahnersatz). Halte je Didok (Mittel der Kanten), Index ab `offset` = Bergbahn-offset + Anzahl Bergbahnhalte. Prüfung je Abschnitt: Luftlinie < 40 km, < 110 km/h.
+- Ausgabe `DATA_DIR/fahrplan/busse.json` ({v, basis, bbv, offset, halte}) und `fahrplan/bus/JJJJ-MM-TT/FF.json.gz` je 3-h-Fenster: {v, bbv, f, k: {Kachel: "Ziele|…\nZeilen"}}; Kachel = 10 km in Kartenkoordinaten (`x_y` = floor(x/100)_floor(y/100)), Zeile in allen Kacheln ihrer Halte. Test-/Teilaufruf: `busseErzeugen(zips, heute, bb, bbv, B, V, log)`.
+- server.js: `/api/busse` (Halte), `/api/busse/fahrten?d=&f=&k=x_y,…` (bis 60 Kacheln, Fensterdatei zwischengespeichert, 6 Stück).
+- Seite: `kern/busse.js` lädt ab Zoom 12 (`ZBUS`) die Kacheln im Bild (Mitte zuerst, höchstens 30) für dieselben Zeitfenster wie der Zugfahrplan, Halte bei Bedarf (hinten an SN, Namenskonflikt → «(Bus)»), Zeilen über `hinzu(R, tt, true)` (Schlüssel mit ausgeschriebenem Ziel). Klasse `bus` («Bus», Farbe `--tbus`), Ebene «busse».
+- `web/src/karte/strassen.js`: Strassen der Grundkarte (transportation motorway … minor, service, busway) ab Zoom 13 als Graph (Knoten auf 1 m, offene Enden an Kachelrändern ≤ 2 m verbunden, Einbahn nur Autobahn/Autostrasse/Rampe), Weg je Haltepaar mit A* (Anfang/Ende auf die nächste Strasse ≤ 60 m, Umweg höchstens 1,8 × Luftlinie + 40 m), geglättet und 1,8 m nach rechts versetzt. Höchstens 4 ms Rechenzeit pro Bild (`STR.rest`); bis dahin gerades Ersatzstück (`offen`), das `busLegs` in wege.js später ersetzt (dann wird auch der 3D-Laufweg neu gebaut).
+- 3D (`modelle.js` `bauBus`, `busTyp`, `BUS_AG`): Solo 12 m, Gelenkbus (zwei Teile mit Faltenbalg), Kleinbus 8 m; Farben je Unternehmen (801 PostAuto, VBZ, BVB, Bernmobil, TPG, tl, VBG), VBZ-Trolleybuslinien mit Stangen. Gelenkbus oder Solo nach festem Zufall je Fahrt. In `zuege3d.js` wie Tram (Spitze an der Haltestelle), ohne Einrasten, Höhe auf dem Gelände.
+- Bushaltestellen als Ebene `bushalte` (ab Zoom 14.5, Namen ab 16); Klick → Haltestellen-Karte mit Abfahrten (`halt()` in seite.js, `S.selHalt`).
+- Noch nicht: Echtzeit für Busse (Abgleich läuft über UIC der Bahnhöfe), Busse an Bahnhofstafeln.
+- Test ohne GTFS: `/tmp`-Skript ergänzt die Bergbahn-Test-ZIP um Buslinien; Testwelt mit Strassenraster östlich vom HB.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

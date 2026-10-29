@@ -30,13 +30,25 @@ function farbModus(m) { S.colMode = m; try { localStorage.setItem("zkFarbe", m);
 
 // ---- Auswahl und Details ----
 function intro() { $("detail").innerHTML = `<p class="eyebrow">Bedienung</p><p class="hint">Mit Mausrad oder zwei Fingern zoomen, ziehen zum Verschieben. Neigen und Drehen mit der rechten Maustaste oder zwei Fingern (auf und ab bzw. drehen). Ein Fahrzeug, einen Bahnhof oder eine Strecke anklicken, um Details zu sehen. Trams erscheinen beim Hineinzoomen in die Städte.</p>`; }
-export function auswahlWeg() { S.sel = null; S.selSt = null; S.selLn = null; markSt(null); kartenAuswahl(); intro(); }
+export function auswahlWeg() { S.sel = null; S.selSt = null; S.selHalt = null; S.selLn = null; markSt(null); kartenAuswahl(); intro(); }
 function bindDetail() {
   $("detail").querySelectorAll("[data-s]").forEach(b => b.onclick = () => bahnhof(b.dataset.s, true));
   $("detail").querySelectorAll("[data-l]").forEach(b => b.onclick = () => strecke(+b.dataset.l));
   const bk = $("back"); bk && (bk.onclick = auswahlWeg);
 }
+// Haltestelle ohne eigenen Bahnhof (Bus, Tram, Schiff, Bergbahn): nur Abfahrten
+function halt(n, zoom) {
+  S.sel = null; S.selLn = null; S.selSt = null; S.selHalt = n; markSt(null);
+  const s = B.STX[n], art = { bus: "Bushaltestelle", b: "Bergbahn" }[s.a] || "Haltestelle";
+  $("detail").innerHTML = `<div class="card"><p class="eyebrow">${art}</p><h2>${n.replace(/ \(Bus\)'*$/, "")}</h2>
+    <p class="eyebrow">Abfahrten</p><ul class="deps" id="deps"></ul>
+    <button class="link" id="back">Auswahl aufheben</button></div>`;
+  bindDetail(); kartenAuswahl(); abfahrten(n);
+  if (zoom) hinZu(X(s), Y(s), 15);
+}
 export function bahnhof(n, zoom) {
+  if (!B.ST[n]) { if (B.STX[n]) halt(n, zoom); return; }
+  S.selHalt = null;
   S.sel = null; S.selLn = null; S.selSt = n; markSt(n);
   const s = B.ST[n], o = B.byStation[n];
   const lines = [...o.lines].sort((a, b) => "fvrvsm".indexOf(B.LINES[a].type) - "fvrvsm".indexOf(B.LINES[b].type));
@@ -51,7 +63,7 @@ export function bahnhof(n, zoom) {
   if (zoom) hinZu(X(s), Y(s), 12.5);
 }
 export function strecke(i) {
-  S.sel = null; S.selSt = null; S.selLn = i; markSt(null);
+  S.sel = null; S.selSt = null; S.selHalt = null; S.selLn = i; markSt(null);
   const L = B.LINES[i], c = `var(--${L.type})`, km = L.km.reduce((a, b) => a + b, 0);
   $("detail").innerHTML = `<div class="card"><p class="eyebrow">${TYPES[L.type].short}</p><h2>${L.name}</h2>
     <p class="sub">${L.stops[0]} – ${L.stops[L.stops.length - 1]} · ${L.stops.length} Bahnhöfe · ca. ${Math.round(km)} km Strecke</p>
@@ -64,7 +76,7 @@ export function strecke(i) {
 // Zug-Details: Zeiten relativ zur aktuellen Betriebszeit
 export function zug(tr, o, center) {
   if (!S.sel || S.sel.tr !== tr) foWunsch(tr, o);
-  S.sel = { tr, o }; S.selSt = null; S.selLn = null; markSt(null);
+  S.sel = { tr, o }; S.selSt = null; S.selHalt = null; S.selLn = null; markSt(null);
   const rt = rtFor(tr, o), t = zh(S.simMs).t + o, p = rt && rt.canc ? null : trainPos(tr, t, rt), at = tm => clock(S.simMs + (tm - t) * 60000);
   const items = tr.st.map((St, j) => {
     const tm = j === 0 ? St.d : St.a, dl = rt ? (j === 0 ? rt.dd[j] : rt.da[j]) : 0, etm = tm + dl / 60, cls = p && (p.next === j || p.stop === j) ? "next" : etm < t ? "done" : "", cx = rt && (rt.canc || rt.sc[j]);
@@ -144,6 +156,6 @@ export function seiteTakt() {
   document.querySelectorAll("#tlegend .n").forEach((n, j) => n.textContent = S.colMode === "vsp" ? S.zaehlerD[["d0", "d1", "d2", "dn"][j]] : z[KLASSEN[j]]);
   const zz = zh(S.simMs); fpBrauche(S.simMs);
   $("daytype").textContent = istDatiert(zz.date) ? `Fahrplan vom ${+zz.date.slice(8)}.${+zz.date.slice(5, 7)}.${zz.date.slice(0, 4)}` : tagRuns(zz) ? `Ersatzfahrplan ${DAYNAME[dayType(zz.wd)]}` : "Fahrplan wird geladen …";
-  if (S.sel) zug(S.sel.tr, S.sel.o, false); else if (S.selSt && $("deps")) abfahrten(S.selSt);
+  if (S.sel) zug(S.sel.tr, S.sel.o, false); else if ((S.selSt || S.selHalt) && $("deps")) abfahrten(S.selSt || S.selHalt);
 }
 export const uhr = () => { $("clk").textContent = clockSec(S.simMs); };

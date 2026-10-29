@@ -24,7 +24,7 @@ function pfad(tr) {
   if (tr._pf !== undefined) return tr._pf; const LG = legs(tr); if (!LG.length || LG.some(x => !x)) return tr._pf = null;
   const teile = [], legSec = [], legS0 = [], legS1 = []; let T = null;
   // Trams biegen in der Stadt eng ab: kürzeres Stück für die Richtung und nur fast volle Umkehr gilt als Wende
-  const tram = tr.cls === "tr", schiff = tr.cls === "sch", wl = tram ? .3 : 2, wende = schiff ? -2 : tram ? -.85 : -.35;   // Schiffe: nie neuer Abschnitt
+  const tram = tr.cls === "tr" || tr.cls === "bus", schiff = tr.cls === "sch", wl = tram ? .3 : 2, wende = schiff ? -2 : tram ? -.85 : -.35;   // Schiffe: nie neuer Abschnitt; Busse wie Trams
   const richtung = (pts, vonEnde) => {
     const n = pts.length; let A = vonEnde ? pts[n - 1] : pts[0], Bq = A, acc = 0;
     for (let q = 1; q < n && acc < wl; q++) { const P = vonEnde ? pts[n - 1 - q] : pts[q]; acc += Math.hypot(P[0] - Bq[0], P[1] - Bq[1]); Bq = P; }
@@ -142,7 +142,7 @@ export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter());
 export function z3Ende() { }
 // Wagen eines Zuges: Lage, Richtung und Neigung jedes Wagens
 export function z3Zug(tr, o, p, isSel, rt) {
-  const tram = tr.cls === "tr", schiff = tr.cls === "sch", bb = tr.cls === "bb", zug = !tram && !schiff && !bb;
+  const bus = tr.cls === "bus", tram = tr.cls === "tr" || bus, schiff = tr.cls === "sch", bb = tr.cls === "bb", zug = !tram && !schiff && !bb;   // Bus: wie Tram (Spitze an der Haltestelle), ohne Gleis
   const PF = pfad(tr); if (!PF || p.j === undefined) return false; const Z = wagenJetzt(wagenVon(tr, o), p);
   // fahrend: auf dem Abschnitt j→j+1; stehend: Zugmitte am Bahnsteig (Tram: Spitze an der Haltestelle) (Abschnitt der Weiterfahrt, am Ziel der Ankunft)
   const nL = PF.legSec.length, j = p.moving ? p.j : Math.min(p.j, nL - 1), amEnde = !p.moving && p.j >= nL;
@@ -178,10 +178,10 @@ export function z3Zug(tr, o, p, isSel, rt) {
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = tram ? Math.max(t.L * .42, .05) : t.L * .42,   // Tram: kurze Glieder, Richtung über ±5 m (ruhiger)
       pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
-    const steil = schiff ? "wasser" : bb ? "fun" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
+    const steil = schiff ? "wasser" : bb ? "fun" : bus || t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
-    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !schiff && !bb && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
+    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && !bus && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !schiff && !bb && !bus && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
     if (gv && gh && ((gv.x - gh.x) * rx + (gv.y - gh.y) * ry) > .9 * Math.hypot(gv.x - gh.x, gv.y - gh.y) * Math.hypot(rx, ry)) { mv = gv;   // nur wenn die Richtung passt (Kreuzungen, Weichen)
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;

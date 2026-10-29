@@ -3,6 +3,7 @@ import { B } from "../kern/basis.js";
 import { SPERR } from "../kern/wege.js";
 import { tunnelVon } from "../kern/bauwerke.js";
 import { BB } from "../kern/bergbahnen.js";
+import { BUS } from "../kern/busse.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
@@ -49,6 +50,8 @@ export function karteStarten() {
     map.addSource("tram", { type: "geojson", data: B.MIT_OEV ? oevFC("t") : fc([]) });
     const bbFC = () => fc(BB.kanten.map(([a, z, p, kat]) => ({ type: "Feature", properties: { n: a + " - " + z, fun: kat === "FUN" ? 1 : 0 }, geometry: { type: "LineString", coordinates: p.map(q => wgs(q[0], q[1])) } })));
     map.addSource("bergbahn", { type: "geojson", data: bbFC() }); an("bergbahnen", () => map.getSource("bergbahn").setData(bbFC()));
+    const busFC = () => fc(BUS.halte.map(([n, E, N]) => ({ type: "Feature", properties: { n, l: n.replace(/ \(Bus\)'*$/, "").replace(/[^\x00-\xff]/g, "-") }, geometry: { type: "Point", coordinates: wgs((E - 2480000) / 100, (1300000 - N) / 100) } })));
+    map.addSource("bushalte", { type: "geojson", data: busFC() }); an("busse", () => map.getSource("bushalte").setData(busFC()));
     map.addSource("bahn", { type: "geojson", data: bahnFC });
     an("bauwerke", () => { map.getSource("bahn").setData(bahnDaten()); kartenAuswahl(); });
     map.addSource("sperren", { type: "geojson", data: fc([]) });
@@ -76,6 +79,9 @@ export function karteStarten() {
     map.addLayer({ id: "sperren", type: "line", source: "sperren", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#e5484d", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 3, 14, 6], "line-dasharray": [2, 1.5] } });
     map.addLayer({ id: "sperren-z", type: "circle", source: "sperren", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": "#e5484d", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-pitch-alignment": "viewport" } });
     map.addLayer({ id: "sperren-zt", type: "symbol", source: "sperren", filter: ["==", ["geometry-type"], "Point"], layout: { "text-field": "-", "text-font": [SCHRIFT], "text-size": 18, "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#ffffff" } });
+    // Bushaltestellen (erst nah: Punkte ab Zoom 14.5, Namen ab 16)
+    map.addLayer({ id: "bushalte", type: "circle", source: "bushalte", minzoom: 14.5, paint: { "circle-color": "#ffffff", "circle-stroke-color": "#5b7f1a", "circle-stroke-width": 1.6, "circle-radius": ["interpolate", ["linear"], ["zoom"], 14.5, 2.5, 18, 5], "circle-pitch-alignment": "viewport" } });
+    map.addLayer({ id: "bushalte-l", type: "symbol", source: "bushalte", minzoom: 16, layout: { "text-field": ["get", "l"], "text-font": [SCHRIFT_M], "text-size": 11, "text-anchor": "left", "text-offset": [0.7, 0], "text-optional": true }, paint: { "text-color": "#3f5a12", "text-halo-color": "#ffffff", "text-halo-width": 1.4 } });
     // Achtung: Schriften der Grundkarte nur für Zeichen bis U+00FF – andere Zeichen lassen ganze Ebenen ausfallen
     for (const t of [2, 1, 0]) map.addLayer({
       id: "st" + t, type: "circle", source: "st", filter: ["==", ["get", "t"], t], minzoom: [10, 8, 0][t], paint: {
@@ -89,8 +95,8 @@ export function karteStarten() {
       }, paint: { "text-color": "#16222b", "text-halo-color": "#ffffff", "text-halo-width": 1.6 }
     });
     // Hinweise beim Überfahren; Fahrzeuge zuerst (eigene Ebene, siehe fahrzeuge.js)
-    const ebenen = ["st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z"];
-    const text = f => f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
+    const ebenen = ["bushalte", "st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z"];
+    const text = f => f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id === "bushalte" ? "Bushaltestelle: " + f.properties.l : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
     let tipT = 0;
     map.on("mousemove", e => {
       const jetzt = performance.now(); if (jetzt - tipT < 50) return; tipT = jetzt;
@@ -102,7 +108,7 @@ export function karteStarten() {
     map.on("click", e => {
       const p = e.point, box = [[p.x - 8, p.y - 8], [p.x + 8, p.y + 8]];
       if (K.fzTreffer && K.fzTreffer(p)) return;
-      const s = map.queryRenderedFeatures(box, { layers: ["st0", "st1", "st2"] })[0]; if (s) { melde("bahnhof", s.properties.n); return; }
+      const s = map.queryRenderedFeatures(box, { layers: ["st0", "st1", "st2", "bushalte"] })[0]; if (s) { melde("bahnhof", s.properties.n); return; }
       const l = map.queryRenderedFeatures(box, { layers: ["bahn", "bahn-tunnel"] })[0]; if (l) { melde("strecke", l.properties.i); return; }
       melde("leer");
     });
@@ -111,6 +117,7 @@ export function karteStarten() {
       const a = document.querySelector(".maplibregl-ctrl-attrib"); if (a) a.classList.remove("maplibregl-compact-show");
       setTimeout(() => { map.resize(); map.fitBounds(CH_BOX, { padding: 20, duration: 0 }); }, 300);   // Seitenleiste ist inzwischen zugeklappt
     }
+    ebene({ id: "busse", name: "Busse (beim Hineinzoomen)", an: true, setze: an => { BUS.an = an; for (const l of ["bushalte", "bushalte-l"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an ? "visible" : "none"); } });
     ebene({ id: "strecken", name: "Streckenlinien", an: true, setze: an => { for (const l of ["bahn", "bahn-tunnel"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an ? "visible" : "none"); } });
     K.bereit = true; setze3d(K.mit3d); kartenAuswahl(); sperrenKarte(); melde("karte");
   });

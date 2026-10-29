@@ -13,6 +13,8 @@ import { welt3dStarten, W3 } from "./karte/welt3d.js";
 import { gleiseStarten, GL } from "./karte/gleise.js";
 import { wetterStarten, WE } from "./karte/wetter.js";
 import { verkehrStarten, VK } from "./karte/verkehr.js";
+import { strassenStarten, STR } from "./karte/strassen.js";
+import { busBrauche, BUS } from "./kern/busse.js";
 import { seiteStarten, seiteTakt, uhr } from "./ui/seite.js";
 import { an } from "./util.js";
 
@@ -22,16 +24,16 @@ function bild(now) {
   SPERR.heute = SPERR.teile.size > 0 && SPERR.datum === zh(S.simMs).date;
   const s = Math.floor(S.simMs / 1000); if (s !== sek) { sek = s; uhr(); }
   if (K.bereit && K.fz) fahrzeugeBerechnen(now);
-  if (now - takt > 500) { takt = now; seiteTakt(); }
+  if (now - takt > 500) { takt = now; seiteTakt(); if (K.bereit) busBrauche(S.simMs, K.map); }
   requestAnimationFrame(bild);
 }
 (async () => {
   await ladeBasis();
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
-  an("karte", () => { welt3dStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
+  an("karte", () => { welt3dStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen
-  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK };
+  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR };
 })();

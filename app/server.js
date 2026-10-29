@@ -260,6 +260,19 @@ function bergbahnen() {
   if (!bbCache || bbCache.m !== m) { const raw = fs.readFileSync(f); bbCache = { m, gz: zlib.gzipSync(raw), raw, etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' }; }
   return bbCache;
 }
+// Busse: Halte (/api/busse) und Fahrten je Tag, Zeitfenster und 10-km-Kachel (/api/busse/fahrten?d=…&f=…&k=x_y,…)
+let busCache = null; const busFen = new Map();
+function busHalte() {
+  const f = path.join(DATA_DIR, "fahrplan", "busse.json"); let m; try { m = fs.statSync(f).mtimeMs; } catch { return null; }
+  if (!busCache || busCache.m !== m) { const raw = fs.readFileSync(f); busCache = { m, gz: zlib.gzipSync(raw), raw, etag: '"' + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 16) + '"' }; }
+  return busCache;
+}
+function busFenster(d, f) {
+  const datei = path.join(DATA_DIR, "fahrplan", "bus", d, String(f).padStart(2, "0") + ".json.gz"); let m; try { m = fs.statSync(datei).mtimeMs; } catch { return null; }
+  const key = d + "|" + f; let c = busFen.get(key);
+  if (!c || c.m !== m) { c = { m, j: JSON.parse(zlib.gunzipSync(fs.readFileSync(datei))) }; busFen.delete(key); busFen.set(key, c); if (busFen.size > 6) busFen.delete(busFen.keys().next().value); }
+  return c.j;
+}
 function fahrplanFenster(d, buf, f) {
   if (!(f >= 0 && f < 16)) return buf;
   let T = fpTage.get(d);
@@ -339,6 +352,20 @@ const server = http.createServer(async (req, res) => {
     const h = { ...SEC, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache", ETag: c.etag, Vary: "Accept-Encoding" };
     if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : c.gz); }
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : c.raw);
+  }
+  if (url.pathname === "/api/busse") {
+    const c = busHalte(); if (!c) return json(req, res, 404, { fehler: "Noch keine Busdaten (Fahrplan wird aufbereitet)." });
+    if (req.headers["if-none-match"] === c.etag) { res.writeHead(304, { ...SEC, ETag: c.etag }); return res.end(); }
+    const h = { ...SEC, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache", ETag: c.etag, Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : c.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : c.raw);
+  }
+  if (url.pathname === "/api/busse/fahrten") {
+    const d = url.searchParams.get("d") || "", f = +url.searchParams.get("f"), ks = (url.searchParams.get("k") || "").split(",").filter(k => /^-?\d{1,3}_-?\d{1,3}$/.test(k)).slice(0, 60);
+    if (!/^\d{4}-\d\d-\d\d$/.test(d) || !(f >= 0 && f < 16 && Number.isInteger(f)) || !ks.length) return json(req, res, 400, { fehler: "d, f und k nötig" });
+    const j = busFenster(d, f); if (!j) return json(req, res, 404, { fehler: "Für dieses Datum gibt es keine Busfahrten." });
+    const k = {}; for (const x of ks) k[x] = j.k[x] || "";
+    const o = { v: j.v, bbv: j.bbv, datum: d, f, k }; return json(req, res, 200, gzOk(req) ? null : o, gzOk(req) ? zlib.gzipSync(JSON.stringify(o)) : null);
   }
   if (url.pathname === "/api/formation") {
     const d = url.searchParams.get("d") || "", w = url.searchParams.get("w");

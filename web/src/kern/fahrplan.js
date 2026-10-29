@@ -6,21 +6,25 @@ import { zh, dayType } from "./zeit.js";
 import { melde } from "../util.js";
 import { bbBrauche, BBNAME } from "./bergbahnen.js";
 
-export const TCLS = c => c === "S" ? "s" : c === "Tram" || c === "M" ? "tr" : c === "BAT" || c === "FAE" ? "sch" : BBNAME[c] ? "bb" : /^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c) ? "fv" : "rv";
+export const BUSKAT = new Set(["B", "BN", "EXB", "KLB", "EV"]);
+export const TCLS = c => c === "S" ? "s" : BUSKAT.has(c) ? "bus" : c === "Tram" || c === "M" ? "tr" : c === "BAT" || c === "FAE" ? "sch" : BBNAME[c] ? "bb" : /^(IC|IR|EC|ECE|ICE|TGV|RJX|RJ|EN|NJ)$/.test(c) ? "fv" : "rv";
 let RID = 0;
+const busLabel = (c, n) => c === "EV" ? "Bahnersatz" + (n ? " " + n : "") : c === "BN" ? (/^N/i.test(n) ? n : "Nachtbus " + n) : c === "EXB" ? "Expressbus " + n : "Bus " + n;
 function zeile(l, D) {
   const bar = l.indexOf("|"), [cat, num, di, zn, ag] = l.slice(0, bar).split(",");
   const st = l.slice(bar + 1).split(";").map(x => { const g = x.indexOf("@"), gl = g < 0 ? "" : x.slice(g + 1), a = (g < 0 ? x : x.slice(0, g)).split(","); const t1 = +a[1], t2 = a.length > 2 ? +a[2] : t1; return { i: parseInt(a[0], 16), a: t1, d: t2, gl }; });   // «@Gleis» am Halt
-  return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : BBNAME[cat] ? BBNAME[cat] : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
+  return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : BUSKAT.has(cat) ? busLabel(cat, num) : BBNAME[cat] ? BBNAME[cat] : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
 }
-// Zeilen zu einem Tag hinzufügen (Fahrten, die in mehreren Zeitfenstern vorkommen, nur einmal)
-function hinzu(R, txt) {
+// Zeilen zu einem Tag hinzufügen (Fahrten, die in mehreren Zeitfenstern vorkommen, nur einmal). Busse kommen je Kachel
+// mit eigener Zielliste: dann zählt die Zeile mit dem Ziel ausgeschrieben.
+export function hinzu(R, txt, bus) {
   const L = txt.split("\n"), D = L.shift().split("|");
   const n = B.SN.length;
-  for (const l of L) { if (!l || R.keys.has(l)) continue; const r = zeile(l, D); if (r.st.some(s => !(s.i < n))) continue; R.keys.add(l); R.push(r); indexiere(R, r); }   // unbekannte Halte (Bergbahn-Netz fehlt): weglassen
+  for (const l of L) { if (!l) continue; let key = l; if (bus) { const a = l.indexOf(","), b = l.indexOf(",", a + 1); key = l.slice(0, b) + "|" + D[+l.slice(b + 1, l.indexOf(",", b + 1))] + l.slice(l.indexOf("|")); }
+    if (R.keys.has(key)) continue; const r = zeile(l, D); if (r.st.some(s => !(s.i < n))) continue; R.keys.add(key); R.push(r); indexiere(R, r); }   // unbekannte Halte (Bergbahn-Netz fehlt): weglassen
   return R;
 }
-const neuerTag = () => { const R = []; R.idx = []; R.keys = new Set(); return R; };
+export const neuerTag = () => { const R = []; R.idx = []; R.keys = new Set(); return R; };
 function parseDay(txt) { return hinzu(neuerTag(), txt); }
 // Zeitindex: Fenster zu 10 Minuten; eine Fahrt steht in allen Fenstern von 5 Min. vor Abfahrt bis 90 Min. nach Ankunft (Verspätungen)
 const FENSTER = 10, VOR = 5, NACH = 90;

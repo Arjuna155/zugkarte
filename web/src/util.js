@@ -31,6 +31,11 @@ export function dekodiere(v, f) {
   let x = 0, y = 0;
   return v.split(";").map((q, i) => { const [a, b] = q.split(",").map(Number); if (i) { x += a; y += b } else { x = a; y = b } return f(x, y); });
 }
+// WGS84 → LV95 (Näherungsformel swisstopo)
+export function lv95(lng, lat) {
+  const p = (lat * 3600 - 169028.66) / 10000, l = (lng * 3600 - 26782.5) / 10000;
+  return [2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l ** 3, 1200147.07 + 308807.95 * p + 3745.25 * l * l + 76.63 * p * p - 194.56 * l * l * p + 119.79 * p ** 3];
+}
 export function laenge(pt) { let m = 0; for (let k = 1; k < pt.length; k++)m += Math.hypot(pt[k][0] - pt[k - 1][0], pt[k][1] - pt[k - 1][1]); return m; }
 // einfache Ereignisse zwischen den Modulen
 const hoerer = {};

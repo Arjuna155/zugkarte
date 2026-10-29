@@ -9,13 +9,15 @@ import { S, DCLS } from "../zustand.js";
 import { K } from "./karte.js";
 import { Z3, Z3D, z3Laden, z3Beginn, z3Zug, z3Ende } from "./zuege3d.js";
 import { wgs, fc, melde } from "../util.js";
+import { strassenBild } from "./strassen.js";
+import { ZBUS, BUS } from "../kern/busse.js";
 
 const SCHRIFT = "Frutiger Neue Condensed Bold";
 // Farben aus dem Stylesheet (hell/dunkel)
 let F = {};
 function farben() {
   const cs = getComputedStyle(document.documentElement), g = n => hex(cs.getPropertyValue(n).trim());
-  F = { d0: g("--ok"), d1: g("--late"), d2: hex("#e5484d"), dn: hex("#9aa5ab"), late: g("--late"), fv: g("--tfv"), rv: g("--trv"), s: g("--ts"), tr: g("--ttr"), sch: g("--tsch"), bb: g("--tbb"), sel: hex("#e3a008"), weiss: [1, 1, 1] };
+  F = { d0: g("--ok"), d1: g("--late"), d2: hex("#e5484d"), dn: hex("#9aa5ab"), late: g("--late"), fv: g("--tfv"), rv: g("--trv"), s: g("--ts"), tr: g("--ttr"), sch: g("--tsch"), bb: g("--tbb"), bus: g("--tbus"), sel: hex("#e3a008"), weiss: [1, 1, 1] };
 }
 function hex(h) { if (!h || h[0] !== "#") return [.5, .5, .5]; if (h.length === 4) h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3]; const n = parseInt(h.slice(1, 7), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; }
 
@@ -33,13 +35,13 @@ export function fahrzeugeBerechnen(now) {
   // herausgezoomt etwa 1-mal pro Sekunde, ganz nah bei jedem Bild. Spart Rechenzeit und neues Zeichnen der Karte.
   const mpp = 156543 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** zoom, takt = Math.min(1000, 500 * mpp / (55 * Math.max(S.speed, 1e-3) || 1));
   if (now - letzteBerechnung < takt && Math.abs(S.simMs - zuletztSim) < 60000) return false;
-  letzteBerechnung = now; zuletztSim = S.simMs;
+  letzteBerechnung = now; zuletztSim = S.simMs; strassenBild();
   // Voller Durchgang (alle Fahrten, Zähler für die Legende) höchstens 2-mal pro Sekunde; dazwischen nur die Fahrten,
   // die beim letzten vollen Durchgang in oder nahe beim Bildausschnitt waren (Rand ≈ 5 km).
   const voll = now - letzteVoll > 500 || erzwingeVoll; if (voll) { letzteVoll = now; erzwingeVoll = false; kandidaten = []; }
   const b = map.getBounds(), W0 = b.getWest() - .02, E0 = b.getEast() + .02, S0 = b.getSouth() - .02, N0 = b.getNorth() + .02;
   const RW = b.getWest() - .07, RE = b.getEast() + .07, RS = b.getSouth() - .05, RN = b.getNorth() + .05;
-  const z = { fv: 0, rv: 0, s: 0, tr: 0, sch: 0, bb: 0 }, zd = { d0: 0, d1: 0, d2: 0, dn: 0 };
+  const z = { fv: 0, rv: 0, s: 0, tr: 0, sch: 0, bb: 0, bus: 0 }, zd = { d0: 0, d1: 0, d2: 0, dn: 0 };
   let spaet = 0, ausfall = 0, n = 0;
   const gesehen = new Set(), mit3d = zoom >= Z3D; if (mit3d) z3Laden();
   const z3 = mit3d && Z3.bereit; if (z3) z3Beginn();
@@ -50,6 +52,7 @@ export function fahrzeugeBerechnen(now) {
     const t = sv.t, rt = rtFor(tr, sv.o);
     if (rt && rt.canc) { if (voll && t >= rt.t0 - 5 && t <= rt.t1) ausfall++; return; }
     const T0 = rt ? rt.t0 : tr.t0, T1 = rt ? rt.t1 : tr.t1; if (t < T0 || t > T1) return;
+    if (tr.cls === "bus" && (zoom < ZBUS || !S.onTr.bus || !BUS.an)) return;   // Busse nur beim Hineinzoomen (Weg auf der Strasse)
     const v = POOL[n] || (POOL[n] = { p: {} });
     const p = trainPos(tr, t, rt, v.p); if (!p) return;
     const sk = tr.label + "|" + tr.st[0].i + "|" + (tr.t0 - sv.o); if (sv.o) gesehen.add(sk); else if (gesehen.has(sk)) return;   // gleicher Zug in beiden Betriebstagen
@@ -76,19 +79,19 @@ export function fahrzeugeBerechnen(now) {
   const g7 = zoom <= 7 ? 2.6 : zoom <= 11 ? 2.6 + (zoom - 7) / 4 * 1.8 : zoom <= 15 ? 4.4 + (zoom - 11) / 4 * 2.6 : 7;
   let k = 0;
   // Reihenfolge: Trams und Schiffe unten, Fernverkehr oben, Auswahl zuoberst
-  const reihe = { tr: 0, bb: 0, sch: 1, s: 2, rv: 3, fv: 4 };
+  const reihe = { bus: 0, tr: 0, bb: 0, sch: 1, s: 2, rv: 3, fv: 4 };
   FZ.liste.sort((a, b) => (a.sel - b.sel) || (reihe[a.tr.cls] - reihe[b.tr.cls]));
   for (const v of FZ.liste) {
     const tr = v.tr, late = S.colMode !== "vsp" && v.dl >= 180;
     const fill = S.colMode === "vsp" ? F[DCLS(v.rt ? v.dl : null)] : F[tr.cls], rand = v.sel ? F.sel : late ? F.late : F.weiss;
-    const r = (tr.cls === "tr" ? .72 : 1) * (v.sel ? 1.5 : 1) * g7, w = v.sel ? 3.5 : late ? 2.4 : 1.3;
+    const r = (tr.cls === "tr" || tr.cls === "bus" ? .72 : 1) * (v.sel ? 1.5 : 1) * g7, w = v.sel ? 3.5 : late ? 2.4 : 1.3;
     puffer.set([v.m[0] - ursprung[0], v.m[1] - ursprung[1], v.e, fill[0], fill[1], fill[2], rand[0], rand[1], rand[2], r, w, v.d3 ? 0 : v.p.tunnel && ter ? .35 : 1], k); k += STRIDE;
   }
   // Beschriftungen (ab Zoom 12.5, Trams ab 14.5) 4-mal pro Sekunde
   if (now - letzteBeschriftung > 250) {
     letzteBeschriftung = now;
     const src = map.getSource("fzl"), leer = zoom < 12.5;
-    if (src && !(leer && FZ.leer)) FZ.leer = leer, src.setData(fc(zoom < 12.5 ? [] : FZ.liste.filter(v => v.tr.cls !== "tr" || zoom >= 14.5).slice(0, 300).map(v => ({
+    if (src && !(leer && FZ.leer)) FZ.leer = leer, src.setData(fc(zoom < 12.5 ? [] : FZ.liste.filter(v => (v.tr.cls !== "tr" && v.tr.cls !== "bus") || zoom >= 14.5).slice(0, 300).map(v => ({
       type: "Feature", properties: { l: (v.tr.label + (v.dl >= 60 ? " " + fmtDelay(v.dl) : "")).replace(/[^\x00-\xff]/g, "'") }, geometry: { type: "Point", coordinates: v.ll }
     }))));
   }

@@ -2,6 +2,7 @@
 import { B, stOf } from "./basis.js";
 import { X, Y, melde } from "../util.js";
 import { BW, tunnelVon } from "./bauwerke.js";
+import { STR, busWeg } from "../karte/strassen.js";
 
 // Tunnelbereiche eines Laufwegs in Längeneinheiten (zwischengespeichert bis neue Bauwerksdaten kommen)
 function tunnelIn(P) {
@@ -31,8 +32,22 @@ export function legPath(A, Bn) {
   const P = { pts, cum, len: cum[cum.length - 1], ids: seq.map(e => e.id).filter(Boolean), seq: seq.map(e => ({ li: e.li, pj: e.pj, rev: e.rev, len: e.len })) }; pathCache.set(key, P); return P;
 }
 export function legs(r) {
+  if (r.cls === "bus") return busLegs(r);
   if (!r.legs) { r.legs = []; for (let j = 1; j < r.st.length; j++) { const A = r.st[j - 1], Bs = r.st[j]; r.legs.push(Bs.a > A.d ? legPath(B.SN[A.i], B.SN[Bs.i]) : null); } }
   return r.legs;
+}
+// Busse: Weg auf den Strassen der Grundkarte (strassen.js). Gerade Ersatzstücke (Strassen noch nicht geladen, keine
+// Rechenzeit mehr in diesem Bild) werden später nachgerechnet; dann wird auch der 3D-Laufweg neu gebaut.
+function busLegs(r) {
+  if (r.legs && (!r._offen || r._lf === STR.bild)) return r.legs;
+  r._lf = STR.bild; if (!r.legs) r.legs = [];
+  let offen = false, neu = false;
+  for (let j = 1; j < r.st.length; j++) {
+    const alt = r.legs[j - 1]; if (alt && !alt.offen) continue;
+    const A = r.st[j - 1], Bs = r.st[j], P = Bs.a > A.d ? busWeg(A.i, Bs.i) : null;
+    if (P !== alt) { r.legs[j - 1] = P; neu = true; } if (P && P.offen) offen = true;
+  }
+  r._offen = offen; if (neu) r._pf = undefined; return r.legs;
 }
 export function along(P, f, out) {
   const L = P.len * f; let lo = 0, hi = P.cum.length - 1;
@@ -56,7 +71,7 @@ const tmp = [0, 0];
 // Fahrdynamik je Verkehrsmittel: Anfahren a, Bremsen b (m/s²). Zwischen zwei Halten: anfahren, gleichmässig fahren,
 // bremsen – so, dass die Fahrzeit des Fahrplans genau aufgeht (Trapez-Profil). Halte mit gleicher Ankunfts- und
 // Abfahrtsminute bekommen 30 s Halt (je 15 s von den Nachbarabschnitten), damit Züge sichtbar anhalten.
-const DYN = { fv: [.45, .6], rv: [.7, .8], s: [.85, .9], tr: [1.1, 1.2], sch: [.12, .15], bb: [.5, .6] };
+const DYN = { fv: [.45, .6], rv: [.7, .8], s: [.85, .9], tr: [1.1, 1.2], sch: [.12, .15], bb: [.5, .6], bus: [1.0, 1.2] };
 function fahrt(u, T, D, cls) {   // Anteil der Strecke nach Anteil u der Fahrzeit
   if (!(T > 0) || !(D > 0)) return u;
   let [a, b] = DYN[cls] || DYN.rv, k = (1 / a + 1 / b) / 2, disk = T * T - 4 * k * D;
