@@ -12,6 +12,7 @@ import { Z3, zuege3dSchalter } from "./karte/zuege3d.js";
 import { welt3dStarten, W3 } from "./karte/welt3d.js";
 import { gleiseStarten, GL } from "./karte/gleise.js";
 import { wetterStarten, WE } from "./karte/wetter.js";
+import { verkehrStarten, VK } from "./karte/verkehr.js";
 import { seiteStarten, seiteTakt, uhr } from "./ui/seite.js";
 import { an } from "./util.js";
 
@@ -28,9 +29,9 @@ function bild(now) {
   await ladeBasis();
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
-  an("karte", () => { welt3dStarten(); wetterStarten(); gleiseStarten(); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
+  an("karte", () => { welt3dStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen
-  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE };
+  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK };
 })();
