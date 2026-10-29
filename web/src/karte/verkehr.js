@@ -251,6 +251,6 @@ export function verkehrStarten() {
   ladeThree().then(() => { try { map.addLayer(ebene3d(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } });
   let t = 0; const neu = () => { clearTimeout(t); t = setTimeout(bauen, 300); };
   map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
-  ebene({ id: "verkehr", name: "Verkehr (Autobahn)", an: true, setze: an => { VK.an = an; if (map.getLayer("verkehr-lage")) map.setLayoutProperty("verkehr-lage", "visibility", an ? "visible" : "none"); neu(); map.triggerRepaint(); } });
+  ebene({ id: "verkehr", name: "Verkehr (Autobahn)", an: true, setze: an => { VK.an = an; K.verkehrAus = !an; if (map.getLayer("verkehr-lage")) map.setLayoutProperty("verkehr-lage", "visibility", an && K.linienAn ? "visible" : "none"); neu(); map.triggerRepaint(); } });
   laden(); setInterval(laden, 60000);
 }

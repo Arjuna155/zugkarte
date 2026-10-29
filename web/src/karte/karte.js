@@ -5,11 +5,13 @@ import { tunnelVon } from "../kern/bauwerke.js";
 import { BB } from "../kern/bergbahnen.js";
 import { BUS } from "../kern/busse.js";
 import { ebene } from "../ui/ebenen.js";
+import { landschaftStil, DEM_URL } from "./landschaft.js";
 import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
 
 export const CH_BOX = [[5.95, 45.82], [10.49, 47.81]];
-export const K = { map: null, bereit: false, mit3d: true, fzTreffer: null, fzTip: null };
+export const K = { map: null, bereit: false, mit3d: true, fzTreffer: null, fzTip: null, linienAn: false };
+const STIL_URL = "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json";
 const SCHRIFT = "Frutiger Neue Condensed Bold", SCHRIFT_M = "Frutiger Neue Condensed Medium";
 export const SCHRIFTEN = { SCHRIFT, SCHRIFT_M };
 const FARBE_LN = { fv: "#16222b", rv: "#22808f", sm: "#b5612a" };
@@ -26,14 +28,24 @@ export function setze3d(an) {
 export function showTip(t, e) { const r = $("wrap").getBoundingClientRect(), tp = $("tip"); tp.textContent = t; tp.style.left = (e.clientX - r.left) + "px"; tp.style.top = (e.clientY - r.top) + "px"; tp.hidden = false; }
 export function hideTip() { $("tip").hidden = true; }
 
+// Grundkarte: swisstopo-Stil laden und zur Landschaft umbauen (landschaft.js); ?grundkarte=karte zeigt die alte Karte
 export function karteStarten() {
+  let alt = false; try { alt = new URLSearchParams(location.search).get("grundkarte") === "karte"; } catch (e) { }
+  if (alt) return karteBauen(STIL_URL);
+  fetch(STIL_URL).then(r => r.ok ? r.json() : Promise.reject()).then(s => karteBauen(landschaftStil(s))).catch(() => karteBauen(STIL_URL));
+}
+function karteBauen(stil) {
   maplibregl.setWorkerUrl("lib/maplibre-gl-csp-worker.js?v=" + ((window.ZK_LOCAL && window.ZK_LOCAL.version) || "1"));
   try { K.mit3d = localStorage.getItem("zk3d") !== "aus"; } catch (e) { }
+  if (K.map) { try { K.map.remove(); } catch (e) { } K.map = null; }
   const map = K.map = new maplibregl.Map({
-    container: "map", style: "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json",
+    container: "map", style: stil,
     bounds: CH_BOX, fitBoundsOptions: { padding: 20 }, pitch: K.mit3d ? 35 : 0, maxPitch: 80,
     attributionControl: { compact: true, customAttribution: "Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff © OpenStreetMap" }
   });
+  // Sicherung: Fehler im Landschaftsstil (z. B. neue swisstopo-Version) → bisherige Grundkarte
+  if (typeof stil !== "string") { let geladen = false; map.once("load", () => geladen = true);
+    map.on("error", e => { if (!geladen && !K.ersatzStil && /layers\[|style|Style/.test(String(e && e.error && e.error.message))) { K.ersatzStil = true; console.warn("Landschaftsstil fehlerhaft, nehme Karte:", e.error.message); setTimeout(() => karteBauen(STIL_URL), 0); } }); }
   map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
   try { new ResizeObserver(() => map.resize()).observe($("map")); } catch (e) { }
   $("zin").onclick = () => map.zoomIn(); $("zout").onclick = () => map.zoomOut();
@@ -44,8 +56,8 @@ export function karteStarten() {
     const bahnFC = bahnDaten();
     const stFC = fc(B.names.map((n, j) => ({ type: "Feature", id: j, properties: { n, t: B.tier(n) }, geometry: { type: "Point", coordinates: wgs(X(B.ST[n]), Y(B.ST[n])) } })));
     const oevFC = a => fc(B.OEV[a].map(k => ({ type: "Feature", properties: { n: k.replace("|", " - ") }, geometry: { type: "LineString", coordinates: glatt(dekodiere(B.KANTEN[k], (x, y) => [x / B.KF(k), y / B.KF(k)])).map(q => wgs(q[0], q[1])) } })));
-    map.addSource("dem", { type: "raster-dem", tiles: ["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"], encoding: "terrarium", tileSize: 512, maxzoom: 14 });
-    try { map.setSky({ "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.4, "fog-ground-blend": 0.6 }); } catch (e) { }
+    map.addSource("dem", { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 14 });
+    if (typeof stil === "string") try { map.setSky({ "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.4, "fog-ground-blend": 0.6 }); } catch (e) { }
     map.addSource("schiff", { type: "geojson", data: B.MIT_OEV ? oevFC("s") : fc([]) });
     map.addSource("tram", { type: "geojson", data: B.MIT_OEV ? oevFC("t") : fc([]) });
     const bbFC = () => fc(BB.kanten.map(([a, z, p, kat]) => ({ type: "Feature", properties: { n: a + " - " + z, fun: kat === "FUN" ? 1 : 0 }, geometry: { type: "LineString", coordinates: p.map(q => wgs(q[0], q[1])) } })));
@@ -118,7 +130,8 @@ export function karteStarten() {
       setTimeout(() => { map.resize(); map.fitBounds(CH_BOX, { padding: 20, duration: 0 }); }, 300);   // Seitenleiste ist inzwischen zugeklappt
     }
     ebene({ id: "busse", name: "Busse (beim Hineinzoomen)", an: true, setze: an => { BUS.an = an; for (const l of ["bushalte", "bushalte-l"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an ? "visible" : "none"); } });
-    ebene({ id: "strecken", name: "Streckenlinien", an: true, setze: an => { for (const l of ["bahn", "bahn-tunnel"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an ? "visible" : "none"); } });
+    // Kartenlinien (Bahnnetz, Tram, Schiff, Bergbahn, Verkehrslage): standardmässig aus – die Grundkarte ist eine Landschaft
+    ebene({ id: "strecken", name: "Kartenlinien (Bahn, Tram, Schiff, Verkehrslage)", an: false, setze: an => { K.linienAn = an; for (const l of ["bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "verkehr-lage"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an && (l !== "verkehr-lage" || !K.verkehrAus) ? "visible" : "none"); } });
     K.bereit = true; setze3d(K.mit3d); kartenAuswahl(); sperrenKarte(); melde("karte");
   });
   an("sperren", sperrenKarte);

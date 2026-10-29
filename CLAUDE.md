@@ -96,6 +96,12 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Noch nicht: Echtzeit für Busse (Abgleich läuft über UIC der Bahnhöfe), Busse an Bahnhofstafeln.
 - Test ohne GTFS: `/tmp`-Skript ergänzt die Bergbahn-Test-ZIP um Buslinien; Testwelt mit Strassenraster östlich vom HB.
 
+## Grundkarte als Landschaft (29.10.2026)
+- Arjuna will eine 3D-Schweiz statt einer Karte, gezeichnet (keine Luftbilder), ohne Namen, Strassenlinien oder Bahnnetz-Linien. `web/src/karte/landschaft.js` (`landschaftStil`): lädt den swisstopo-Stil (Quellen, Schriften) und ersetzt alle Ebenen: Grund Wiese, `color-relief` nach Höhe (eigene DEM-Quelle `dem-farbe`, Mapterhorn, maxzoom 12), Landbedeckung aus `landcover` (Wald, Gebüsch, Park, Reben, Sumpf, Gletscher), Fels/Geröll/Eis aus der Relief-Quelle (`hillshade` mit `mask` rock/scree/ice, `scree`), Siedlung/Gewerbe aus `landuse` leicht getönt, `hillshade` (multidirectional, weich), Seen und Flüsse, Wege/Strassen/Bahntrassen erst nah (12.5–15.5) als Asphalt-/Schotterband in echter Breite (ohne Tunnel), Dächer flach ab 13 (Ebene `ls-dach`; die Gebäude-, Gleis-, Strassen- und Verkehrsebenen suchen ihre Quelle über diese Ebenen). Himmel und Licht im Stil.
+- karte.js: Stil wird per fetch geladen und umgebaut; Fehler im Stil vor dem Laden → automatisch die alte Karte (`K.ersatzStil`). `?grundkarte=karte` zeigt die alte Karte.
+- Ebene «strecken» heisst jetzt «Kartenlinien (Bahn, Tram, Schiff, Verkehrslage)» und ist standardmässig AUS (bahn, bahn-tunnel, tram, schiff, bergbahn, bergbahn-fun, verkehr-lage). Bahnhöfe und Bushaltestellen bleiben.
+- Test: Testwelt mit `WELT_BERG=1` (Berg 3300 m mit Fels, Geröll, Gletscher, Wald, See, Siedlung, Relief-Quelle `relieftest`). Echte Kacheln sind aus der Testumgebung nicht erreichbar → Aussehen live prüfen.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`
