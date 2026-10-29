@@ -22,7 +22,7 @@ function kamera(map) {
 }
 
 const NEBEL_VS = `attribute float a; varying float vA; varying vec2 vW; uniform vec2 uOff;
-void main(){ vA=a; vW=position.xy+uOff; gl_Position=projectionMatrix*vec4(position,1.0); }`;
+void main(){ vA=a; vW=position.xy+uOff; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const NEBEL_FS = `precision highp float; varying float vA; varying vec2 vW; uniform float uZeit, uSkala, uDeck; uniform vec3 uFarbe; uniform vec2 uWind;
 float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
@@ -56,12 +56,13 @@ function ebene() {
       for (const [k, farbe, deck] of [["nebel", 0xf3f5f6, .55], ["nebel2", 0xe4e8ea, .35], ["wolken", 0x8d969e, .1]]) {
         const g = new THREE.BufferGeometry(), me = new THREE.Mesh(g, mat(farbe, deck)); me.frustumCulled = false; me.visible = false; this.szene.add(me); this.flaechen[k] = { g, me };
       }
-      this.bauAnker = null; this.feldV = -1; this.bauen = () => { this.neuBauen = true; }; m.on("moveend", this.bauen); this.neuBauen = true;
+      this.bauAnker = null; this.feldV = -1; this.bauen = () => { this.neuBauen = true; }; m.on("moveend", this.bauen);
+      this.ziehen = () => { const t = performance.now(); if (t - (this.letzterBau || 0) > 350) { this.letzterBau = t; this.neuBauen = true; } }; m.on("move", this.ziehen); this.neuBauen = true;   // auch während des Ziehens nachführen
     },
-    onRemove(m) { m.off("moveend", this.bauen); },
+    onRemove(m) { m.off("moveend", this.bauen); m.off("move", this.ziehen); },
     // Nebel- und Wolkenflächen für den sichtbaren Ausschnitt (Gitter 56 × 56, Höhe und Deckung aus dem Wetterfeld)
     flaechenBauen(map, anker, ms, ex) {
-      const b = map.getBounds(), w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth(), dx = (e - w) * .1, dy = (n - s) * .1, G = 56;
+      const b = map.getBounds(), w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth(), dx = (e - w) * .5, dy = (n - s) * .5, G = 64;   // mit Rand, damit beim Verschieben kein Loch entsteht
       const mach = (k, wert, hoehe) => {
         const pos = new Float32Array((G + 1) * (G + 1) * 3), al = new Float32Array((G + 1) * (G + 1)); let max = 0;
         for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) {
