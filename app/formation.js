@@ -77,7 +77,7 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     for (const l of j.tt.split("\n").slice(1)) {
       const bar = l.indexOf("|"), h = l.slice(0, bar).split(","); if (h.length < 5) continue;
       const evu = EVU[h[4]]; if (!evu) continue;
-      const t = l.slice(bar + 1).split(";", 1)[0].split(","), ab = +t[1];
+      const t = l.slice(bar + 1).split(";", 1)[0].replace(/@.*/, "").split(","), ab = +t[1];
       const id = evu + ":" + h[3]; if (!m.has(id) || m.get(id).ab > ab) m.set(id, { evu, nr: h[3], ab });
     }
     return [...m.values()];

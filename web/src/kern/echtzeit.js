@@ -32,11 +32,11 @@ function applyRT(d) {
     for (const [k, v] of votes) { const sc = v + (ref.get(k).r.label.replace(/\s+/g, "") === lab ? .5 : 0); if (sc > bv) { bv = sc; best = k; } }
     if (!best || rtMap.has(best)) continue;
     const { r } = ref.get(best), n = r.st.length;
-    const da = new Array(n).fill(null), dd = new Array(n).fill(null), sc = new Array(n).fill(0);
-    for (const c of calls) { const si = B.UIC2IDX[c[0]]; r.st.forEach((St, j) => { if (St.i === si) { if (c[2] != null) da[j] = c[2]; if (c[4] != null) dd[j] = c[4]; if (c[5]) sc[j] = 1; } }); }
+    const da = new Array(n).fill(null), dd = new Array(n).fill(null), sc = new Array(n).fill(0), G = new Array(n).fill(null);
+    for (const c of calls) { const si = B.UIC2IDX[c[0]]; r.st.forEach((St, j) => { if (St.i === si) { if (c[2] != null) da[j] = c[2]; if (c[4] != null) dd[j] = c[4]; if (c[5]) sc[j] = 1; if (c[6]) G[j] = String(c[6]).trim(); } }); }
     let carry = 0; for (let j = 0; j < n; j++) { if (da[j] == null) da[j] = dd[j] != null ? dd[j] : carry; if (dd[j] == null) dd[j] = da[j]; carry = dd[j]; }
     const A = [], D = []; let prev = -1e9; r.st.forEach((St, j) => { const a = Math.max(St.a + da[j] / 60, prev); const dep = Math.max(St.d + dd[j] / 60, a); A.push(a); D.push(dep); prev = dep; });
-    rtMap.set(best, { nr, line, canc: !!jc, da, dd, sc, A, D, t0: D[0], t1: A[n - 1] }); matched++; if (jc) canc++;
+    rtMap.set(best, { nr, line, canc: !!jc, da, dd, sc, G, A, D, t0: D[0], t1: A[n - 1] }); matched++; if (jc) canc++;
   }
   Object.assign(RT, { on: true, at: d.abgerufen || Date.now(), matched, canc, total: d.z.length, fehler: null });
   melde("echtzeit");

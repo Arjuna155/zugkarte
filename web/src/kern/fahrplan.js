@@ -1,5 +1,5 @@
 // Fahrplan: Tagesfahrplan vom Server (/api/fahrplan, offizieller GTFS-Fahrplan je Datum), sonst Ersatzfahrplan nach Wochentag.
-// Zeilenformat: «Kat,Linie,Ziel[,Zugnr,Verwaltung]|Halt;Halt» mit Halt = BahnhofIdx(hex),Ankunft[,Abfahrt] (Minuten ab Mitternacht).
+// Zeilenformat: «Kat,Linie,Ziel[,Zugnr,Verwaltung]|Halt;Halt» mit Halt = BahnhofIdx(hex),Ankunft[,Abfahrt][@Gleis] (Minuten ab Mitternacht).
 // Für die Leistung hat jeder Tag einen Zeitindex: welche Fahrten in welchem 10-Minuten-Fenster unterwegs sein können.
 import { B } from "./basis.js";
 import { zh, dayType } from "./zeit.js";
@@ -10,7 +10,7 @@ export const TCLS = c => c === "S" ? "s" : c === "Tram" || c === "M" ? "tr" : c 
 let RID = 0;
 function zeile(l, D) {
   const bar = l.indexOf("|"), [cat, num, di, zn, ag] = l.slice(0, bar).split(",");
-  const st = l.slice(bar + 1).split(";").map(x => { const a = x.split(","); const t1 = +a[1], t2 = a.length > 2 ? +a[2] : t1; return { i: parseInt(a[0], 16), a: t1, d: t2 }; });
+  const st = l.slice(bar + 1).split(";").map(x => { const g = x.indexOf("@"), gl = g < 0 ? "" : x.slice(g + 1), a = (g < 0 ? x : x.slice(0, g)).split(","); const t1 = +a[1], t2 = a.length > 2 ? +a[2] : t1; return { i: parseInt(a[0], 16), a: t1, d: t2, gl }; });   // «@Gleis» am Halt
   return { id: RID++, cat, num, zn, ag, label: cat === "S" ? "S" + num : BBNAME[cat] ? BBNAME[cat] : num ? cat + " " + num : cat, to: D[+di] || "", cls: TCLS(cat), st, t0: st[0].d, t1: st[st.length - 1].a, legs: null };
 }
 // Zeilen zu einem Tag hinzufügen (Fahrten, die in mehreren Zeitfenstern vorkommen, nur einmal)

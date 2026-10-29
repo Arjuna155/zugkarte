@@ -88,7 +88,8 @@ function parseJourney(block, win, out, stats) {
     const canc = /<(?:\w+:)?Cancellation>\s*true/i.test(c) ? 1 : 0;
     const ref = aD ?? aA; if (ref != null && ref > win[0] && ref < win[1]) inWin = true;
     calls.push([uic, aA == null ? null : Math.round(aA), aA == null || eA == null ? null : Math.round((eA - aA) * 60),
-      aD == null ? null : Math.round(aD), aD == null || eD == null ? null : Math.round((eD - aD) * 60), canc]);
+      aD == null ? null : Math.round(aD), aD == null || eD == null ? null : Math.round((eD - aD) * 60), canc,
+      tag(c, "DeparturePlatformName") || tag(c, "ArrivalPlatformName") || null]);   // aktuelles Gleis (auch Gleisänderungen)
   }
   if (!calls.length || !inWin) return;
   const head = block.replace(callRe, "");
@@ -242,8 +243,15 @@ const BB_KAT = require("./fahrplan.js").BB_KAT, fpOhneBB = new Map();
 function fahrplanOhneBB(d, buf) {
   const c = fpOhneBB.get(d); if (c && c.buf === buf) return c.gz;
   const j = JSON.parse(zlib.gunzipSync(buf)), zl = j.tt.split("\n");
-  j.tt = zl.filter((l, i) => !i || !BB_KAT.has(l.slice(0, l.indexOf(",")))).join("\n");
+  j.tt = zl.filter((l, i) => !i || !BB_KAT.has(l.slice(0, l.indexOf(",")))).map((l, i) => i ? l.replace(/@[^;]*/g, "") : l).join("\n");   // ohne Gleisangaben (alte Seiten)
   const gz = zlib.gzipSync(JSON.stringify(j)); fpOhneBB.set(d, { buf, gz }); if (fpOhneBB.size > 4) fpOhneBB.delete(fpOhneBB.keys().next().value); return gz;
+}
+// Lage der Gleise (Kanten) je Bahnhof, vom Fahrplan-Prozess aus dem GTFS (Halt am richtigen Gleis)
+let glCache = null;
+function gleisLage() {
+  const f = path.join(DATA_DIR, "fahrplan", "gleise.json"); let m; try { m = fs.statSync(f).mtimeMs; } catch { return null; }
+  if (!glCache || glCache.m !== m) { const raw = fs.readFileSync(f); glCache = { m, gz: zlib.gzipSync(raw), raw }; }
+  return glCache;
 }
 // Bergbahn-Netz (Halte + gerade Kanten), vom Fahrplan-Prozess aus dem GTFS erzeugt
 let bbCache = null;
@@ -257,7 +265,7 @@ function fahrplanFenster(d, buf, f) {
   let T = fpTage.get(d);
   if (!T || T.buf !== buf) {
     const j = JSON.parse(zlib.gunzipSync(buf)), zl = j.tt.split("\n"), kopf = zl.shift();
-    const zeilen = zl.filter(Boolean).map(l => { const b = l.indexOf("|"), h = l.slice(b + 1), a = h.split(";"), t = x => { const q = x.split(","); return [+q[1], +(q[2] ?? q[1])]; };
+    const zeilen = zl.filter(Boolean).map(l => { const b = l.indexOf("|"), h = l.slice(b + 1), a = h.split(";"), t = x => { const q = x.replace(/@.*/, "").split(","); return [+q[1], +(q[2] ?? q[1])]; };
       return { l, t0: t(a[0])[1], t1: t(a[a.length - 1])[0] }; });
     T = { buf, j, kopf, zeilen }; fpTage.set(d, T); if (fpTage.size > 4) fpTage.delete(fpTage.keys().next().value);
     for (const k of fpFenster.keys()) if (k.startsWith(d + "|")) fpFenster.delete(k);
@@ -324,6 +332,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : zlib.gunzipSync(buf));
   }
   if (url.pathname === "/api/fahrplan/status") return json(req, res, 200, FP.status());
+  if (url.pathname === "/api/gleise") { const c = gleisLage(); if (!c) return json(req, res, 404, { fehler: "Noch keine Gleisdaten" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(c.raw), c.gz); }
   if (url.pathname === "/api/bergbahnen") {
     const c = bergbahnen(); if (!c) return json(req, res, 404, { fehler: "Noch kein Bergbahn-Netz (Fahrplan wird aufbereitet)." });
     if (req.headers["if-none-match"] === c.etag) { res.writeHead(304, { ...SEC, ETag: c.etag }); return res.end(); }

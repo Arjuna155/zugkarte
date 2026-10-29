@@ -10,6 +10,7 @@ import { einrasten } from "./gleise.js";
 import { ebene } from "../ui/ebenen.js";
 import { B } from "../kern/basis.js";
 import { BB } from "../kern/bergbahnen.js";
+import { gleiseLaden, gleisPunkt } from "../kern/gleislage.js";
 
 // Ein-/ausschalten über die Ebenen in der Seitenleiste (alte Adresse ?zuege3d=aus schaltet weiterhin ab)
 export let Z3D = 13.2;
@@ -140,15 +141,32 @@ export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter());
   const c = K.map.getCanvas(), mpp = 40075016 * Math.cos(K.map.getCenter().lat * Math.PI / 180) / (512 * 2 ** K.map.getZoom()); Z3.prioR = .6 * Math.hypot(c.clientWidth, c.clientHeight) * mpp; }
 export function z3Ende() { }
 // Wagen eines Zuges: Lage, Richtung und Neigung jedes Wagens
-export function z3Zug(tr, o, p, isSel) {
-  const tram = tr.cls === "tr", schiff = tr.cls === "sch", bb = tr.cls === "bb";
+export function z3Zug(tr, o, p, isSel, rt) {
+  const tram = tr.cls === "tr", schiff = tr.cls === "sch", bb = tr.cls === "bb", zug = !tram && !schiff && !bb;
   const PF = pfad(tr); if (!PF || p.j === undefined) return false; const Z = wagenJetzt(wagenVon(tr, o), p);
   // fahrend: auf dem Abschnitt j→j+1; stehend: Zugmitte am Bahnsteig (Tram: Spitze an der Haltestelle) (Abschnitt der Weiterfahrt, am Ziel der Ankunft)
   const nL = PF.legSec.length, j = p.moving ? p.j : Math.min(p.j, nL - 1), amEnde = !p.moving && p.j >= nL;
   const pf = PF.teile[PF.legSec[j]], basis = amEnde ? PF.legS1[j] : PF.legS0[j] + (PF.legS1[j] - PF.legS0[j]) * (p.moving ? p.f : 0), E = pf.cum[pf.cum.length - 1];
   // Tram: Spitze an der Haltestelle; Zug: Mitte am Bahnsteig; Schiff und Standseilbahn: Mitte an der Station (legt längsseits an), am Anfang mit dem Heck, am Ziel mit dem Bug (sonst stünde es an Land)
-  const kl = x => Math.max(0, Math.min(1, x)), kopf = basis + (tram ? .01 : schiff || bb ? Z.L / 2 * (1 + kl(1 - basis / Z.L) - kl(1 - (E - basis) / Z.L)) : Z.L / 2);
+  const kl = x => Math.max(0, Math.min(1, x)); let kopf = basis + (tram ? .01 : schiff || bb ? Z.L / 2 * (1 + kl(1 - basis / Z.L) - kl(1 - (E - basis) / Z.L)) : Z.L / 2);
   const os = Z3.ursprung, ms = Z3.ms, aus = [];
+  // Halt am richtigen Gleis: in den letzten/ersten 600 m und im Bahnhof zur Kante des Gleises (Fahrplan oder Echtzeit) hin –
+  // Zugmitte auf der Höhe der Kante, Einrasten auf das Gleis neben der Kante
+  let glVers = null;
+  if (zug) {
+    gleiseLaden(); let sj, w = 0;
+    if (!p.moving) { sj = p.j; w = 1; }
+    else { const rest = PF.legS1[j] - basis, weg = basis - PF.legS0[j]; if (rest < 6) { sj = j + 1; w = 1 - rest / 6; } else if (weg < 6) { sj = j; w = 1 - weg / 6; } }
+    const St = sj !== undefined ? tr.st[sj] : null, gl = St ? (rt && rt.G && rt.G[sj]) || St.gl : "", P = St ? gleisPunkt(St.i, gl) : null;
+    if (P && w > 0) {
+      const sS = sj === j && !amEnde ? PF.legS0[j] : PF.legS1[j], a = punkt(pf, sS), b2 = punkt(pf, sS + .05), tx = b2[0] - a[0], ty = b2[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+      const dx = P[0] - a[0], dy = P[1] - a[1], along = (dx * tx + dy * ty) / tl;
+      if (Math.hypot(dx, dy) < 4) {   // Kante höchstens 400 m vom Bahnhofspunkt, sonst passt etwas nicht
+        kopf += along * w * w;   // weich in die Halteposition
+        const Pm = mc(wgs(P[0], P[1])), Am = mc(wgs(a[0] + along * tx / tl, a[1] + along * ty / tl)); glVers = { x: (Pm.x - Am.x) * w, y: (Pm.y - Am.y) * w };
+      }
+    }
+  }
   { const q = mc(wgs(...punkt(pf, basis))); Z3.prio = Math.hypot(q.x - os.x, q.y - os.y) / ms < Z3.prioR || isSel; }
   if (bb && Z.teile[0].W.T.art !== "FUN") {   // Kabine/Sessel: am Seil, Höhe aus dem Seilprofil der Kante, immer waagrecht
     const t = Z.teile[0], lj = amEnde ? nL - 1 : j, f = amEnde ? 1 : p.moving ? p.f : 0, A = tr.st[lj], E2 = tr.st[lj + 1]; if (!E2) return false;
@@ -163,7 +181,7 @@ export function z3Zug(tr, o, p, isSel) {
     const steil = schiff ? "wasser" : bb ? "fun" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
-    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && einrasten(mv, rx, ry, tram), gh = !schiff && !bb && einrasten(mh, rx, ry, tram);
+    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !schiff && !bb && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
     if (gv && gh && ((gv.x - gh.x) * rx + (gv.y - gh.y) * ry) > .9 * Math.hypot(gv.x - gh.x, gv.y - gh.y) * Math.hypot(rx, ry)) { mv = gv;   // nur wenn die Richtung passt (Kreuzungen, Weichen)
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
