@@ -1,58 +1,97 @@
-// Wetter-Ebene: aktuelle Messwerte der MeteoSchweiz-Stationen (/api/wetter, alle 10 Min. vom Server geholt).
-// Auf der Karte: Temperatur und Wind je Station, Niederschlag der letzten Stunde als blaue Fläche.
-// In 3D (ab Zoom 11): Regen oder Schnee um die Bildmitte nach den nächsten Stationen, bedeckter Himmel ohne Sonne.
+// Wetter: aktuelle Messwerte der MeteoSchweiz-Stationen (/api/wetter, alle 10 Min. vom Server geholt).
+// Aus den Stationen entsteht ein Wetterfeld über der ganzen Schweiz (Raster 2 km): Regen/Schnee, Nebel mit Obergrenze
+// (Hochnebel: tiefe Stationen im Nebel, höhere darüber in der Sonne), Bewölkung. Das Feld steuert die Animationen
+// (wetter3d.js): Regen und Schnee fallen nur dort, wo es regnet; Nebel liegt als Nebelmeer, aus dem die Berge ragen.
+// Die Messwerte selbst gibt es als eigene Ebene «Wetterstationen» (zum Nachschauen, Klick auf eine Station).
 import { K, SCHRIFTEN } from "./karte.js";
-import { ladeThree } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { fc, wgs } from "../util.js";
+import { wetter3dStarten } from "./wetter3d.js";
 
-export const WE = { stationen: [], zeit: 0, an: true, jetzt: null };
-const HIMMEL = { klar: { "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2" }, grau: { "sky-color": "#a9b3bb", "horizon-color": "#d3d8dc", "fog-color": "#d3d8dc" } };
+export const WE = { stationen: [], zeit: 0, an: true, stationenAn: false, feld: null, jetzt: null, version: 0 };
+const HIMMEL = { klar: { "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2" }, grau: { "sky-color": "#a3adb6", "horizon-color": "#cfd5da", "fog-color": "#cfd5da" } };
+
+// ---- Wetterfeld (Raster 2 km in LV95) ----
+const E0 = 2480000, N1 = 1300000, ZELLE = 2000, NX = 180, NY = 116;
+export function lv95(lng, lat) {   // WGS84 → LV95 (Näherungsformel swisstopo)
+  const p = (lat * 3600 - 169028.66) / 10000, l = (lng * 3600 - 26782.5) / 10000;
+  return [2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l ** 3, 1200147.07 + 308807.95 * p + 3745.25 * l * l + 76.63 * p * p - 194.56 * l * l * p + 119.79 * p ** 3];
+}
+// Wert an einer Stelle (bilinear); a = Feldname: regen (mm/h), temp (auf Meereshöhe, siehe tempBei), nebel (0–1), nebelOben (m ü. M.), wolken (0–1)
+export function feldBei(lng, lat, a) {
+  const F = WE.feld; if (!F) return 0; const [E, N] = lv95(lng, lat), fx = (E - E0) / ZELLE - .5, fy = (N1 - N) / ZELLE - .5;
+  if (fx < 0 || fy < 0 || fx >= NX - 1 || fy >= NY - 1) return a === "temp" ? 10 : a === "nebelOben" ? 0 : 0;
+  const ix = fx | 0, iy = fy | 0, u = fx - ix, v = fy - iy, A = F[a], i = iy * NX + ix;
+  return A[i] * (1 - u) * (1 - v) + A[i + 1] * u * (1 - v) + A[i + NX] * (1 - u) * v + A[i + NX + 1] * u * v;
+}
+export const tempBei = (lng, lat, hoehe) => feldBei(lng, lat, "temp") - .0065 * hoehe;
+function feldRechnen() {
+  const S = WE.stationen; if (!S.length) return;
+  const stunde = +new Date().toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/Zurich" }), tag = stunde >= 8 && stunde <= 16;
+  const n = NX * NY, F = { regen: new Float32Array(n), temp: new Float32Array(n), nebel: new Float32Array(n), nebelOben: new Float32Array(n), wolken: new Float32Array(n) };
+  // Stationsmerkmale: Regen (mm/h aus der letzten Stunde, aktuelle 10 Min. stärker gewichtet), Nebel (Feuchte ≥ 96 %, kaum Regen)
+  const st = S.map(s => ({ E: s.E, N: s.N, h: s.hoehe || 500, t: s.t, regen: s.rr1h === null && s.rr === null ? null : Math.max(s.rr1h || 0, (s.rr || 0) * 6 * .8),
+    nebel: s.rf === null || s.rf === undefined ? null : s.rf >= 96 && (s.rr1h || 0) < .5 ? 1 : 0,
+    wolken: s.so === null || s.so === undefined ? null : !tag ? null : s.so < 1 ? 1 : s.so < 5 ? .5 : 0 }));
+  const R_REGEN = 14000, R_NEBEL = 28000, R_WOLKEN = 30000;
+  for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
+    const E = E0 + (ix + .5) * ZELLE, N = N1 - (iy + .5) * ZELLE, i = iy * NX + ix;
+    let wr = 0, sr = 0, wt = 0, stt = 0, wo = 0, so = 0, wtop = 0, stop = 0, dmin = 1e12;
+    for (const s of st) {
+      const d2 = (s.E - E) ** 2 + (s.N - N) ** 2; if (d2 < dmin) dmin = d2;
+      const g = 1 / Math.max(4e6, d2);
+      if (s.t !== null) { wt += g; stt += g * (s.t + .0065 * s.h); }   // auf Meereshöhe umgerechnet (−0,65 °C je 100 m)
+      if (s.regen !== null && d2 < R_REGEN * R_REGEN) { const w = g * (1 - d2 / (R_REGEN * R_REGEN)); wr += w; sr += w * s.regen; }
+      if (s.wolken !== null && d2 < R_WOLKEN * R_WOLKEN) { wo += g; so += g * s.wolken; }
+      if (s.nebel === 1 && d2 < R_NEBEL * R_NEBEL) { wtop += g; stop += g * (s.h + 150); }
+    }
+    F.regen[i] = wr ? sr / (wr + 1 / (R_REGEN * R_REGEN)) : 0;
+    F.temp[i] = wt ? stt / wt : 10; F.wolken[i] = wo ? so / (wo + 1 / (R_WOLKEN * R_WOLKEN)) : 0;
+    const oben = wtop ? stop / wtop : 0; F.nebelOben[i] = oben;
+    // Nebelanteil: Nebelstationen zählen dafür, klare Stationen nur, wenn sie unter der Nebelobergrenze liegen
+    // (eine Station auf dem Berg über dem Nebelmeer spricht nicht gegen Nebel im Tal)
+    if (oben) { let wn = 0, sn = 0; for (const s of st) { if (s.nebel === null) continue; const d2 = (s.E - E) ** 2 + (s.N - N) ** 2; if (d2 > R_NEBEL * R_NEBEL) continue; if (!s.nebel && s.h > oben - 50) continue;
+      const w = 1 / Math.max(4e6, d2) * (1 - d2 / (R_NEBEL * R_NEBEL)); wn += w; sn += w * s.nebel; }
+      F.nebel[i] = wn ? sn / (wn + 1 / (R_NEBEL * R_NEBEL)) : 0; }
+  }
+  WE.feld = F; WE.version++;
+}
 
 async function laden() {
   try {
     const r = await fetch("/api/wetter"); if (!r.ok) return; const j = await r.json(), f = j.felder;
     WE.stationen = j.stationen.map(a => { const o = {}; f.forEach((k, i) => o[k] = a[i]); o.x = (o.E - 2480000) / 100; o.y = (1300000 - o.N) / 100; return o; });
-    WE.zeit = j.zeit; zeichnen();
-  } catch (e) { }
+    WE.zeit = j.zeit; feldRechnen(); zeichnen(); lageBeiMitte();
+  } catch (e) { console.error(e); }
 }
+
+// ---- Ebene «Wetterstationen»: Messwerte zum Nachschauen ----
 const tFarbe = ["interpolate", ["linear"], ["get", "t"], -15, "#5b3ea6", -5, "#3d6fd1", 0, "#7fb3e6", 8, "#7cc6a1", 16, "#e8cf55", 24, "#ee8a3a", 32, "#d1343a"];
 function zeichnen() {
   const map = K.map; if (!map || !map.getSource("wetter")) return;
   map.getSource("wetter").setData(fc(WE.stationen.map(s => ({ type: "Feature", properties: {
-    n: s.name, t: s.t, tt: s.t === null ? "" : Math.round(s.t) + "°", rr: s.rr1h || 0, ff: s.ff || 0, dd: s.dd || 0, wind: s.ff !== null && s.ff >= 5 ? 1 : 0, mitT: s.t === null ? 0 : 1,
+    n: s.name, t: s.t, tt: s.t === null ? "" : Math.round(s.t) + "°", ff: s.ff || 0, dd: s.dd || 0, wind: s.ff !== null && s.ff >= 5 ? 1 : 0, mitT: s.t === null ? 0 : 1,
   }, geometry: { type: "Point", coordinates: wgs(s.x, s.y) } }))));
 }
-// Windpfeil als Bild (zeigt, wohin der Wind weht)
-function pfeil() {
+function pfeil() {   // Windpfeil (zeigt, wohin der Wind weht)
   const c = document.createElement("canvas"); c.width = c.height = 32; const g = c.getContext("2d");
   g.fillStyle = "#24313a"; g.strokeStyle = "#ffffff"; g.lineWidth = 2; g.beginPath(); g.moveTo(16, 2); g.lineTo(25, 18); g.lineTo(18.5, 15.5); g.lineTo(18.5, 30); g.lineTo(13.5, 30); g.lineTo(13.5, 15.5); g.lineTo(7, 18); g.closePath(); g.stroke(); g.fill();
   return g.getImageData(0, 0, 32, 32);
 }
-function sichtbar(an) {
-  const map = K.map; for (const id of ["wetter-regen", "wetter-pfeil", "wetter-pkt", "wetter-txt"]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", an ? "visible" : "none");
-  if (!an) { try { map.setSky({ ...HIMMEL.klar, "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.4, "fog-ground-blend": 0.6 }); } catch (e) { } }
-}
+function stationenSichtbar(an) { const map = K.map; for (const id of ["wetter-pfeil", "wetter-pkt", "wetter-txt"]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", an ? "visible" : "none"); }
+
 export function wetterStarten() {
   const map = K.map;
   map.addSource("wetter", { type: "geojson", data: fc([]) });
   try { map.addImage("wind-pfeil", pfeil()); } catch (e) { }
-  const vor = map.getLayer("st2") ? "st2" : undefined;
-  map.addLayer({ id: "wetter-regen", type: "heatmap", source: "wetter", maxzoom: 13, filter: [">", ["get", "rr"], 0], paint: {
-    "heatmap-weight": ["interpolate", ["linear"], ["get", "rr"], 0, 0, 0.3, .25, 2, .6, 8, 1],
-    "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 6, .8, 12, 1.4],
-    "heatmap-radius": ["interpolate", ["exponential", 2], ["zoom"], 6, 22, 9, 90, 12, 500],
-    "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(40,110,220,0)", .2, "rgba(60,130,230,.25)", .5, "rgba(40,100,220,.42)", .8, "rgba(60,60,200,.55)", 1, "rgba(120,40,190,.65)"],
-    "heatmap-opacity": .9 } }, vor);
-  map.addLayer({ id: "wetter-pfeil", type: "symbol", source: "wetter", minzoom: 8, filter: ["==", ["get", "wind"], 1], layout: {
+  map.addLayer({ id: "wetter-pfeil", type: "symbol", source: "wetter", minzoom: 8, filter: ["==", ["get", "wind"], 1], layout: { visibility: "none",
     "icon-image": "wind-pfeil", "icon-rotate": ["+", ["get", "dd"], 180], "icon-rotation-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true,
     "icon-size": ["interpolate", ["linear"], ["get", "ff"], 5, .45, 30, .8, 80, 1.2], "icon-offset": [0, -26] } });
-  map.addLayer({ id: "wetter-pkt", type: "circle", source: "wetter", minzoom: 6.5, filter: ["==", ["get", "mitT"], 1], paint: {
+  map.addLayer({ id: "wetter-pkt", type: "circle", source: "wetter", minzoom: 6.5, filter: ["==", ["get", "mitT"], 1], layout: { visibility: "none" }, paint: {
     "circle-color": tFarbe, "circle-radius": ["interpolate", ["linear"], ["zoom"], 6.5, 3, 9, 9, 13, 12], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.2, "circle-pitch-alignment": "viewport" } });
-  map.addLayer({ id: "wetter-txt", type: "symbol", source: "wetter", minzoom: 8, filter: ["==", ["get", "mitT"], 1], layout: {
+  map.addLayer({ id: "wetter-txt", type: "symbol", source: "wetter", minzoom: 8, filter: ["==", ["get", "mitT"], 1], layout: { visibility: "none",
     "text-field": ["get", "tt"], "text-font": [SCHRIFTEN.SCHRIFT], "text-size": ["interpolate", ["linear"], ["zoom"], 8, 9, 13, 12], "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": "#ffffff", "text-halo-color": "rgba(0,0,0,.35)", "text-halo-width": .6 } });
-  // Klick auf eine Station: Messwerte
   map.on("click", "wetter-pkt", e => {
     const p = e.features[0].properties, s = WE.stationen.find(x => x.name === p.n); if (!s) return;
     const zeile = (n, v, e2) => v === null || v === undefined ? "" : `<tr><td>${n}</td><td><b>${v}${e2}</b></td></tr>`;
@@ -62,80 +101,25 @@ export function wetterStarten() {
       + zeile("Feuchte", s.rf, " %") + zeile("Schnee", s.hs, " cm") + `</table><div style="font-size:11px;opacity:.7">MeteoSchweiz, ${zeit}</div>`).addTo(map);
   });
   map.on("mouseenter", "wetter-pkt", () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", "wetter-pkt", () => map.getCanvas().style.cursor = "");
-  ebene({ id: "wetter", name: "Wetter (MeteoSchweiz)", an: true, setze: an => { WE.an = an; sichtbar(an); } });
+  ebene({ id: "wetter", name: "Wetter (Regen, Schnee, Nebel)", an: true, setze: an => { WE.an = an; himmel(true); map.triggerRepaint(); } });
+  ebene({ id: "wetterstationen", name: "Wetterstationen (Messwerte)", an: false, setze: an => { WE.stationenAn = an; stationenSichtbar(an); } });
+  wetter3dStarten();
   laden(); setInterval(laden, 5 * 60000);
   setInterval(lageBeiMitte, 2000);
 }
 
-// ---- Wetter an der Bildmitte (gewichtetes Mittel der 3 nächsten Stationen) und 3D-Niederschlag ----
+// ---- Wetter an der Bildmitte: Himmel und Wind für die Animationen ----
 function lageBeiMitte() {
   const map = K.map; if (!map || !WE.stationen.length) return;
-  const c = map.getCenter(), z = map.getZoom();
+  const c = map.getCenter();
   const nah = WE.stationen.map(s => { const ll = wgs(s.x, s.y), dx = (ll[0] - c.lng) * 75500, dy = (ll[1] - c.lat) * 111000; return { s, d: Math.hypot(dx, dy) }; }).sort((a, b) => a.d - b.d).slice(0, 4);
-  let w = 0, rr = 0, t = 0, ff = 0, so = 0, wt = 0, ux = 0, uy = 0;
-  for (const { s, d } of nah) { const g = 1 / Math.max(500, d) ** 2; w += g; rr += g * (s.rr1h || 0); ff += g * (s.ff || 0); if (s.t !== null) { t += g * s.t; wt += g; } so += g * (s.so === null ? 5 : s.so);
-    const a = (s.dd || 0) * Math.PI / 180; ux += g * Math.sin(a); uy += g * Math.cos(a); }
-  if (!w) return;
-  const L = { rr: rr / w, t: wt ? t / wt : 10, ff: ff / w, so: so / w, dd: Math.atan2(ux, uy), naechste: nah[0].d };
-  WE.jetzt = L;
-  if (!WE.an) return;
-  // Himmel: tagsüber ohne Sonne bedeckt (grau)
-  const stunde = +new Date().toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/Zurich" });
-  const grau = (L.so < 2 && stunde >= 8 && stunde <= 17) || L.rr > 0.1, H = grau ? HIMMEL.grau : HIMMEL.klar;
-  if (WE.himmel !== grau) { WE.himmel = grau; try { map.setSky({ ...H, "sky-horizon-blend": 0.6, "horizon-fog-blend": grau ? 0.25 : 0.4, "fog-ground-blend": grau ? 0.35 : 0.6 }); } catch (e) { } }
-  if (z >= 11 && L.rr > 0.05 && L.naechste < 25000) niederschlagStarten();
+  let w = 0, ff = 0, ux = 0, uy = 0;
+  for (const { s, d } of nah) { if (s.ff === null) continue; const g = 1 / Math.max(500, d) ** 2; w += g; ff += g * s.ff; const a = (s.dd || 0) * Math.PI / 180; ux += g * Math.sin(a); uy += g * Math.cos(a); }
+  WE.jetzt = { ff: w ? ff / w : 0, dd: Math.atan2(ux, uy), regen: feldBei(c.lng, c.lat, "regen"), wolken: feldBei(c.lng, c.lat, "wolken"), nebel: feldBei(c.lng, c.lat, "nebel") };
+  himmel(false);
 }
-
-const N_MAX = 7000;
-let NS = null;
-function niederschlagStarten() {
-  if (NS) return; NS = { laden: true };
-  ladeThree().then(() => { try { K.map.addLayer(niederschlagEbene(), "fz"); } catch (e) { console.error(e); } });
-}
-function niederschlagEbene() {
-  const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
-  return {
-    id: "wetter3d", type: "custom", renderingMode: "3d",
-    onAdd(m, gl) {
-      this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
-      this.pos = new Float32Array(N_MAX * 6); this.geo = new THREE.BufferGeometry(); this.geo.setAttribute("position", new THREE.BufferAttribute(this.pos, 3));
-      this.regen = new THREE.LineSegments(this.geo, new THREE.LineBasicMaterial({ color: 0x6f8296, transparent: true, opacity: .6 }));
-      this.pgeo = new THREE.BufferGeometry(); this.ppos = new Float32Array(N_MAX * 3); this.pgeo.setAttribute("position", new THREE.BufferAttribute(this.ppos, 3));
-      this.schnee = new THREE.Points(this.pgeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2.6, sizeAttenuation: false, transparent: true, opacity: .9 }));
-      this.regen.frustumCulled = this.schnee.frustumCulled = false; this.szene.add(this.regen, this.schnee);
-      this.anker = null; this.t = performance.now(); this.tropfen = null;
-    },
-    render(gl, args) {
-      const map = K.map, L = WE.jetzt, jetzt = performance.now(), dt = Math.min(.1, (jetzt - this.t) / 1000); this.t = jetzt;
-      const aktiv = WE.an && L && L.rr > 0.05 && map.getZoom() >= 11 && L.naechste < 25000;
-      this.regen.visible = this.schnee.visible = false; if (!aktiv) return;
-      const c = map.getCenter(), om = mc(c), ms = om.meterInMercatorCoordinateUnits(), Tr = map.getTerrain(), ex = Tr ? Tr.exaggeration || 1 : 0;
-      // Kasten zwischen Kamera und Bildmitte (dort sieht man den Niederschlag), Höhe vom Boden bis über die Kamera
-      // Kameralage aus Zoom, Neigung und Drehung (Sichtfeld wie MapLibre, ~37°)
-      const mpp = 40075016 * Math.cos(c.lat * Math.PI / 180) / (512 * 2 ** map.getZoom()), D = map.getCanvas().clientHeight / 2 / Math.tan(.3218) * mpp;
-      const pi = map.getPitch() * Math.PI / 180, be = map.getBearing() * Math.PI / 180, abst = D * Math.sin(pi), hoch = D * Math.cos(pi), boden = ex ? (map.queryTerrainElevation(c) || 0) : 0;
-      const o = { x: om.x - Math.sin(be) * abst * .45 * ms, y: om.y + Math.cos(be) * abst * .45 * ms }, W = Math.max(250, Math.min(4000, abst * .8 + 150)), Hh = Math.max(150, Math.min(3000, hoch + 60));
-      const n = Math.min(N_MAX, Math.round(1500 + 1500 * Math.min(3, L.rr))), schnee = L.t < 1;
-      if (!this.tropfen || !this.anker || Math.hypot(o.x - this.anker.x, o.y - this.anker.y) / ms > W * .5 || Math.abs(this.tropfen.W - W) > W * .3 || Math.abs(this.tropfen.H - Hh) > Hh * .3) {
-        this.anker = o; this.tropfen = { W, H: Hh, x: new Float32Array(N_MAX), y: new Float32Array(N_MAX), z: new Float32Array(N_MAX) };
-        for (let i = 0; i < N_MAX; i++) { this.tropfen.x[i] = (Math.random() - .5) * 2 * W; this.tropfen.y[i] = (Math.random() - .5) * 2 * W; this.tropfen.z[i] = boden + Math.random() * Hh; }
-      }
-      const T = this.tropfen, v = schnee ? 1.2 : 9, wind = Math.min(15, L.ff / 3.6) * (schnee ? .8 : .35), wx = -Math.sin(L.dd) * wind, wy = Math.cos(L.dd) * wind;   // Wind aus Richtung dd (y nach Süden)
-      const lang = schnee ? 0 : Math.max(2, Math.min(30, W * .012));
-      for (let i = 0; i < n; i++) {
-        let x = T.x[i] + wx * dt, y = T.y[i] + wy * dt, z = T.z[i] - v * dt * (schnee ? (.7 + (i % 7) * .08) : 1);
-        if (schnee) { x += Math.sin(jetzt / 900 + i) * .4 * dt; }
-        if (z < boden) { z += Hh; x = (Math.random() - .5) * 2 * W; y = (Math.random() - .5) * 2 * W; }
-        if (x > W) x -= 2 * W; else if (x < -W) x += 2 * W; if (y > W) y -= 2 * W; else if (y < -W) y += 2 * W;
-        T.x[i] = x; T.y[i] = y; T.z[i] = z;
-        if (schnee) { this.ppos[i * 3] = x; this.ppos[i * 3 + 1] = y; this.ppos[i * 3 + 2] = z; }
-        else { const k = i * 6, f = lang / v; this.pos[k] = x; this.pos[k + 1] = y; this.pos[k + 2] = z; this.pos[k + 3] = x - wx * f; this.pos[k + 4] = y - wy * f; this.pos[k + 5] = z + lang; }
-      }
-      if (schnee) { this.pgeo.setDrawRange(0, n); this.pgeo.attributes.position.needsUpdate = true; this.schnee.visible = true; }
-      else { this.geo.setDrawRange(0, n * 2); this.geo.attributes.position.needsUpdate = true; this.regen.visible = true; }
-      const m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), l = new THREE.Matrix4().makeTranslation(this.anker.x, this.anker.y, 0).scale(new THREE.Vector3(ms, ms, ms));
-      this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam); map.triggerRepaint();
-    },
-  };
+function himmel(immer) {
+  const J = WE.jetzt, grau = WE.an && !!J && (J.wolken > .6 || J.regen > .2 || J.nebel > .6);
+  if (!immer && WE.himmel === grau) return; WE.himmel = grau; const H = grau ? HIMMEL.grau : HIMMEL.klar;
+  try { K.map.setSky({ ...H, "sky-horizon-blend": 0.6, "horizon-fog-blend": grau ? 0.25 : 0.4, "fog-ground-blend": grau ? 0.35 : 0.6 }); } catch (e) { }
 }
