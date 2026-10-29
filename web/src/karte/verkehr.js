@@ -9,10 +9,10 @@ import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
 import { fc, istHandy } from "../util.js";
 
-export const VK = { stellen: [], an: true, ketten: [], zeit: 0 };
+export const VK = { stellen: [], an: true, ketten: [], zeit: 0, fz: [], lage: f => lage(f) };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 const N_MAX = istHandy() ? 1800 : 5000;
-let quelle = null, anker = null, ankerMs = 1;
+let quelle = null, anker = null, ankerMs = 1, KID = 0;
 
 async function laden() {
   try {
@@ -39,61 +39,146 @@ function bauen() {
       stuecke.push({ ll, einweg: p.oneway === 1 || p.oneway === "1", rampe: p.ramp === 1 || p.ramp === "1", tun: p.brunnel === "tunnel", bru: p.brunnel === "bridge", art: p.class });
     }
   }
-  // Ketten: Stücke mit gemeinsamem Endpunkt (gleiche Art, Einweg) zusammenhängen
-  const ende = new Map(), k5 = q => q[0].toFixed(5) + "," + q[1].toFixed(5);
-  for (const s of stuecke) { for (const q of [s.ll[0], s.ll[s.ll.length - 1]]) { const k = k5(q); (ende.get(k) || ende.set(k, []).get(k)).push(s); } }
-  const benutzt = new Set(), ketten = [];
-  for (const s of stuecke) {
-    if (benutzt.has(s)) continue; benutzt.add(s);
-    let pts = s.ll.map(q => [q[0], q[1], s.tun, s.bru]);
-    // höchstens ~4 km je Kette, damit jede Kette die Werte der Messstelle in ihrer Nähe bekommt
-    const lang = q => { let m = 0; for (let i = 1; i < q.length; i++) m += Math.hypot((q[i][0] - q[i - 1][0]) * 75500, (q[i][1] - q[i - 1][1]) * 111000); return m; };
-    const weiter = (vorne) => { for (let g = 0; g < 400; g++) { if (lang(pts) > 4000) return;
-      const q = vorne ? pts[0] : pts[pts.length - 1], kand = (ende.get(k5(q)) || []).filter(t => !benutzt.has(t) && t.einweg === s.einweg && t.rampe === s.rampe); if (kand.length !== 1) return;
-      const t = kand[0]; benutzt.add(t); let tp = t.ll.map(r => [r[0], r[1], t.tun, t.bru]);
-      if (vorne) { if (k5(tp[tp.length - 1]) !== k5(q)) { if (s.einweg) return; tp.reverse(); } pts = tp.slice(0, -1).concat(pts); }
-      else { if (k5(tp[0]) !== k5(q)) { if (s.einweg) return; tp.reverse(); } pts = pts.concat(tp.slice(1)); }
-    } };
-    weiter(false); weiter(true);
-    // lokale Meter (relativ zum Anker), Länge, Höhe (Gelände; Brücken gerade zwischen den Enden, Tunnels ohne Fahrzeuge)
+  // Ketten aus einer Punktwolke: jedes Stück alle 10 m abtasten, doppelte Punkte (Kachelränder, gröbere Kacheln) weglassen,
+  // dann von Punkt zu Punkt in Fahrtrichtung weiterlaufen. So entstehen durchgehende Fahrbahnen über alle Kachelgrenzen.
+  const c0 = map.getCenter(), kx = Math.cos(c0.lat * Math.PI / 180) * 111320, ky = 110574, ZE = 6;
+  const P = [], gitter = new Map(), gk = (x, y) => Math.floor(x / ZE) + "," + Math.floor(y / ZE);
+  const nahe = (x, y, r, fn) => { const a = Math.floor((x - r) / ZE), b = Math.floor((x + r) / ZE), c = Math.floor((y - r) / ZE), d = Math.floor((y + r) / ZE);
+    for (let i = a; i <= b; i++) for (let j = c; j <= d; j++) for (const q of gitter.get(i + "," + j) || []) fn(q); };
+  // genauere Stücke zuerst (mehr Punkte je km = feinere Kachel), gröbere Kacheln fallen dann als doppelt weg
+  const dichte = st => { let m = 0; for (let i = 1; i < st.ll.length; i++) m += Math.hypot((st.ll[i][0] - st.ll[i - 1][0]) * 75500, (st.ll[i][1] - st.ll[i - 1][1]) * 111000); return st.ll.length / Math.max(1, m); };
+  for (const st of stuecke) st.d = dichte(st); stuecke.sort((u, v) => v.d - u.d);
+  for (const st of stuecke) {
+    const q = st.ll.map(p => [(p[0] - c0.lng) * kx, (p[1] - c0.lat) * ky]);
+    for (let i = 1; i < q.length; i++) {
+      const ax = q[i - 1][0], ay = q[i - 1][1], ex = q[i][0] - ax, ey = q[i][1] - ay, l = Math.hypot(ex, ey); if (l < .01) continue;
+      const dx = ex / l, dy = ey / l;
+      for (let t = 0; t < l; t += 10) {
+        const x = ax + dx * t, y = ay + dy * t; let doppelt = false;
+        nahe(x, y, 6, o => { if (!doppelt && Math.hypot(o.x - x, o.y - y) < 6 && Math.abs(o.dx * dx + o.dy * dy) > .8 && (!st.einweg || o.dx * dx + o.dy * dy > 0)) doppelt = true; });
+        if (doppelt) continue;
+        const o = { x, y, dx, dy, st, frei: true }; P.push(o); const key = gk(x, y); (gitter.get(key) || gitter.set(key, []).get(key)).push(o);
+      }
+    }
+  }
+  // nächster Punkt in Richtung (dx, dy): 4–16 m voraus, höchstens 3.5 m seitlich, gleiche Art
+  const naechster = (o, dx, dy, nurFrei) => { let best = null, bw = 1e9;
+    nahe(o.x + dx * 10, o.y + dy * 10, 9, q => { if (q === o || (nurFrei && !q.frei) || q.st.einweg !== o.st.einweg || q.st.rampe !== o.st.rampe) return;
+      const vx = q.x - o.x, vy = q.y - o.y, vor = vx * dx + vy * dy, seit = Math.abs(-vx * dy + vy * dx); if (vor < 4 || vor > 16 || seit > 3.5) return;
+      const ausr = q.dx * dx + q.dy * dy; if (o.st.einweg ? ausr < .7 : Math.abs(ausr) < .7) return;
+      const w = vor + seit * 3; if (w < bw) { bw = w; best = q; } });
+    return best; };
+  const ketten = [];
+  for (const start of P) {
+    if (!start.frei) continue; start.frei = false;
+    let vorw = [start], d = [start.dx, start.dy], cur = start;
+    for (let g = 0; g < 400; g++) { const n = naechster(cur, d[0], d[1], true); if (!n) break; n.frei = false; const s2 = n.dx * d[0] + n.dy * d[1] < 0 ? -1 : 1; d = [n.dx * s2, n.dy * s2]; vorw.push(n); cur = n; }
+    let rueckw = []; d = [-start.dx, -start.dy]; cur = start;
+    if (vorw.length < 400) for (let g = 0; g < 400 - vorw.length; g++) { const n = naechster(cur, d[0], d[1], true); if (!n) break; n.frei = false; const s2 = n.dx * d[0] + n.dy * d[1] < 0 ? -1 : 1; d = [n.dx * s2, n.dy * s2]; rueckw.push(n); cur = n; }
+    const kette = rueckw.reverse().concat(vorw); if (kette.length < 4) continue;
+    const st = start.st, pts = kette.map(o => [c0.lng + o.x / kx, c0.lat + o.y / ky, o.st.tun, o.st.bru]);
     const n = pts.length, x = new Float64Array(n), y = new Float64Array(n), cum = new Float64Array(n), z = new Float32Array(n), tun = new Uint8Array(n);
     for (let i = 0; i < n; i++) { const m = mc([pts[i][0], pts[i][1]]); x[i] = m.x; y[i] = m.y; tun[i] = pts[i][2] ? 1 : 0; if (i) cum[i] = cum[i - 1] + Math.hypot(x[i] - x[i - 1], y[i] - y[i - 1]) / ankerMs;
       const e = ex ? map.queryTerrainElevation([pts[i][0], pts[i][1]]) : 0; z[i] = e === null || e === undefined ? NaN : e; }
     for (let i = 0; i < n; i++) if (isNaN(z[i])) z[i] = i ? z[i - 1] : 0;
+    for (let i = n - 2; i >= 0; i--) if (isNaN(z[i])) z[i] = z[i + 1];
     for (let i = 0; i < n;) { if (!pts[i][3]) { i++; continue; } let j = i; while (j + 1 < n && pts[j + 1][3]) j++; const a = z[Math.max(0, i - 1)], b = z[Math.min(n - 1, j + 1)];
       for (let q = i; q <= j; q++) z[q] = Math.max(z[q], a + (b - a) * (q - i + 1) / (j - i + 2)); i = j + 1; }
-    if (cum[n - 1] < 30) continue;
-    const mitte = pts[n >> 1]; ketten.push({ pts, x, y, cum, z, tun, len: cum[n - 1], einweg: s.einweg, rampe: s.rampe, art: s.art, mitte });
+    const k = { id: ++KID, pts, x, y, cum, z, tun, len: cum[n - 1], einweg: st.einweg, rampe: st.rampe, art: st.art, mitte: pts[n >> 1], erst: kette[0], letzt: kette[n - 1] };
+    for (const o of kette) o.k = k;
+    ketten.push(k);
+  }
+  // Nachfolger: am Kettenende den nächsten Punkt in Fahrtrichtung suchen (auch auf bereits vergebenen Punkten)
+  for (const k of ketten) {
+    const n = k.pts.length, dEx = (k.x[n - 1] - k.x[n - 2]), dEy = (k.y[n - 1] - k.y[n - 2]);
+    const ende = (o, dx, dy) => { const l = Math.hypot(dx, dy) || 1, q = naechster(o, dx / l, -dy / l, false); return q && q.k && q.k !== k ? q : null; };   // Mercator-y nach Süden, lokale y nach Norden
+    const qv = ende(k.letzt, dEx, dEy); k.vor = qv ? qv.k : null; k.vorR = qv && qv === qv.k.erst ? 1 : qv && qv === qv.k.letzt ? -1 : 0; if (!k.vorR) k.vor = null;
+    const dAx = (k.x[0] - k.x[1]), dAy = (k.y[0] - k.y[1]);
+    const qr = !k.einweg ? ende(k.erst, dAx, dAy) : null; k.rueck = qr ? qr.k : null; k.rueckR = qr && qr === qr.k.letzt ? -1 : qr && qr === qr.k.erst ? 1 : 0; if (!k.rueckR) k.rueck = null;
   }
   VK.ketten = ketten; for (const k of ketten) zuordnen(k); lageZeichnen(); fahrzeugeVerteilen();
 }
-// nächste Messstelle (bis 15 km; Verkehrslage nur bis 6 km)
+// je Punkt der Kette die nächste Messstelle (bis 15 km; Verkehrslage nur bis 6 km) – hängt nur vom Ort ab, nicht davon,
+// wie die Kette gerade zusammengesetzt ist (sonst ändern sich Dichte und Tempo beim Verschieben)
 function zuordnen(k) {
-  let best = null, bd = 15000;
-  for (const s of VK.stellen) { const d = Math.hypot((s.lon - k.mitte[0]) * 75500, (s.lat - k.mitte[1]) * 111000); if (d < bd && s.q !== null) { bd = d; best = s; } }
-  const faktor = k.rampe ? .12 : k.art === "trunk" ? .45 : 1;
-  k.q = (best ? best.q : 1400) * faktor; k.v = best && best.v ? best.v : k.rampe ? 60 : 100; k.lkw = best ? best.lkw || .08 : .08; k.lage = best && bd < 6000 && best.v ? best.v : null;
+  const n = k.pts.length, faktor = k.rampe ? .12 : k.art === "trunk" ? .45 : 1;
+  k.qa = new Float32Array(n); k.va = new Float32Array(n); k.lkwa = new Float32Array(n); k.lagea = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const p = k.pts[i]; let best = null, bd = 15000;
+    for (const s of VK.stellen) { const d = Math.hypot((s.lon - p[0]) * 75500, (s.lat - p[1]) * 111000); if (d < bd && s.q !== null) { bd = d; best = s; } }
+    k.qa[i] = (best ? best.q : 1400) * faktor; k.va[i] = best && best.v ? Math.max(5, best.v) : k.rampe ? 60 : 100; k.lkwa[i] = best ? best.lkw || .08 : .08; k.lagea[i] = best && bd < 6000 && best.v ? best.v : NaN;
+  }
+  let n0 = 0; for (let i = 1; i < n; i++) n0 += ((k.qa[i - 1] + k.qa[i]) / 4) / ((k.va[i - 1] + k.va[i]) / 2) * (k.cum[i] - k.cum[i - 1]) / 1000;
+  k.n = n0; k.v = k.va[n >> 1];
 }
+const idxBei = (k, s) => { let lo = 0, hi = k.cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (k.cum[m] <= s) lo = m; else hi = m; } return lo; };
 function lageZeichnen() {
   const map = K.map, src = map && map.getSource("verkehr-lage"); if (!src) return;
-  src.setData(fc(VK.an ? VK.ketten.filter(k => k.lage !== null && !k.rampe).map(k => ({ type: "Feature", properties: { v: k.lage }, geometry: { type: "LineString", coordinates: k.pts.map(p => [p[0], p[1]]) } })) : []));
+  const kat = v => isNaN(v) ? -1 : v >= 70 ? 2 : v >= 40 ? 1 : 0, feats = [];
+  if (VK.an) for (const k of VK.ketten) { if (k.rampe) continue; let start = 0;
+    for (let i = 1; i <= k.pts.length; i++) if (i === k.pts.length || kat(k.lagea[i]) !== kat(k.lagea[start])) {
+      if (kat(k.lagea[start]) >= 0 && i - start >= 1) feats.push({ type: "Feature", properties: { v: k.lagea[start] }, geometry: { type: "LineString", coordinates: k.pts.slice(start, Math.min(k.pts.length, i + 1)).map(p => [p[0], p[1]]) } });
+      start = i; } }
+  src.setData(fc(feats));
 }
 
 // ---- Fahrzeuge: je Kette und Richtung so viele, wie gemessen (begrenzt), gleichmässig verteilt mit etwas Zufall ----
 const FARBEN = ["#e9ecef", "#2b2f33", "#8a9097", "#c92a2a", "#1c5aa6", "#d0d4d8", "#5c6b3c", "#7a2e2e", "#f1f3f5", "#3b4652"];
 let FZ = [];
+// Bestehende Fahrzeuge bleiben erhalten: nach jedem Neuaufbau der Ketten (Verschieben, neue Kacheln, neue Messwerte)
+// wird jedes Fahrzeug auf die neue Kette an seiner Stelle gesetzt (gleiche Richtung, ≤ 20 m). Nur wo zu wenige oder
+// zu viele sind, kommen Fahrzeuge dazu oder fallen weg – so springen sie beim Verschieben nicht.
+function lage(f) {   // Mercator-Lage (Mitte der Strasse) und Fahrtrichtung eines Fahrzeugs
+  const k = f.k; let lo = 0, hi = k.cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (k.cum[m] <= f.s) lo = m; else hi = m; }
+  const u = (f.s - k.cum[lo]) / ((k.cum[hi] - k.cum[lo]) || 1);
+  return { x: k.x[lo] + (k.x[hi] - k.x[lo]) * u, y: k.y[lo] + (k.y[hi] - k.y[lo]) * u, dx: (k.x[hi] - k.x[lo]) * f.r, dy: (k.y[hi] - k.y[lo]) * f.r };
+}
+function neuesFz(k, r, s) {
+  const i = idxBei(k, s), lkw = Math.random() < k.lkwa[i], vk = k.va[i], spur = k.einweg ? (Math.random() < (lkw ? .85 : .5) ? 1.75 : -1.75) : (lkw ? 1.9 : Math.random() < .5 ? 1.9 : 5.4);
+  const faktor = lkw ? Math.min(1, 85 / Math.max(10, vk)) : .9 + Math.random() * .2;
+  return { k, r, s, faktor, v: vk / 3.6 * faktor, spur, lkw, farbe: FARBEN[(Math.random() * FARBEN.length) | 0] };
+}
 function fahrzeugeVerteilen() {
-  const soll = [];
-  let summe = 0;
-  for (const k of VK.ketten) { const richtungen = k.einweg ? [1] : [1, -1]; for (const r of richtungen) { const n = (k.q / 2) / Math.max(10, k.v) * k.len / 1000; soll.push([k, r, n]); summe += n; } }
-  const f = summe > N_MAX ? N_MAX / summe : 1; FZ = [];
-  for (const [k, r, n] of soll) {
-    let m = n * f; const ganz = Math.floor(m) + (Math.random() < m - Math.floor(m) ? 1 : 0);
-    for (let i = 0; i < ganz; i++) {
-      const lkw = Math.random() < k.lkw, spur = k.einweg ? (Math.random() < (lkw ? .85 : .5) ? 1.75 : -1.75) : (lkw ? 1.9 : Math.random() < .5 ? 1.9 : 5.4);
-      FZ.push({ k, r, s: (i + Math.random() * .8) / Math.max(1, ganz) * k.len, v: k.v / 3.6 * (lkw ? Math.min(1, 85 / Math.max(10, k.v)) : .9 + Math.random() * .2), spur, lkw, farbe: FARBEN[(Math.random() * FARBEN.length) | 0] });
+  const soll = new Map(); let summe = 0;
+  for (const k of VK.ketten) for (const r of k.einweg ? [1] : [1, -1]) { const n = k.n; soll.set(k.id + "|" + r, { k, r, n, fz: [] }); summe += n; }
+  const fak = summe > N_MAX ? N_MAX / summe : 1;
+  // Raster der neuen Ketten (Zellen ~50 m in Mercator)
+  const Z = 50 * ankerMs, raster = new Map();
+  for (const k of VK.ketten) for (let i = 1; i < k.x.length; i++) {
+    const a = Math.floor(Math.min(k.x[i - 1], k.x[i]) / Z), b = Math.floor(Math.max(k.x[i - 1], k.x[i]) / Z), c = Math.floor(Math.min(k.y[i - 1], k.y[i]) / Z), d = Math.floor(Math.max(k.y[i - 1], k.y[i]) / Z);
+    if ((b - a + 1) * (d - c + 1) > 400) continue;
+    for (let gx = a; gx <= b; gx++) for (let gy = c; gy <= d; gy++) { const key = gx + "," + gy; (raster.get(key) || raster.set(key, []).get(key)).push([k, i]); }
+  }
+  for (const f of FZ) {
+    if (!f.k || !f.k.x) continue; const L = lage(f), gx = Math.floor(L.x / Z), gy = Math.floor(L.y / Z), dl = Math.hypot(L.dx, L.dy) || 1;
+    let best = null, bd = 20 * ankerMs;
+    for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) for (const [k, i] of raster.get((gx + ox) + "," + (gy + oy)) || []) {
+      const ax = k.x[i - 1], ay = k.y[i - 1], ex = k.x[i] - ax, ey = k.y[i] - ay, l2 = ex * ex + ey * ey || 1e-18; let t = ((L.x - ax) * ex + (L.y - ay) * ey) / l2; t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(ax + ex * t - L.x, ay + ey * t - L.y); if (d >= bd) continue;
+      const cos = (ex * L.dx + ey * L.dy) / (Math.sqrt(l2) * dl), r = cos > .6 ? 1 : cos < -.6 && !k.einweg ? -1 : 0; if (!r) continue;
+      bd = d; best = [k, r, k.cum[i - 1] + (k.cum[i] - k.cum[i - 1]) * t];
+    }
+    if (!best) continue; const e = soll.get(best[0].id + "|" + best[1]); if (!e) continue;
+    f.k = best[0]; f.r = best[1]; f.s = best[2]; f.v = f.k.va[idxBei(f.k, f.s)] / 3.6 * (f.faktor || 1); e.fz.push(f);
+  }
+  const neu = [];
+  for (const e of soll.values()) {
+    const m = e.n * fak, ziel = Math.floor(m) + (Math.random() < m - Math.floor(m) ? 1 : 0);
+    if (e.fz.length > ziel + 1) { e.fz.sort(() => Math.random() - .5); e.fz.length = ziel; }
+    for (const f of e.fz) neu.push(f);
+    // fehlende Fahrzeuge in die grössten Lücken setzen
+    const fehlt = ziel - e.fz.length;
+    if (fehlt > 0) {
+      const ss = e.fz.map(f => f.s).sort((a, b) => a - b);
+      for (let q = 0; q < fehlt; q++) {
+        let s;
+        if (ss.length < 2) s = Math.random() * e.k.len;
+        else { let gi = 0, gl = -1; for (let i = 0; i < ss.length; i++) { const l = (i + 1 < ss.length ? ss[i + 1] : ss[0] + e.k.len) - ss[i]; if (l > gl) { gl = l; gi = i; } } s = (ss[gi] + gl * (.35 + Math.random() * .3)) % e.k.len; }
+        ss.push(s); ss.sort((a, b) => a - b); neu.push(neuesFz(e.k, e.r, s));
+      }
     }
   }
+  FZ = neu; VK.fz = FZ;
 }
 
 // ---- Zeichnen (three.js): herausgezoomt Punkte, ab Zoom 13 Fahrzeugmodelle ----
@@ -129,10 +214,13 @@ function ebene3d() {
       const c = mc(map.getCenter()), ms = c.meterInMercatorCoordinateUnits(), nah = map.getZoom() >= ZOOM_3D, Tr = map.getTerrain();
       let na = 0, nl = 0, np = 0;
       for (const f of FZ) {
-        const k = f.k; f.s += f.r * f.v * dt; if (f.s > k.len) f.s -= k.len; else if (f.s < 0) f.s += k.len;   // am Kettenende von vorne
+        let k = f.k; f.s += f.r * f.v * dt; if (f.s > k.len) { if (k.vor && f.r === 1) { const n = k.vor; f.s -= k.len; f.r = k.vorR; if (f.r < 0) f.s = n.len - f.s; f.k = n; } else f.s -= k.len; }   // weiter auf der nächsten Kette, sonst von vorne
+        else if (f.s < 0) { if (k.rueck && f.r === -1) { const n = k.rueck; f.r = k.rueckR; f.s = f.r < 0 ? n.len + f.s : -f.s; f.k = n; } else f.s += k.len; }
+        k = f.k; if (f.s < 0 || f.s > k.len) f.s = Math.max(0, Math.min(k.len, f.s));
         // Lage auf der Kette (Binärsuche)
         let lo = 0, hi = k.cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (k.cum[m] <= f.s) lo = m; else hi = m; }
         if (k.tun[lo] && k.tun[hi]) continue;   // im Tunnel unsichtbar
+        f.v = k.va[lo] / 3.6 * (f.faktor || 1);   // Tempo der Messstelle an dieser Stelle
         const u = (f.s - k.cum[lo]) / ((k.cum[hi] - k.cum[lo]) || 1), dx = (k.x[hi] - k.x[lo]) / ankerMs, dy = (k.y[hi] - k.y[lo]) / ankerMs, l = Math.hypot(dx, dy) || 1;
         const nx = -dy / l * f.r, ny = dx / l * f.r;   // rechts in Fahrtrichtung (y nach Süden: Normale so gedreht, dass Rechtsverkehr entsteht)
         const px = (k.x[lo] + (k.x[hi] - k.x[lo]) * u - c.x) / ms + nx * f.spur, py = (k.y[lo] + (k.y[hi] - k.y[lo]) * u - c.y) / ms + ny * f.spur, pz = Tr ? k.z[lo] + (k.z[hi] - k.z[lo]) * u : 0;
@@ -142,7 +230,7 @@ function ebene3d() {
           ziel.setMatrixAt(i, this.M); ziel.setColorAt(i, this.C.set(f.lkw ? "#d9dcdf" : f.farbe));
         } else {
           const q = np * 3; this.pp[q] = px; this.pp[q + 1] = py; this.pp[q + 2] = pz + 2;
-          const v = k.v; this.C.set(k.lage === null ? "#5b6670" : v >= 70 ? "#2f9e44" : v >= 40 ? "#f08c00" : "#e03131"); this.pc[q] = this.C.r; this.pc[q + 1] = this.C.g; this.pc[q + 2] = this.C.b; np++;
+          const v = k.lagea[lo]; this.C.set(isNaN(v) ? "#5b6670" : v >= 70 ? "#2f9e44" : v >= 40 ? "#f08c00" : "#e03131"); this.pc[q] = this.C.r; this.pc[q + 1] = this.C.g; this.pc[q + 2] = this.C.b; np++;
         }
       }
       if (nah) { this.autos.count = na; this.lkws.count = nl; for (const x of [this.autos, this.lkws]) { x.instanceMatrix.needsUpdate = true; if (x.instanceColor) x.instanceColor.needsUpdate = true; } }
