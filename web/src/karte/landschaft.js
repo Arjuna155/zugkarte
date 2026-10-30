@@ -47,6 +47,8 @@ export function landschaftStil(stil) {
   L.push({ id: "ls-schatten", type: "hillshade", source: "dem-farbe", paint: { "hillshade-method": "multidirectional", "hillshade-exaggeration": .45, "hillshade-highlight-color": "rgba(255,250,230,0.5)", "hillshade-shadow-color": "rgba(45,58,80,0.42)", "hillshade-accent-color": "rgba(40,50,60,0.25)" } });
   if (basis) {
     L.push({ id: "ls-wasser", type: "fill", source: basis, "source-layer": "water", paint: { "fill-color": FARBE.wasser, "fill-antialias": true } });
+    // Ufersaum: heller, weich auslaufender Rand (flaches Wasser, Kies)
+    L.push({ id: "ls-ufer", type: "line", source: basis, "source-layer": "water", minzoom: 11.5, layout: { "line-join": "round" }, paint: { "line-color": "#9cc6cc", "line-width": meter(9), "line-blur": meter(6), "line-opacity": ["interpolate", ["linear"], ["zoom"], 11.5, 0, 13, .6] } });
     L.push({ id: "ls-fluss", type: "line", source: basis, "source-layer": "waterway", filter: ["!=", ["get", "intermittent"], 1], layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-color": FARBE.fluss, "line-width": ["interpolate", ["exponential", 2], ["zoom"], 8, ["match", ["get", "class"], "river", .8, .2], 22, ["match", ["get", "class"], "river", 30 * 4194304 / 106000, 3 * 4194304 / 106000]], "line-opacity": ["interpolate", ["linear"], ["zoom"], 8, .6, 12, .9] } });
     // Wege, Strassen und Bahntrassen nah als Oberfläche in echter Breite (keine Tunnel); bleibt auch für die Suche der
