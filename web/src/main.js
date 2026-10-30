@@ -14,6 +14,7 @@ import { gleiseStarten, GL } from "./karte/gleise.js";
 import { wetterStarten, WE } from "./karte/wetter.js";
 import { verkehrStarten, VK } from "./karte/verkehr.js";
 import { strassenStarten, STR } from "./karte/strassen.js";
+import { baeumeStarten, BA } from "./karte/baeume.js";
 import { busBrauche, BUS } from "./kern/busse.js";
 import { seiteStarten, seiteTakt, uhr } from "./ui/seite.js";
 import { an } from "./util.js";
@@ -31,9 +32,9 @@ function bild(now) {
   await ladeBasis();
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
-  an("karte", () => { welt3dStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
+  an("karte", () => { welt3dStarten(); baeumeStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen
-  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR };
+  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR, BA };
 })();
