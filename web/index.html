@@ -180,15 +180,8 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
 <div class="app">
 <header>
   <h1>ÖV Schweiz <small>3D-Karte</small></h1>
-  <div class="clock" aria-label="Simulierte Uhrzeit">
+  <div class="clock" aria-label="Uhrzeit">
     <time id="clk">--:--:--</time>
-    <div class="seg" id="speed" role="group" aria-label="Geschwindigkeit">
-      <button data-v="0" aria-pressed="false" title="Anhalten">❚❚</button>
-      <button data-v="1" aria-pressed="true">1×</button>
-      <button data-v="10" aria-pressed="false">10×</button>
-      <button data-v="60" aria-pressed="false">60×</button>
-    </div>
-    <button class="link" id="now">Jetzt</button>
     <span class="rtpill" id="rt" data-state="off" role="status"><i></i><span id="rtTxt">Nur Fahrplan</span></span>
   </div>
   <div class="search">

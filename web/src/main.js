@@ -24,7 +24,8 @@ import { an } from "./util.js";
 
 let takt = 0, sek = -1;
 function bild(now) {
-  const dt = Math.min(now - S.lastReal, 1000); S.lastReal = now; S.simMs += dt * S.speed;
+  const dt = Math.min(now - S.lastReal, 1000); S.lastReal = now;
+  if (S.speed === 1) S.simMs = Date.now(); else S.simMs += dt * S.speed;   // immer Echtzeit (anhalten/raffen nur noch für Tests über __zk.S.speed)
   SPERR.heute = SPERR.teile.size > 0 && SPERR.datum === zh(S.simMs).date;
   const s = Math.floor(S.simMs / 1000); if (s !== sek) { sek = s; uhr(); }
   if (K.bereit && K.fz) fahrzeugeBerechnen(now);

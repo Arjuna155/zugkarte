@@ -145,7 +145,7 @@ export function seiteStarten() {
   legende(); intro(); suche(); seitenleiste(); farbModus(S.colMode);
   document.querySelectorAll("#colmode button").forEach(b => b.onclick = () => farbModus(b.dataset.v));
   document.querySelectorAll("#speed button").forEach(b => b.onclick = () => { S.speed = +b.dataset.v; document.querySelectorAll("#speed button").forEach(x => x.setAttribute("aria-pressed", x === b)); });
-  $("now").onclick = () => { S.simMs = Date.now(); };
+  if ($("now")) $("now").onclick = () => { S.simMs = Date.now(); };
   an("bahnhof", n => bahnhof(n)); an("strecke", i => strecke(i)); an("zug", (tr, o) => zug(tr, o, false)); an("leer", auswahlWeg);
   an("echtzeit", echtzeitAnzeige); echtzeitAnzeige(); setInterval(echtzeitAnzeige, 15000);
 }
