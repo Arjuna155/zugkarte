@@ -11,6 +11,7 @@ export const ZB = 14;
 const RASTER = 7, N_MAX = istHandy() ? 12000 : 40000;
 export const BA = { an: true, n: 0, fertig: 0, liste: null };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
+let msFest = 0; const MS_FEST = () => msFest || (msFest = mc([8.23, 46.8]).meterInMercatorCoordinateUnits());
 let quelle = null, anker = null, ams = 1, bauZoom = 0, version = 0, hEx = -1;
 
 function quelleSuchen(map) { for (const l of map.getStyle().layers) if (l["source-layer"] === "landcover") return l.source; for (const l of map.getStyle().layers) if (l["source-layer"] === "transportation") return l.source; return null; }
@@ -32,7 +33,9 @@ function bauen() {
   const z = map.getZoom(), c = map.getCenter(), o = mc(c), ms = o.meterInMercatorCoordinateUnits();
   // Umkreis (m) und Anteil nach Zoom: nah alles, weiter draussen eine feste Teilmenge
   const R = z >= 16 ? 1300 : z >= 15 ? 2200 : 3200, anteil = z >= 16 ? 1 : z >= 15 ? .55 : .28;
-  const zelle = RASTER * ms, kand = [], gesehen = new Set();
+  // Raster fest im Raum: Zellgrösse aus einem festen Bezugspunkt (Mitte der Schweiz), nicht aus der Bildmitte – sonst
+  // verschiebt sich das Raster beim Verschieben der Karte und jede Zelle bekäme einen anderen Baum
+  const zelle = RASTER * MS_FEST(), kand = [], gesehen = new Set();
   for (const f of map.querySourceFeatures(quelle, { sourceLayer: "landcover" })) {
     const a = art(f.properties); if (!a) continue; const g = f.geometry;
     const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
@@ -54,8 +57,9 @@ function bauen() {
       }
     }
   }
-  // zu viele: die nächsten zuerst, sonst nach festem Zufall (gleiche Teilmenge bei jedem Neuaufbau)
-  if (kand.length > N_MAX) { kand.sort((a, b) => a.d / R + a.h * .5 - (b.d / R + b.h * .5)); kand.length = N_MAX; }
+  // zu viele: nur nach dem festen Zufall der Zelle auswählen (nicht nach der Lage zur Bildmitte) – so bleibt beim
+  // Verschieben jeder Baum, der vorher stand, auch stehen
+  if (kand.length > N_MAX) { kand.sort((a, b) => a.h - b.h); kand.length = N_MAX; }
   anker = o; ams = ms; bauZoom = z; version++;
   BA.liste = kand.map(k => ({ ...k, x: (k.mx - o.x) / ms, y: (k.my - o.y) / ms, z: NaN })); BA.n = BA.liste.length; BA.fertig = 0; hEx = -1;
 }
