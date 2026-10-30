@@ -10,6 +10,8 @@ import { istHandy } from "../util.js";
 export const ZW = 10;
 export const WA = { an: true, flaechen: 0, dreiecke: 0 };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
+const RUND = [[0, 0]]; for (const d of [25, 50]) for (let k = 0; k < 8; k++) RUND.push([d, k * Math.PI / 4]);   // Umkreis für den Wasserspiegel
+let fehlt = false;   // Gelände noch nicht überall geladen → neu, sobald es da ist
 let quelle = null, anker = null, ams = 1, version = 0, daten = null, start = null;   // start: fester Bezugspunkt der Wellen (bleiben beim Verschieben stehen)
 
 function quelleSuchen(map) { for (const l of map.getStyle().layers) if (l["source-layer"] === "water") return l.source; return null; }
@@ -17,22 +19,28 @@ function bauen() {
   const map = K.map; if (!WA.an || map.getZoom() < ZW) { daten = null; version++; return; }
   if (!quelle) quelle = quelleSuchen(map); if (!quelle) return;
   const o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), T = map.getTerrain(), ex = T ? T.exaggeration || 1 : 0;
-  const pos = [], gesehen = new Set(); let fl = 0;
+  const pos = [], gesehen = new Set(); let fl = 0; fehlt = false;
   for (const f of map.querySourceFeatures(quelle, { sourceLayer: "water" })) {
     const g = f.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
     for (const poly of polys) {
       if (!poly[0] || poly[0].length < 4) continue;
       const sig = poly[0].length + ":" + poly[0][0][0].toFixed(6) + ":" + poly[0][0][1].toFixed(6); if (gesehen.has(sig)) continue; gesehen.add(sig);   // gleiche Fläche aus mehreren Kacheln
       const ringe = poly.map(r => r.slice(0, -1).map(q => { const m = mc(q); return new THREE.Vector2((m.x - o.x) / ms, (m.y - o.y) / ms); }));
-      // Höhe je Randpunkt aus dem Gelände (Seen: überall gleich; Flüsse als Fläche: fallen talwärts). Lange Ufer: nur jeden
-      // n-ten Punkt abfragen, dazwischen linear; fehlende Werte (Gelände noch nicht geladen) = tiefster Wert der Fläche
+      // Wasserhöhe je Randpunkt: tiefster Geländewert im Umkreis von 50 m (am Ufer selbst mischt das Höhenmodell die Böschung
+      // hinein; so liegen beide Ufer eines Flusses gleich hoch, Flüsse fallen trotzdem talwärts). Lange Ufer: nur jeden n-ten
+      // Punkt, dazwischen linear; fehlende Werte (Gelände noch nicht geladen) vom nächsten bekannten Punkt – später neu.
       let tri; try { tri = THREE.ShapeUtils.triangulateShape(ringe[0], ringe.slice(1)); } catch (e) { continue; }
+      const tief = q => { const kl = Math.cos(q[1] * Math.PI / 180) * 111320; let m = NaN;
+        for (const [d, w] of RUND) { const e = map.queryTerrainElevation([q[0] + Math.cos(w) * d / kl, q[1] + Math.sin(w) * d / 111320]); if (e !== null && e !== undefined && !(e >= m)) m = e; }
+        return m; };
       const hz = poly.map(r => { const n = r.length - 1, z = new Float32Array(Math.max(n, 1)); if (!ex) return z;
-        const sch = Math.max(1, Math.ceil(n / 300)), stuetz = [];
-        for (let i = 0; i < n; i += sch) { const e = map.queryTerrainElevation(r[i]); stuetz.push([i, e === null || e === undefined ? NaN : e]); }
-        let m = Infinity; for (const [, e] of stuetz) if (e < m) m = e; if (!isFinite(m)) m = 0; for (const q of stuetz) if (isNaN(q[1])) q[1] = m;
+        const sch = Math.max(1, Math.ceil(n / 200)), stuetz = [];
+        for (let i = 0; i < n; i += sch) stuetz.push([i, tief(r[i])]);
+        let gut = stuetz.findIndex(q => !isNaN(q[1])); if (gut < 0) { fehlt = true; return null; }
+        for (let k = 1; k <= stuetz.length; k++) { const q = stuetz[(gut + k) % stuetz.length]; if (isNaN(q[1])) { q[1] = stuetz[(gut + k - 1) % stuetz.length][1]; fehlt = true; } }
         for (let k = 0; k < stuetz.length; k++) { const [i0, e0] = stuetz[k], [i1, e1] = stuetz[(k + 1) % stuetz.length], L = ((i1 - i0 + n) % n) || n; for (let j = 0; j < L && i0 + j < n; j++) z[i0 + j] = e0 + (e1 - e0) * j / L; }
         return z; });
+      if (hz.some(z => !z)) continue;
       const alle = ringe.flat(), alleZ = hz.flatMap(z => Array.from(z));
       for (const [a, b, c] of tri) for (const i of [a, b, c]) pos.push(alle[i].x, alle[i].y, alleZ[i] || 0);
       fl++;
@@ -97,7 +105,7 @@ function schicht() {
       this.I.copy(this.cam.projectionMatrix).invert(); this.C.set(0, 0, 1, 0).applyMatrix4(this.I);
       const U = this.mat.uniforms; if (Math.abs(this.C.w) > 1e-12) U.uCam.value.set(this.C.x / this.C.w, this.C.y / this.C.w, this.C.z / this.C.w);
       U.uT.value = (performance.now() - this.t0) / 1000; U.uAnker.value.set((anker.x - start.x) / ams, (anker.y - start.y) / ams);   // Wellen fest im Raum
-      const hb = 2 + 156543 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** map.getZoom() * 1.5;   // etwas über dem Gelände (Seefläche im Höhenmodell)
+      const hb = 1 + 156543 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** map.getZoom() * .25;   // knapp über dem Gelände (Seefläche im Höhenmodell)
       this.netz.position.z = hb;
       this.r.resetState(); this.r.render(this.szene, this.cam);
       // nur weiterlaufen, wenn nah genug für sichtbare Wellen (sonst steht das Bild still und spart Strom)
@@ -112,6 +120,7 @@ export function wasserStarten() {
   map.on("moveend", () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZW) neu(); });
   map.on("terrain", neu);
+  map.on("sourcedata", e => { if (fehlt && e.sourceId === "dem" && e.isSourceLoaded) neu(); });   // Gelände nachgeladen
   ebene({ id: "wasser", name: "Wasser (Wellen und Glanz)", an: true, setze: an => { WA.an = an; if (an) { laden(); neu(); } map.triggerRepaint(); } });
   laden();
 }
