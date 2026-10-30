@@ -23,13 +23,13 @@ let quelle = null, anker = null, ams = 1, version = 0, hEx = -1;
 
 function hash(n) { let h = (n | 0) * 2654435761 | 0; h = (h ^ (h >>> 15)) * 2246822519 | 0; return ((h ^ (h >>> 13)) >>> 0) / 4294967296; }
 // konvexe Hülle (Monotone Chain) und kleinstes umschliessendes Rechteck (je Hüllkante als Richtung)
-function huelle(P) {
+export function huelle(P) {
   const p = P.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), kr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   const u = [], l = []; for (const q of p) { while (l.length > 1 && kr(l[l.length - 2], l[l.length - 1], q) <= 0) l.pop(); l.push(q); }
   for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (u.length > 1 && kr(u[u.length - 2], u[u.length - 1], q) <= 0) u.pop(); u.push(q); }
   return l.slice(0, -1).concat(u.slice(0, -1));
 }
-function rechteck(H) {
+export function rechteck(H) {
   let best = null;
   for (let i = 0; i < H.length; i++) {
     const a = H[i], b = H[(i + 1) % H.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1e-6) continue;

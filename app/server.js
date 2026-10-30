@@ -140,6 +140,7 @@ const BW = require("./tunnel.js").start({ DATA_DIR, log });
 // Wetter: aktuelle Messwerte der MeteoSchweiz-Stationen (alle 10 Min.), siehe wetter.js
 const WE = require("./wetter.js").start({ DATA_DIR, log });
 // Strassenverkehr: Verkehrszähler in Echtzeit (gleicher Schlüssel), siehe verkehr.js
+const PE = require("./perrons.js").start({ DATA_DIR, log });
 const VK = require("./verkehr.js").start({ DATA_DIR, log, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 const FO = require("./formation.js").start({ DATA_DIR, log, fahrplan: FP, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 
@@ -378,6 +379,11 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/wetter") { const gz = WE.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch keine Wetterdaten" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
   if (url.pathname === "/api/wetter/status") return json(req, res, 200, WE.status());
   if (url.pathname === "/api/verkehr") { const gz = VK.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch keine Verkehrsdaten" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
+  if (url.pathname === "/api/perrons") {   // Perrons aus OpenStreetMap je 10-km-Kachel
+    const ks = (url.searchParams.get("k") || "").split(",").filter(k => /^-?\d{1,3}_-?\d{1,3}$/.test(k)).slice(0, 60); if (!ks.length) return json(req, res, 400, { fehler: "k nötig" });
+    const gz = PE.kacheln(ks); if (!gz) return json(req, res, 404, { fehler: "Noch keine Perrons" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz);
+  }
+  if (url.pathname === "/api/perrons/status") return json(req, res, 200, PE.status());
   if (url.pathname === "/api/verkehr/status") return json(req, res, 200, VK.status());
   if (url.pathname === "/api/formation/status") return json(req, res, 200, FO.status());
   if (url.pathname === "/api/verspaetungen") {

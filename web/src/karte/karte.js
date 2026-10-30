@@ -41,7 +41,7 @@ function karteBauen(stil) {
   const map = K.map = new maplibregl.Map({
     container: "map", style: stil,
     bounds: CH_BOX, fitBoundsOptions: { padding: 20 }, pitch: K.mit3d ? 35 : 0, maxPitch: 80,
-    attributionControl: { compact: true, customAttribution: "Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff © OpenStreetMap" }
+    attributionControl: { compact: true, customAttribution: "Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff/Perrons © OpenStreetMap" }
   });
   // Sicherung: Fehler im Landschaftsstil (z. B. neue swisstopo-Version) → bisherige Grundkarte
   if (typeof stil !== "string") { let geladen = false; map.once("load", () => geladen = true);
