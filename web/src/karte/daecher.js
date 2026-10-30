@@ -105,7 +105,7 @@ function dach(b, pos, nor, col) {
 }
 // Übrige Häuser (verwinkelt, gross): flaches Stück von der Traufe bis zur Gesamthöhe (die Mauern enden ab ZD an der Traufe)
 function aufstock(b, pos, nor, col) {
-  const z0 = b.z + b.H - dachH(b.H) - .05, z1 = b.z + b.H, P = b.P, CW = new THREE.Color(FASSADE[b.id % FASSADE.length]), CT = new THREE.Color("#a9a6a0");
+  const z0 = b.z + b.H - dachH(b.H) - .05, z1 = b.z + b.H, P = b.P, CW = new THREE.Color(FASSADE[b.id % FASSADE.length]), CT = new THREE.Color("#d2cfc8");
   let sa = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; sa += p[0] * q[1] - q[0] * p[1]; } const sg = sa >= 0 ? 1 : -1;   // Umlaufsinn → Normale nach aussen
   for (let i = 0; i < P.length; i++) { const a = P[i], c = P[(i + 1) % P.length], ax = b.x + a[0], ay = b.y + a[1], cx = b.x + c[0], cy = b.y + c[1], L = Math.hypot(cx - ax, cy - ay) || 1, n = [sg * (cy - ay) / L, -sg * (cx - ax) / L, 0];
     for (const q of [[ax, ay, z0], [cx, cy, z0], [cx, cy, z1], [ax, ay, z0], [cx, cy, z1], [ax, ay, z1]]) { pos.push(...q); nor.push(...n); col.push(CW.r, CW.g, CW.b); } }

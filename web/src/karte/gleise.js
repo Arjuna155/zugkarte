@@ -65,6 +65,11 @@ export function gleisNah(m, r = 25, ohne = null) {
   return best;
 }
 export const gleisMs = () => ms;
+// alle Gleisstücke im Ausschnitt (Mercator-Endpunkte, Tunnel-Kennzeichen) – für die Schienen in bahnhoefe3d.js
+export function gleisStuecke() {
+  if (!GL.bereit) return []; const set = new Set(); for (const a of raster.values()) for (const s of a) set.add(s);
+  return [...set].map(s => ({ ax: o.x + s[0] * ms, ay: o.y + s[1] * ms, bx: o.x + s[2] * ms, by: o.y + s[3] * ms, tun: !!s[4] }));
+}
 export function gleiseStarten() {
   const map = K.map; let t = 0; const neu = () => { clearTimeout(t); t = setTimeout(aufbauen, 200); };
   map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();

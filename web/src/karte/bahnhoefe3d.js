@@ -7,7 +7,7 @@ import { K } from "./karte.js";
 import { B } from "../kern/basis.js";
 import { GLAGE, gleiseLaden } from "../kern/gleislage.js";
 import { kachelnIm } from "../kern/busse.js";
-import { GL, gleisNah } from "./gleise.js";
+import { GL, gleisNah, gleisStuecke } from "./gleise.js";
 import { huelle, rechteck } from "./daecher.js";
 import { ladeThree, szeneMitLicht } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
@@ -16,7 +16,7 @@ import { wgs } from "../util.js";
 export const ZBF = 14.5;
 export const BF = { an: true, perrons: 0, osm: 0, ersatz: 0, kacheln: 0 };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
-let anker = null, ams = 1, version = 0, daten = null;
+let anker = null, ams = 1, version = 0, daten = null, schienen = null;
 const HOEHE = .55, ABSTAND = 1.75, R = 2500;   // Perronhöhe über Gelände, Kante bis Gleismitte, Umkreis (m)
 
 // ---- OSM-Perrons je Kachel laden ----
@@ -69,9 +69,10 @@ function bauen() {
   if (GLAGE.daten && GL.bereit) for (const [i, kanten] of Object.entries(GLAGE.daten)) {
     const name = B.SN[+i], st = name && (B.ST[name] || B.STX[name]); if (!st) continue;
     const s = lokal(st.E, st.N, o, ms); if (Math.hypot(s[0], s[1]) > R) continue;
-    for (const [, [E, N]] of Object.entries(kanten)) {
+    for (const [gl, [E, N]] of Object.entries(kanten)) {
+      if (!/^\d{1,2}[A-Za-z]?$/.test(gl)) continue;   // nur Gleisnummern (Bus-Kanten A, B … am Bahnhof sind keine Perrons)
       const q = lokal(E, N, o, ms); if (osm.some(p => abstandPoly(q[0], q[1], p.P) < 15)) continue;
-      const g = gleisNah(merc(q[0], q[1]), 18); if (!g || g.tun) continue;
+      const g = gleisNah(merc(q[0], q[1]), 6); if (!g || g.tun) continue;   // Kante liegt direkt am Gleis
       const gx = (g.px - o.x) / ms, gy = (g.py - o.y) / ms, n0x = g.uy, n0y = -g.ux;
       let seite = Math.sign((q[0] - gx) * n0x + (q[1] - gy) * n0y); if (!seite || Math.hypot(q[0] - gx, q[1] - gy) < 1) seite = Math.sign((s[0] - gx) * n0x + (s[1] - gy) * n0y) || 1;
       const nx = n0x * seite, ny = n0y * seite, W = 5, L = 120, cx = gx + nx * (ABSTAND + W / 2), cy = gy + ny * (ABSTAND + W / 2);
@@ -83,6 +84,15 @@ function bauen() {
       ersatz.push({ P, z, sg: sa >= 0 ? 1 : -1, kanten: [true, false, false, false], dach: false });
     }
   }
+  // Schienen (ab Zoom 15.5, Umkreis 1,3 km): je Gleis zwei Schienen in Normalspur, 25 cm über dem Gelände
+  const S = [];
+  if (map.getZoom() >= 15.5) for (const s of gleisStuecke()) {
+    if (s.tun) continue; const ax = (s.ax - o.x) / ms, ay = (s.ay - o.y) / ms, bx = (s.bx - o.x) / ms, by = (s.by - o.y) / ms;
+    if (Math.hypot(ax, ay) > 1300 && Math.hypot(bx, by) > 1300) continue;
+    const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * .7175, ny = (bx - ax) / L * .7175, za = hoehe(ax, ay), zb = hoehe(bx, by); if (isNaN(za) || isNaN(zb)) continue;
+    for (const e of [1, -1]) S.push(ax + nx * e, ay + ny * e, za + .25, bx + nx * e, by + ny * e, zb + .25);
+  }
+  schienen = new Float32Array(S);
   anker = o; ams = ms; daten = osm.concat(ersatz); BF.osm = osm.length; BF.ersatz = ersatz.length; BF.perrons = daten.length; version++;
 }
 let neuBauen = null;
@@ -127,13 +137,15 @@ function schicht() {
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
       this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
-      this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.v = -1;
+      this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.linien = null; this.v = -1; this.stahl = new THREE.LineBasicMaterial({ color: 0x4f4c49 });
     },
     render(gl, args) {
       const map = K.map;
       if (this.v !== version) { this.v = version; if (this.netz) { this.szene.remove(this.netz); this.netz.geometry.dispose(); this.netz = null; }
-        if (daten && daten.length) { this.netz = new THREE.Mesh(geometrie(), this.mat); this.netz.frustumCulled = false; this.szene.add(this.netz); } }
-      if (!this.netz || !BF.an || map.getZoom() < ZBF - .2) return;
+        if (daten && daten.length) { this.netz = new THREE.Mesh(geometrie(), this.mat); this.netz.frustumCulled = false; this.szene.add(this.netz); }
+        if (this.linien) { this.szene.remove(this.linien); this.linien.geometry.dispose(); this.linien = null; }
+        if (daten && schienen && schienen.length) { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(schienen, 3)); this.linien = new THREE.LineSegments(g, this.stahl); this.linien.frustumCulled = false; this.szene.add(this.linien); } }
+      if (!(this.netz || this.linien) || !BF.an || map.getZoom() < ZBF - .2) return;
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(anker.x, anker.y, 0).scale(new THREE.Vector3(ams, ams, ams));
       this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
     },
