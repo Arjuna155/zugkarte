@@ -10,6 +10,9 @@ import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
 
 export const CH_BOX = [[5.95, 45.82], [10.49, 47.81]];
+// Nur die Schweiz mit Rand: weiter verschieben/herauszoomen geht nicht, Gelände wird nur hier geladen (spart Leistung).
+// Der Rand ist so gross, dass die ganze Schweiz auch hochkant auf dem Handy ins Bild passt.
+export const GEBIET = [[2.5, 41.5], [14.5, 52.0]];
 export const K = { map: null, bereit: false, mit3d: true, fzTreffer: null, fzTip: null, linienAn: false };
 const STIL_URL = "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json";
 const SCHRIFT = "Frutiger Neue Condensed Bold", SCHRIFT_M = "Frutiger Neue Condensed Medium";
@@ -40,7 +43,7 @@ function karteBauen(stil) {
   if (K.map) { try { K.map.remove(); } catch (e) { } K.map = null; }
   const map = K.map = new maplibregl.Map({
     container: "map", style: stil,
-    bounds: CH_BOX, fitBoundsOptions: { padding: 20 }, pitch: K.mit3d ? 35 : 0, maxPitch: 80,
+    bounds: CH_BOX, fitBoundsOptions: { padding: 20 }, maxBounds: GEBIET, renderWorldCopies: false, pitch: K.mit3d ? 35 : 0, maxPitch: 80,
     attributionControl: { compact: true, customAttribution: "Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff/Perrons © OpenStreetMap" }
   });
   // Sicherung: Fehler im Landschaftsstil (z. B. neue swisstopo-Version) → bisherige Grundkarte
@@ -56,7 +59,7 @@ function karteBauen(stil) {
     const bahnFC = bahnDaten();
     const stFC = fc(B.names.map((n, j) => ({ type: "Feature", id: j, properties: { n, t: B.tier(n) }, geometry: { type: "Point", coordinates: wgs(X(B.ST[n]), Y(B.ST[n])) } })));
     const oevFC = a => fc(B.OEV[a].map(k => ({ type: "Feature", properties: { n: k.replace("|", " - ") }, geometry: { type: "LineString", coordinates: glatt(dekodiere(B.KANTEN[k], (x, y) => [x / B.KF(k), y / B.KF(k)])).map(q => wgs(q[0], q[1])) } })));
-    map.addSource("dem", { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 14 });
+    map.addSource("dem", { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 14, bounds: GEBIET.flat() });
     if (typeof stil === "string") try { map.setSky({ "sky-color": "#bcd7ea", "horizon-color": "#e8eef2", "fog-color": "#e8eef2", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.4, "fog-ground-blend": 0.6 }); } catch (e) { }
     map.addSource("schiff", { type: "geojson", data: B.MIT_OEV ? oevFC("s") : fc([]) });
     map.addSource("tram", { type: "geojson", data: B.MIT_OEV ? oevFC("t") : fc([]) });

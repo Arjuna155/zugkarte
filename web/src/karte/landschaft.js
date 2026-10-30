@@ -67,7 +67,7 @@ export function landschaftStil(stil) {
   }
   return {
     ...stil, layers: L, terrain: undefined,
-    sources: { ...quellen, "dem-farbe": { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 12 } },
+    sources: { ...quellen, "dem-farbe": { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 12, bounds: [2.5, 41.5, 14.5, 52.0] } },   // wie GEBIET in karte.js
     sky: { "sky-color": "#9cc3e2", "horizon-color": "#e6eef3", "fog-color": "#e1e9ee", "sky-horizon-blend": 0.55, "horizon-fog-blend": 0.45, "fog-ground-blend": 0.55, "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 12, 0.6, 14, 0] },
     light: { anchor: "map", position: [1.4, 300, 40], color: "#fffaf0", intensity: 0.35 },
   };
