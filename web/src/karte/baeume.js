@@ -82,7 +82,7 @@ function hoehen() {
 // Geometrie (z nach oben, Höhe 1, Fuss bei 0) mit Farbe je Ecke
 function geo(teile) {
   const p = [], n = [], c = [];
-  for (const [g, farbe] of teile) { const q = g.toNonIndexed(), P = q.attributes.position.array, N = q.attributes.normal.array, C = new THREE.Color(farbe); for (let i = 0; i < P.length; i += 3) { p.push(P[i], P[i + 1], P[i + 2]); n.push(N[i], N[i + 1], N[i + 2]); c.push(C.r, C.g, C.b); } }
+  for (const [g, farbe] of teile) { const q = g.index ? g.toNonIndexed() : g, P = q.attributes.position.array, N = q.attributes.normal.array, C = new THREE.Color(farbe); for (let i = 0; i < P.length; i += 3) { p.push(P[i], P[i + 1], P[i + 2]); n.push(N[i], N[i + 1], N[i + 2]); c.push(C.r, C.g, C.b); } }
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(p, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(n, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(c, 3)); return g;
 }
 const hoch = (g, z) => { g.rotateX(Math.PI / 2); g.translate(0, 0, z); return g; };

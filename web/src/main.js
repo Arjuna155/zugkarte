@@ -16,6 +16,7 @@ import { verkehrStarten, VK } from "./karte/verkehr.js";
 import { strassenStarten, STR } from "./karte/strassen.js";
 import { baeumeStarten, BA } from "./karte/baeume.js";
 import { wasserStarten, WA } from "./karte/wasser3d.js";
+import { daecherStarten, DA } from "./karte/daecher.js";
 import { busBrauche, BUS } from "./kern/busse.js";
 import { seiteStarten, seiteTakt, uhr } from "./ui/seite.js";
 import { an } from "./util.js";
@@ -33,9 +34,9 @@ function bild(now) {
   await ladeBasis();
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
-  an("karte", () => { welt3dStarten(); baeumeStarten(); wasserStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
+  an("karte", () => { welt3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen
-  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR, BA, WA };
+  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR, BA, WA, DA };
 })();

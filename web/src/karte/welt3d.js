@@ -4,6 +4,7 @@
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
+import { FASSADE } from "./daecher.js";
 
 export const W3 = { an: true, gebaeudeAn: true, gebaeude: false, bauwerke: 0, quelle: null };
 const ZOOM_GEBAEUDE = 14, ZOOM_BAUWERKE = 14;
@@ -25,7 +26,8 @@ function gebaeudeAn(map, g) {
   map.addLayer({
     id: "gebaeude-3d", type: "fill-extrusion", source: g.quelle, "source-layer": "building", minzoom: ZOOM_GEBAEUDE,
     paint: {
-      "fill-extrusion-color": ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 8], 4, "#ddd9d1", 30, "#d2cec6", 80, "#c6c3bd"],
+      "fill-extrusion-color": ["case", [">", ["coalesce", ["get", "render_height"], 8], 22], ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 8], 22, "#d6d2ca", 80, "#c6c3bd"],
+        ["to-color", ["at", ["%", ["abs", ["round", ["to-number", ["id"], 0]]], 6], ["literal", FASSADE]]]],   // Fassaden wie die Giebel der Dächer (daecher.js)
       "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], ZOOM_GEBAEUDE, 0, ZOOM_GEBAEUDE + .6, ["coalesce", ["get", "render_height"], ["get", "height"], 8]],
       "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], ["get", "min_height"], 0],
       "fill-extrusion-opacity": .93, "fill-extrusion-vertical-gradient": true
