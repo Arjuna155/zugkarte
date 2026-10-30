@@ -4,7 +4,7 @@
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
-import { FASSADE } from "./daecher.js";
+import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
 
 export const W3 = { an: true, gebaeudeAn: true, gebaeude: false, bauwerke: 0, quelle: null };
 const ZOOM_GEBAEUDE = 14, ZOOM_BAUWERKE = 14;
@@ -20,6 +20,7 @@ function grundquelle(map) {
 }
 
 // ---- Gebäude: Höhe «render_height» (Mittel), Unterkante «render_min_height» ----
+const H_EXPR = ["to-number", ["coalesce", ["get", "render_height"], ["get", "height"], 8]];
 function gebaeudeAn(map, g) {
   if (!g.gebaeude || map.getLayer("gebaeude-3d")) return;
   const vor = map.getLayer("schiff") ? "schiff" : undefined;
@@ -28,7 +29,10 @@ function gebaeudeAn(map, g) {
     paint: {
       "fill-extrusion-color": ["case", [">", ["coalesce", ["get", "render_height"], 8], 22], ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 8], 22, "#d6d2ca", 80, "#c6c3bd"],
         ["to-color", ["at", ["%", ["abs", ["round", ["to-number", ["id"], 0]]], 6], ["literal", FASSADE]]]],   // Fassaden wie die Giebel der Dächer (daecher.js)
-      "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], ZOOM_GEBAEUDE, 0, ZOOM_GEBAEUDE + .6, ["coalesce", ["get", "render_height"], ["get", "height"], 8]],
+      // ab Zoom ZD enden die Mauern der Häuser an der Traufe – das Dach (daecher.js) reicht bis zur Gesamthöhe
+      "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], ZOOM_GEBAEUDE, 0, ZOOM_GEBAEUDE + .6, H_EXPR, ZD - .05, H_EXPR, ZD + .05,
+        ["case", ["all", [">=", H_EXPR, H_MIN], ["<=", H_EXPR, H_MAX], ["<=", ["coalesce", ["get", "render_min_height"], ["get", "min_height"], 0], 0]],
+          ["-", H_EXPR, ["max", DACH_MIN, ["min", DACH_MAX, ["*", DACH_ANTEIL, H_EXPR]]]], H_EXPR]],
       "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], ["get", "min_height"], 0],
       "fill-extrusion-opacity": .93, "fill-extrusion-vertical-gradient": true
     }

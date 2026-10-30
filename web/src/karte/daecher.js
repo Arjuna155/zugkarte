@@ -9,6 +9,10 @@ import { W3 } from "./welt3d.js";
 import { istHandy } from "../util.js";
 
 export const ZD = 15;
+// Dachhöhe aus der Gesamthöhe (render_height = bis zum First): Mauern ab Zoom ZD nur bis zur Traufe (welt3d.js nutzt
+// dieselbe Formel als Ausdruck), das Dach endet genau auf der Gesamthöhe. Gilt für Häuser H_MIN … H_MAX ohne Unterbau.
+export const H_MIN = 3.5, H_MAX = 22, DACH_ANTEIL = .32, DACH_MIN = 1.8, DACH_MAX = 6;
+export const dachH = H => Math.max(DACH_MIN, Math.min(DACH_MAX, DACH_ANTEIL * H));
 const N_MAX = istHandy() ? 4000 : 15000;
 export const DA = { n: 0, fertig: 0, liste: null };
 // Fassadenfarben: gleiche Liste und Wahl (Kennung % Anzahl) wie die Gebäude-Ebene in welt3d.js
@@ -46,9 +50,11 @@ function bauen() {
   if (!quelle) { for (const l of map.getStyle().layers) if (l["source-layer"] === "building") { quelle = l.source; break; } } if (!quelle) return;
   const z = map.getZoom(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = z >= 17 ? 700 : z >= 16 ? 1100 : 1600;
   const liste = [], gesehen = new Set();
-  for (const f of map.querySourceFeatures(quelle, { sourceLayer: "building" })) {
+  // genau die Gebäude, die die Karte zeichnet (sonst kommen beim Zoomen vereinfachte Umrisse gröberer Kacheln dazu)
+  if (!map.getLayer("gebaeude-3d")) return;
+  for (const f of map.queryRenderedFeatures({ layers: ["gebaeude-3d"] })) {
     const p = f.properties, H = +(p.render_height ?? p.height ?? 8), H0 = +(p.render_min_height ?? p.min_height ?? 0);
-    if (!(H >= 3.5 && H <= 22) || H0 > 0) continue;   // nur Häuser bis ~6 Geschosse, ohne Überbauten
+    if (!(H >= H_MIN && H <= H_MAX) || H0 > 0) continue;   // nur Häuser bis ~6 Geschosse, ohne Überbauten
     const g = f.geometry; if (g.type !== "Polygon") continue; const ring = g.coordinates[0]; if (!ring || ring.length < 4 || ring.length > 60) continue;
     // Mitte wie MapLibre (Mittel der Eckpunkte) – darauf bezieht sich die Geländehöhe des ganzen Gebäudes
     let sx = 0, sy = 0; const n = ring.length - 1; for (let i = 0; i < n; i++) { sx += ring[i][0]; sy += ring[i][1]; }
@@ -56,10 +62,10 @@ function bauen() {
     const key = Math.round(dx * 2) + "," + Math.round(dy * 2) + "," + H; if (gesehen.has(key)) continue; gesehen.add(key);   // gleiches Haus aus mehreren Kacheln
     const P = []; for (let i = 0; i < n; i++) { const q = mc(ring[i]); P.push([(q.x - m.x) / ms, (q.y - m.y) / ms]); }
     const Hu = huelle(P); if (Hu.length < 3) continue; const r = rechteck(Hu); if (!r) continue;
-    const A = flaeche(P); if (r.A > 650 || r.A < 25 || A / r.A < .62 || r.a / r.b > 4.5) continue;   // klein, kompakt, nicht zu lang
+    const A = flaeche(P), schraeg = !(r.A > 650 || r.A < 25 || A / r.A < .8 || r.a / r.b > 4.5);   // Schrägdach nur auf kleinen, fast rechteckigen Häusern
     // Kennung für die Fassadenfarbe (wie die Gebäude-Ebene: ohne Kennung 0); Zufall für das Dach aus der festen Lage
     const id = f.id !== undefined && f.id !== null ? Math.abs(+f.id || 0) : 0, fest = Math.round(ml[0] * 2e5) * 31 + Math.round(ml[1] * 2e5);
-    liste.push({ ml, x: dx, y: dy, H, r, id, h: hash(fest), d: Math.hypot(dx, dy), z: NaN });
+    liste.push({ ml, x: dx, y: dy, H, r, id, h: hash(fest), d: Math.hypot(dx, dy), z: NaN, schraeg, P });
   }
   if (liste.length > N_MAX) { liste.sort((a, b) => a.h - b.h); liste.length = N_MAX; }   // Auswahl unabhängig von der Bildmitte
   anker = o; ams = ms; DA.liste = liste; DA.n = liste.length; DA.fertig = 0; hEx = -1; version++;
@@ -78,7 +84,7 @@ function hoehen() {
 // Dach eines Hauses in ein Dreieckspuffer schreiben (lokale Meter, z nach oben)
 function dach(b, pos, nor, col) {
   const r = b.r, o = .45, a = r.a + o * .7, w = r.b + o, walm = r.a / r.b < 1.35 || b.h < .22;
-  const rh = Math.max(1.6, Math.min(6.5, r.b * (b.meer > 1100 ? .55 : .8))), z0 = b.z + b.H - .12, z1 = z0 + rh;
+  const z0 = b.z + b.H - dachH(b.H) - .05, rh = Math.min(b.z + b.H - z0, r.b * (b.meer > 1100 ? .75 : 1.1)), z1 = z0 + rh;   // First auf der Gesamthöhe (bei schmalen Häusern höchstens ~48°)
   const cx = b.x + r.cx, cy = b.y + r.cy, [ux, uy] = r.ax, [vx, vy] = r.bx;
   const P = (s, t, z) => [cx + ux * s + vx * t, cy + uy * s + vy * t, z];
   const berg = b.meer > 1100, farbe = berg ? (b.h < .75 ? GRAU[Math.floor(b.h * 40) % GRAU.length] : ZIEGEL[Math.floor(b.h * 50) % ZIEGEL.length]) : (b.h < .18 ? GRAU[Math.floor(b.h * 40) % GRAU.length] : ZIEGEL[Math.floor(b.h * 50) % ZIEGEL.length]);
@@ -97,6 +103,15 @@ function dach(b, pos, nor, col) {
     tri(G[3], G[0], G1, CW); tri(G[1], G[2], G2, CW);
   }
 }
+// Übrige Häuser (verwinkelt, gross): flaches Stück von der Traufe bis zur Gesamthöhe (die Mauern enden ab ZD an der Traufe)
+function aufstock(b, pos, nor, col) {
+  const z0 = b.z + b.H - dachH(b.H) - .05, z1 = b.z + b.H, P = b.P, CW = new THREE.Color(FASSADE[b.id % FASSADE.length]), CT = new THREE.Color("#a9a6a0");
+  let sa = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; sa += p[0] * q[1] - q[0] * p[1]; } const sg = sa >= 0 ? 1 : -1;   // Umlaufsinn → Normale nach aussen
+  for (let i = 0; i < P.length; i++) { const a = P[i], c = P[(i + 1) % P.length], ax = b.x + a[0], ay = b.y + a[1], cx = b.x + c[0], cy = b.y + c[1], L = Math.hypot(cx - ax, cy - ay) || 1, n = [sg * (cy - ay) / L, -sg * (cx - ax) / L, 0];
+    for (const q of [[ax, ay, z0], [cx, cy, z0], [cx, cy, z1], [ax, ay, z0], [cx, cy, z1], [ax, ay, z1]]) { pos.push(...q); nor.push(...n); col.push(CW.r, CW.g, CW.b); } }
+  let tri; try { tri = THREE.ShapeUtils.triangulateShape(P.map(q => new THREE.Vector2(q[0], q[1])), []); } catch (e) { return; }
+  for (const t of tri) for (const i of t) { pos.push(b.x + P[i][0], b.y + P[i][1], z1); nor.push(0, 0, 1); col.push(CT.r, CT.g, CT.b); }
+}
 function schicht() {
   return {
     id: "daecher3d", type: "custom", renderingMode: "3d",
@@ -111,7 +126,7 @@ function schicht() {
       // neu bauen, wenn neue Höhen da sind (höchstens alle 25 % und am Ende)
       if (this.v !== version || (this.f !== DA.fertig && (DA.fertig === DA.n || DA.fertig - this.f > DA.n / 4))) {
         this.v = version; this.f = DA.fertig; const pos = [], nor = [], col = [];
-        for (let i = 0; i < DA.fertig; i++) { const b = DA.liste[i]; if (!isNaN(b.z)) dach(b, pos, nor, col); }
+        for (let i = 0; i < DA.fertig; i++) { const b = DA.liste[i]; if (!isNaN(b.z)) (b.schraeg ? dach : aufstock)(b, pos, nor, col); }
         if (this.netz) { this.szene.remove(this.netz); this.netz.geometry.dispose(); this.netz = null; }
         if (pos.length) { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
           this.netz = new THREE.Mesh(g, this.mat); this.netz.frustumCulled = false; this.szene.add(this.netz); }
