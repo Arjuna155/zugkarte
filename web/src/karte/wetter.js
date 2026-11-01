@@ -100,7 +100,7 @@ export function wetterStarten() {
       + zeile("Temperatur", s.t, " °C") + zeile("Niederschlag 1 h", s.rr1h, " mm") + zeile("Wind", s.ff, " km/h") + zeile("Böen", s.fx, " km/h") + zeile("Sonne (10 Min.)", s.so, " Min.")
       + zeile("Feuchte", s.rf, " %") + zeile("Schnee", s.hs, " cm") + `</table><div style="font-size:11px;opacity:.7">MeteoSchweiz, ${zeit}</div>`).addTo(map);
   });
-  map.on("mouseenter", "wetter-pkt", () => map.getCanvas().style.cursor = "pointer"); map.on("mouseleave", "wetter-pkt", () => map.getCanvas().style.cursor = "");
+  // Zeiger/Hinweis über der allgemeinen Abfrage in karte.js (mouseenter je Ebene fragt bei jeder Mausbewegung ab)
   ebene({ id: "wetter", name: "Wetter (Regen, Schnee, Nebel)", an: true, setze: an => { WE.an = an; himmel(true); map.triggerRepaint(); } });
   ebene({ id: "wetterstationen", name: "Wetterstationen (Messwerte)", an: false, setze: an => { WE.stationenAn = an; stationenSichtbar(an); } });
   wetter3dStarten();

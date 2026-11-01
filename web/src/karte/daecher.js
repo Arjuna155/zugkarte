@@ -4,7 +4,7 @@
 // Rechteck des Grundrisses, mit Vorsprung. Nur kleine, kompakte Gebäude (Wohnhäuser); Hallen, Blöcke und Hochhäuser
 // behalten ihr Flachdach. Farbe nach festem Zufall je Gebäude, in den Bergen eher grau.
 import { K } from "./karte.js";
-import { ladeThree, szeneMitLicht } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { W3 } from "./welt3d.js";
 import { istHandy } from "../util.js";
 
@@ -117,7 +117,7 @@ function schicht() {
     id: "daecher3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
+      this.r = gemeinsamerZeichner(m, gl);
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.v = -1; this.f = -1;
     },
     render(gl, args) {

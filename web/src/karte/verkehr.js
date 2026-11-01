@@ -4,10 +4,10 @@
 // laut Messung unterwegs sind (Fahrzeuge pro Stunde ÷ Geschwindigkeit = Fahrzeuge pro km), so schnell wie gemessen.
 // Herausgezoomt Punkte und farbige Verkehrslage (grün flüssig, orange zähflüssig, rot Stau), nah 3D-Fahrzeuge.
 import { K } from "./karte.js";
-import { ladeThree } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
-import { fc, istHandy } from "../util.js";
+import { fc, istHandy, bildIn } from "../util.js";
 
 export const VK = { stellen: [], an: true, ketten: [], zeit: 0, fz: [], lage: f => lage(f) };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -197,7 +197,7 @@ function ebene3d() {
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
       this.szene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.8)); const d = new THREE.DirectionalLight(0xffffff, 1.3); d.position.set(-.5, -.4, .9); this.szene.add(d);
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
+      this.r = gemeinsamerZeichner(m, gl);
       const mat = new THREE.MeshLambertMaterial();
       this.autos = new THREE.InstancedMesh(autoGeo(4.4, 1.8, .85, false), mat, N_MAX); this.lkws = new THREE.InstancedMesh(autoGeo(14, 2.5, 3.2, true), mat, N_MAX);
       for (const x of [this.autos, this.lkws]) { x.frustumCulled = false; x.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N_MAX * 3).fill(1), 3); this.szene.add(x); }
@@ -205,6 +205,7 @@ function ebene3d() {
       this.pg.setAttribute("position", new THREE.BufferAttribute(this.pp, 3)); this.pg.setAttribute("color", new THREE.BufferAttribute(this.pc, 3));
       this.punkte = new THREE.Points(this.pg, new THREE.PointsMaterial({ vertexColors: true, size: 3.2, sizeAttenuation: false })); this.punkte.frustumCulled = false; this.szene.add(this.punkte);
       this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(); this.V = new THREE.Vector3(); this.Sk = new THREE.Vector3(1, 1, 1); this.C = new THREE.Color();
+      this.LF = ["#5b6670", "#2f9e44", "#f08c00", "#e03131"].map(f => new THREE.Color(f));
       this.t = performance.now();
     },
     render(gl, args) {
@@ -227,16 +228,19 @@ function ebene3d() {
         if (nah) {
           const ziel = f.lkw ? this.lkws : this.autos, i = f.lkw ? nl++ : na++;
           this.E.set(0, Math.atan2(k.z[hi] - k.z[lo], (k.cum[hi] - k.cum[lo]) || 1) * -f.r, Math.atan2(dy * f.r, dx * f.r), "ZYX"); this.Q.setFromEuler(this.E); this.V.set(px, py, pz); this.M.compose(this.V, this.Q, this.Sk);
-          ziel.setMatrixAt(i, this.M); ziel.setColorAt(i, this.C.set(f.lkw ? "#d9dcdf" : f.farbe));
+          ziel.setMatrixAt(i, this.M); ziel.setColorAt(i, f.col || (f.col = new THREE.Color(f.lkw ? "#d9dcdf" : f.farbe)));
         } else {
           const q = np * 3; this.pp[q] = px; this.pp[q + 1] = py; this.pp[q + 2] = pz + 2;
-          const v = k.lagea[lo]; this.C.set(isNaN(v) ? "#5b6670" : v >= 70 ? "#2f9e44" : v >= 40 ? "#f08c00" : "#e03131"); this.pc[q] = this.C.r; this.pc[q + 1] = this.C.g; this.pc[q + 2] = this.C.b; np++;
+          const v = k.lagea[lo], C = this.LF[isNaN(v) ? 0 : v >= 70 ? 1 : v >= 40 ? 2 : 3]; this.pc[q] = C.r; this.pc[q + 1] = C.g; this.pc[q + 2] = C.b; np++;
         }
       }
       if (nah) { this.autos.count = na; this.lkws.count = nl; for (const x of [this.autos, this.lkws]) { x.instanceMatrix.needsUpdate = true; if (x.instanceColor) x.instanceColor.needsUpdate = true; } }
       else { this.pg.setDrawRange(0, np); this.pg.attributes.position.needsUpdate = true; this.pg.attributes.color.needsUpdate = true; this.punkte.visible = true; this.punkte.material.size = map.getZoom() < 10 ? 2.2 : 3.2; }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(c.x, c.y, 0).scale(new THREE.Vector3(ms, ms, ms));
-      this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam); map.triggerRepaint();
+      this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
+      // nächstes Bild erst, wenn sich ein Fahrzeug um ~½ Bildpunkt bewegt haben kann (herausgezoomt selten, nah bis 30/s)
+      if (dt || S.speed > 0) { const mpp = 78271.5 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** map.getZoom(), pxs = 36 / mpp * (1 + map.getPitch() / 30);
+        bildIn(map, Math.max(istHandy() ? 50 : 33, Math.min(1000, 500 / pxs))); }
     },
   };
 }

@@ -9,7 +9,7 @@ import { GLAGE, gleiseLaden } from "../kern/gleislage.js";
 import { kachelnIm } from "../kern/busse.js";
 import { GL, gleisNah, gleisStuecke } from "./gleise.js";
 import { huelle, rechteck } from "./daecher.js";
-import { ladeThree, szeneMitLicht } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { wgs } from "../util.js";
 
@@ -136,7 +136,7 @@ function schicht() {
     id: "bahnhoefe3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
+      this.r = gemeinsamerZeichner(m, gl);
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.linien = null; this.v = -1; this.stahl = new THREE.LineBasicMaterial({ color: 0x4f4c49 });
     },
     render(gl, args) {

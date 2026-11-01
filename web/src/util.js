@@ -41,4 +41,11 @@ export function laenge(pt) { let m = 0; for (let k = 1; k < pt.length; k++)m += 
 const hoerer = {};
 export const an = (ev, fn) => (hoerer[ev] || (hoerer[ev] = [])).push(fn);
 export const melde = (ev, ...a) => (hoerer[ev] || []).forEach(fn => fn(...a));
-export const istHandy = () => matchMedia("(max-width:760px)").matches;
+let handy = null;   // zwischengespeichert (matchMedia in jedem Bild kostet), neu nach Grössenänderung
+export const istHandy = () => { if (handy === null) { handy = matchMedia("(max-width:760px)").matches; addEventListener("resize", () => handy = null, { once: true }); } return handy; };
+// Nächstes Bild in ms anfordern (für Animationen, die keine volle Bildrate brauchen); mehrere Wünsche → der früheste gilt
+let bildZiel = Infinity, bildTimer = 0;
+export function bildIn(map, ms) {
+  const z = performance.now() + ms; if (z >= bildZiel) return;
+  bildZiel = z; clearTimeout(bildTimer); bildTimer = setTimeout(() => { bildZiel = Infinity; map.triggerRepaint(); }, ms);
+}

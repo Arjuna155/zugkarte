@@ -5,9 +5,9 @@
 // – Nebel als Nebelmeer: Fläche auf der Nebelobergrenze mit ziehenden Schwaden; das Gelände ragt hindurch.
 // – Regenwolken als graue Schwaden über den Regengebieten.
 import { K } from "./karte.js";
-import { ladeThree } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner } from "./drei.js";
 import { WE, feldBei, tempBei } from "./wetter.js";
-import { istHandy } from "../util.js";
+import { istHandy, bildIn } from "../util.js";
 
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 let gestartet = false;
@@ -37,7 +37,7 @@ function ebene() {
     id: "wetter3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
+      this.r = gemeinsamerZeichner(m, gl);
       // Regen: Striche mit Verlauf (oben durchsichtig), Schnee: Punkte
       this.rp = new Float32Array(N_MAX * 6); this.rc = new Float32Array(N_MAX * 8);
       this.rgeo = new THREE.BufferGeometry(); this.rgeo.setAttribute("position", new THREE.BufferAttribute(this.rp, 3)); this.rgeo.setAttribute("color", new THREE.BufferAttribute(this.rc, 4));
@@ -84,7 +84,7 @@ function ebene() {
     spawn(i, map, W, H, Hs, ex) {
       const T = this.T;
       for (let v = 0; v < 6; v++) {
-        const ll = map.unproject([Math.random() * W, H * (.06 + .94 * Math.random())]); if (!ll) continue;
+        const ll = map.transform.screenPointToLocation(new maplibregl.Point(Math.random() * W, H * (.06 + .94 * Math.random()))); if (!ll) continue;   // ohne Gelände (map.unproject liest sonst jedes Mal Pixel zurück)
         const r = feldBei(ll.lng, ll.lat, "regen"); if (r <= .03 || Math.random() > Math.min(1, .25 + r / 2.5)) continue;
         const q = mc(ll), boden = ex ? (map.queryTerrainElevation(ll) || 0) : 0, schnee = tempBei(ll.lng, ll.lat, ex ? boden / ex : 500) < 1;
         T.x[i] = q.x; T.y[i] = q.y; T.b[i] = boden; T.z[i] = boden + Math.random() * Hs; T.schnee[i] = schnee ? 1 : 0;
@@ -130,7 +130,8 @@ function ebene() {
       if (nS) { this.sgeo.setDrawRange(0, nS); this.sgeo.attributes.position.needsUpdate = true; this.schnee.visible = true; this.schnee.material.size = (istHandy() ? .8 : 1) * Math.max(1.6, Math.min(3.2, (map.getZoom() - 6) / 2.5)); }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), l = new THREE.Matrix4().makeTranslation(anker.x, anker.y, 0).scale(new THREE.Vector3(ms, ms, ms));
       this.cam.projectionMatrix = mm.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
-      if (aktiv || Object.values(this.flaechen).some(F => F.me.visible)) map.triggerRepaint();   // Animation läuft weiter
+      // Animation läuft weiter: Regen/Schnee flüssig, Nebel und Wolken ziehen langsam (10 Bilder/s genügen)
+      if (aktiv || regenDa) bildIn(map, istHandy() ? 50 : 33); else if (Object.values(this.flaechen).some(F => F.me.visible)) bildIn(map, 100);
     },
   };
 }

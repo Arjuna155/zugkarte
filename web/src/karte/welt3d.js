@@ -2,7 +2,7 @@
 // Alles kommt aus den Kacheln, die die Grundkarte ohnehin lädt – keine zusätzlichen Daten. Brücken und Portale baut
 // three.js nach jedem Verschieben für den sichtbaren Ausschnitt neu (ab Zoom 14, nur mit Gelände).
 import { K } from "./karte.js";
-import { ladeThree, szeneMitLicht } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
 
@@ -142,7 +142,7 @@ function bauwerkEbene() {
     id: "bauwerke-3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht(); this.mesh = null; this.o = null;
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false; this.r.outputColorSpace = THREE.SRGBColorSpace;
+      this.r = gemeinsamerZeichner(m, gl);
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
     },
     setze(G, o) {

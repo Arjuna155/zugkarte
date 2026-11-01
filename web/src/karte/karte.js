@@ -42,14 +42,14 @@ function karteBauen(stil) {
   try { K.mit3d = localStorage.getItem("zk3d") !== "aus"; } catch (e) { }
   if (K.map) { try { K.map.remove(); } catch (e) { } K.map = null; }
   const map = K.map = new maplibregl.Map({
-    container: "map", style: stil,
+    container: "map", style: stil, pixelRatio: Math.min(devicePixelRatio || 1, 2),   // Handys mit 3× Auflösung: 2× genügt (halb so viele Bildpunkte zu zeichnen)
     bounds: CH_BOX, fitBoundsOptions: { padding: 20 }, maxBounds: GEBIET, renderWorldCopies: false, pitch: K.mit3d ? 35 : 0, maxPitch: 80,
     attributionControl: { compact: true, customAttribution: "Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff/Perrons © OpenStreetMap" }
   });
   // Sicherung: Fehler im Landschaftsstil (z. B. neue swisstopo-Version) → bisherige Grundkarte
   if (typeof stil !== "string") { let geladen = false; map.once("load", () => geladen = true);
     map.on("error", e => { if (!geladen && !K.ersatzStil && /layers\[|style|Style/.test(String(e && e.error && e.error.message))) { K.ersatzStil = true; console.warn("Landschaftsstil fehlerhaft, nehme Karte:", e.error.message); setTimeout(() => karteBauen(STIL_URL), 0); } }); }
-  map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+  // kein Massstab: MapLibre rechnet ihn mit Gelände bei jeder Bewegung über readPixels (bremst die Grafikkarte aus)
   try { new ResizeObserver(() => map.resize()).observe($("map")); } catch (e) { }
   $("zin").onclick = () => map.zoomIn(); $("zout").onclick = () => map.zoomOut();
   $("zreset").onclick = () => map.fitBounds(CH_BOX, { padding: 20, pitch: K.mit3d ? 35 : 0, bearing: 0, duration: 1000 });
@@ -110,15 +110,22 @@ function karteBauen(stil) {
       }, paint: { "text-color": "#16222b", "text-halo-color": "#ffffff", "text-halo-width": 1.6 }
     });
     // Hinweise beim Überfahren; Fahrzeuge zuerst (eigene Ebene, siehe fahrzeuge.js)
-    const ebenen = ["bushalte", "st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z"];
-    const text = f => f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id === "bushalte" ? "Bushaltestelle: " + f.properties.l : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
-    let tipT = 0;
+    const ebenen = ["bushalte", "st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z", "wetter-pkt"];
+    const text = f => f.layer.id === "wetter-pkt" ? "Wetterstation " + f.properties.n + " (antippen)" : f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id === "bushalte" ? "Bushaltestelle: " + f.properties.l : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
+    // Hinweis beim Zeigen: Fahrzeuge sofort (eigene Punkte), Kartenobjekte erst, wenn die Maus kurz ruht – queryRenderedFeatures
+    // liest mit Gelände Pixel von der Grafikkarte zurück und würde beim Bewegen jedes Bild ausbremsen
+    let tipT = 0, tipW = 0;
     map.on("mousemove", e => {
+      clearTimeout(tipW); if (e.originalEvent.buttons) return;
       const jetzt = performance.now(); if (jetzt - tipT < 50) return; tipT = jetzt;
       const fz = K.fzTip && K.fzTip(e.point);
       if (fz) { map.getCanvas().style.cursor = "pointer"; showTip(fz, e.originalEvent); return; }
-      const p = e.point, f = map.queryRenderedFeatures([[p.x - 4, p.y - 4], [p.x + 4, p.y + 4]], { layers: ebenen })[0];
-      if (f) { map.getCanvas().style.cursor = "pointer"; showTip(text(f), e.originalEvent); } else { map.getCanvas().style.cursor = ""; hideTip(); }
+      const p = e.point, oe = e.originalEvent;
+      tipW = setTimeout(() => {
+        if (map.isMoving()) return;
+        const f = map.queryRenderedFeatures([[p.x - 4, p.y - 4], [p.x + 4, p.y + 4]], { layers: ebenen.filter(id => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none") })[0];
+        if (f) { map.getCanvas().style.cursor = "pointer"; showTip(text(f), oe); } else { map.getCanvas().style.cursor = ""; hideTip(); }
+      }, 140);
     });
     map.on("click", e => {
       const p = e.point, box = [[p.x - 8, p.y - 8], [p.x + 8, p.y + 8]];

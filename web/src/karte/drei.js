@@ -10,3 +10,10 @@ export function szeneMitLicht() {
   sz.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.7)); const d = new THREE.DirectionalLight(0xffffff, 1.5); d.position.set(-.5, -.4, .9); sz.add(d);
   return sz;
 }
+// ein einziger three.js-Zeichner für alle 3D-Ebenen (gemeinsamer Zwischenspeicher für Shader und Grafikzustand statt acht
+// getrennter, die jeder für sich kompilieren); jede Ebene ruft vor dem Zeichnen resetState() auf
+let zeichner = null;
+export function gemeinsamerZeichner(m, gl) {
+  if (!zeichner || zeichner.getContext() !== gl) { zeichner = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); zeichner.autoClear = false; zeichner.outputColorSpace = THREE.SRGBColorSpace; }
+  return zeichner;
+}

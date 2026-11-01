@@ -3,9 +3,9 @@
 // Nah kräftige Wellen, in der Ferne glatt (kein Flimmern). Ab Zoom ZW, Flächen neu nach jedem Verschieben.
 // Bewegung mit höchstens 30 Bildern/s (Handy 15), nur wenn Wasser im Bild ist.
 import { K } from "./karte.js";
-import { ladeThree } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
-import { istHandy } from "../util.js";
+import { istHandy, bildIn } from "../util.js";
 
 export const ZW = 10;
 export const WA = { an: true, flaechen: 0, dreiecke: 0 };
@@ -85,7 +85,7 @@ function schicht() {
     id: "wasser3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
+      this.r = gemeinsamerZeichner(m, gl);
       const sonne = new THREE.Vector3(-.35, .7, .55).normalize();   // Sonne im Südwesten (y zeigt nach Süden)
       this.mat = new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
         uniforms: { uCam: { value: new THREE.Vector3() }, uT: { value: 0 }, uSonne: { value: sonne }, uAnker: { value: new THREE.Vector2() },
@@ -109,7 +109,7 @@ function schicht() {
       this.netz.position.z = hb;
       this.r.resetState(); this.r.render(this.szene, this.cam);
       // nur weiterlaufen, wenn nah genug für sichtbare Wellen (sonst steht das Bild still und spart Strom)
-      const jetzt = performance.now(); if (map.getZoom() >= 12.5 && jetzt >= this.naechstes) { this.naechstes = jetzt + (istHandy() ? 66 : 33); setTimeout(() => map.triggerRepaint(), istHandy() ? 66 : 33); }
+      if (map.getZoom() >= 12.5) bildIn(map, istHandy() ? 66 : 33);
     },
   };
 }

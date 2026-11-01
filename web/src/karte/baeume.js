@@ -3,7 +3,7 @@
 // aber fester Stelle) – weiter weg / weiter draussen eine feste Teilmenge davon, so springen beim Zoomen keine Bäume.
 // Nadel- oder Laubbaum nach Höhe über Meer. Gezeichnet mit two InstancedMesh (three.js), Höhen in Portionen pro Bild.
 import { K } from "./karte.js";
-import { ladeThree, szeneMitLicht } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { istHandy } from "../util.js";
 
@@ -87,6 +87,10 @@ function geo(teile) {
 }
 const hoch = (g, z) => { g.rotateX(Math.PI / 2); g.translate(0, 0, z); return g; };
 function nadelGeo() { return geo([[hoch(new THREE.CylinderGeometry(.035, .045, .2, 5), .1), "#5a4532"], [hoch(new THREE.ConeGeometry(.3, .55, 7), .4), "#2f5a35"], [hoch(new THREE.ConeGeometry(.23, .45, 7), .68), "#335f39"], [hoch(new THREE.ConeGeometry(.15, .3, 6), .86), "#386640"]]); }
+// einfache Formen für entfernte Bäume (wenige Bildpunkte gross): ~10 bzw. 20 statt 60–100 Dreiecke
+function nadelGeoF() { return geo([[hoch(new THREE.ConeGeometry(.27, .95, 5), .52), "#305c37"]]); }
+function laubGeoF() { const k = new THREE.IcosahedronGeometry(.4, 0); k.scale(1, 1, .9); return geo([[hoch(k, .58), "#4f7a3a"]]); }
+const NAH = 450;   // m von der Bildmitte (beim Aufbau): bis hier die ausführlichen Formen
 function laubGeo() { const k = new THREE.IcosahedronGeometry(.36, 1); k.scale(1, 1, .85); return geo([[hoch(new THREE.CylinderGeometry(.04, .05, .42, 5), .21), "#5e4a36"], [hoch(k, .62), "#4f7a3a"]]); }
 
 function schicht() {
@@ -94,10 +98,12 @@ function schicht() {
     id: "baeume3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false;
+      this.r = gemeinsamerZeichner(m, gl);
       const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
       this.nadel = new THREE.InstancedMesh(nadelGeo(), mat, N_MAX); this.laub = new THREE.InstancedMesh(laubGeo(), mat, N_MAX);
-      for (const x of [this.nadel, this.laub]) { x.frustumCulled = false; x.count = 0; x.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N_MAX * 3).fill(1), 3); this.szene.add(x); }
+      this.nadelF = new THREE.InstancedMesh(nadelGeoF(), mat, N_MAX); this.laubF = new THREE.InstancedMesh(laubGeoF(), mat, N_MAX);
+      this.alle = [this.nadel, this.laub, this.nadelF, this.laubF];
+      for (const x of this.alle) { x.frustumCulled = false; x.count = 0; x.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N_MAX * 3).fill(1), 3); this.szene.add(x); }
       this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(); this.Z = new THREE.Vector3(0, 0, 1); this.C = new THREE.Color(); this.v = -1; this.f = -1;
     },
     render(gl, args) {
@@ -105,16 +111,16 @@ function schicht() {
       if (!BA.an || !BA.liste || map.getZoom() < ZB - .3) return;
       const neu = hoehen();
       if (neu || this.v !== version || this.f !== BA.fertig) {
-        this.v = version; this.f = BA.fertig; let nn = 0, nl = 0;
+        this.v = version; this.f = BA.fertig; const n = [0, 0, 0, 0];
         for (let i = 0; i < BA.fertig; i++) {
           const b = BA.liste[i]; if (isNaN(b.z)) continue;
           const busch = b.typ === "busch", obst = b.typ === "obst";
           const H = busch ? 2.5 + 2.5 * b.r : obst ? 6 + 3 * b.r : b.nadel ? 18 + 14 * b.r : 14 + 10 * b.r, W = busch ? H * 1.3 : obst ? H * 1.1 : b.nadel ? H * .55 : H * .8;
-          const ziel = b.nadel ? this.nadel : this.laub, k = b.nadel ? nn++ : nl++;
+          const w = (b.nadel ? 0 : 1) + (b.d > NAH ? 2 : 0), ziel = this.alle[w], k = n[w]++;
           this.Q.setFromAxisAngle(this.Z, b.g * 6.283); this.V.set(b.x, b.y, b.z - .3); this.S.set(W, W, H); this.M.compose(this.V, this.Q, this.S); ziel.setMatrixAt(k, this.M);
           const t = .82 + .3 * ((b.r * 7.3) % 1); this.C.setRGB(t * (obst ? 1.05 : 1), t * (busch ? 1.05 : 1), t * .95); ziel.setColorAt(k, this.C);
         }
-        this.nadel.count = nn; this.laub.count = nl; for (const x of [this.nadel, this.laub]) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; }
+        this.alle.forEach((x, i) => x.count = n[i]); for (const x of this.alle) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; }
       }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(anker.x, anker.y, 0).scale(new THREE.Vector3(ams, ams, ams));
       this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);

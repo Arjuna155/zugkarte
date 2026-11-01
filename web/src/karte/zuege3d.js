@@ -5,7 +5,7 @@ import { wagenVon, wagenJetzt } from "../kern/formation.js";
 import { ZM } from "./modelle.js";
 import { K } from "./karte.js";
 import { wgs } from "../util.js";
-import { ladeThree, szeneMitLicht } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { einrasten } from "./gleise.js";
 import { ebene } from "../ui/ebenen.js";
 import { B } from "../kern/basis.js";
@@ -197,7 +197,7 @@ function z3Ebene() {
     id: "zuege3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
-      this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); this.r.autoClear = false; this.r.outputColorSpace = THREE.SRGBColorSpace;
+      this.r = gemeinsamerZeichner(m, gl);
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netze = new Map();
       this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(0, 0, 0, "ZYX"); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(1, 1, 1); this.SH = new THREE.Matrix4();
       this.weiss = new THREE.Color(1, 1, 1); this.gelb = new THREE.Color(1, .82, .35);
