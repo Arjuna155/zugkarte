@@ -8,6 +8,7 @@ import { wgs } from "../util.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { einrasten } from "./gleise.js";
+import { busAufBruecke } from "./strassen.js";
 import { ebene } from "../ui/ebenen.js";
 import { B } from "../kern/basis.js";
 import { BB } from "../kern/bergbahnen.js";
@@ -91,6 +92,12 @@ function gleisHoehe(pf, k, steil, ex) {
     const p = punkt(pf, s), e = map.queryTerrainElevation(wgs(p[0], p[1])); if (e !== null && e !== undefined) { dem[i] = e; gut++; } }
   if (!gut || gut < im * .25) return null;
   for (let i = 1; i < n; i++) if (isNaN(dem[i])) dem[i] = dem[i - 1]; for (let i = n - 2; i >= 0; i--) if (isNaN(dem[i])) dem[i] = dem[i + 1];
+  if (steil === "bus") {   // Bus auf einer Brücke: geradlinig von Brückenende zu Brückenende statt hinunter ins Tal/Flussbett
+    const br = new Uint8Array(n); for (let i = 0; i < n; i++) { const s = s0 + i * H_SCHRITT; if (s < -.5 || s > E + .5) continue; const p = punkt(pf, s); br[i] = busAufBruecke(p[0], p[1]) ? 1 : 0; }
+    for (let i = 0; i < n;) { if (!br[i]) { i++; continue; } let j = i; while (j + 1 < n && br[j + 1]) j++;
+      if (i > 0 && j < n - 1) { const a = dem[i - 1], b = dem[j + 1]; for (let q = i; q <= j; q++) dem[q] = Math.max(dem[q], a + (b - a) * (q - i + 1) / (j - i + 2)); }
+      i = j + 1; }
+  }
   if (steil === "fun") { const h = new Float32Array(n); for (let i = 0; i < n; i++) h[i] = dem[i] + .2; h.s0 = s0; return h; }   // Standseilbahn: auf dem Gelände
   if (steil === "wasser") {   // Schiff: Wasserspiegel = tiefster Punkt im Umkreis von ±300 m (Ufer und Landestege sind höher)
     const h = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 1e9; for (let q = Math.max(0, i - 12); q <= Math.min(n - 1, i + 12); q++) m = Math.min(m, dem[q]); h[i] = m; } h.s0 = s0; return h;
@@ -179,7 +186,7 @@ export function z3Zug(tr, o, p, isSel, rt) {
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = tram ? Math.max(t.L * .42, .05) : t.L * .42,   // Tram: kurze Glieder, Richtung über ±5 m (ruhiger)
       pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
-    const steil = schiff ? "wasser" : bb ? "fun" : bus || t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
+    const steil = schiff ? "wasser" : bb ? "fun" : bus ? "bus" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
     const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && !bus && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !schiff && !bb && !bus && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
