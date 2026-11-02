@@ -126,6 +126,12 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Nachts: `ls-nachtlicht` (Siedlungs-/Gewerbeflächen warm, Deckkraft 0,5 × Nacht) und `ls-strassenlicht` (Strassen ab Zoom 11, weich), nur sichtbar, wenn Nacht > 0.
 - Vorschau: `?uhr=21:30` (nur Beleuchtung, Fahrplan bleibt Echtzeit); in Tests `__tz.setze("22:00")`.
 
+## Lichter bei Nacht (02.11.2026)
+- `web/src/karte/lichter.js`: three.js-Ebene «lichter3d» NACH der Abdunkelung (vor «schiff»), nur wenn `TZ.nacht > 0.02`. Ebenen melden leuchtende Teile mit `lichtAnmelden({aktiv, szene, matrix, ueber?, nacht?})` an; gezeichnet mit derselben Kamera-Matrix wie die Ebene selbst (Tiefe passt → verdeckt durch Häuser).
+- Abdunkelung «nacht» ist jetzt `renderingMode: "3d"` – als «2d» wurde sie mit Gelände nur aufs Gelände gelegt, 3D-Ebenen (Wasser usw.) blieben hell.
+- Häuser (daecher.js `fensterBauen`): Fenster als Rechtecke 12 cm vor den Mauern entlang der echten Umrisse, Stockwerke alle 3 m bis zur Traufe (grosse/überbaute Gebäude bis zur Gesamthöhe; sie stehen jetzt auch in `DA.liste` mit `nurFenster`), höchstens 60 000 (Handy 15 000), nur die Hälfte erzeugt; welche brennen, entscheidet der Zufallswert gegen `fensterAnteil()` (Uhrzeit: abends ~45 %, nachts ~6 %).
+- Fahrzeuge: modelle.js markiert Glasflächen (Farben #16191c, #1b2127, #1d2328) mit Attribut `licht`; zuege3d-Szene wird nochmals mit `fahrzeugLichtMaterial()` gezeichnet (nur Glas, warmweiss). Autos (verkehr.js): Scheinwerfer vorne, Rücklicht hinten als additive Punkte (herausgezoomt ein Punkt je Auto).
+
 ## Kamera folgt (02.11.2026)
 - `web/src/karte/folgen.js`: Antippen eines Fahrzeugs (`K.fzTreffer`) wählt es aus und startet `folgen(tr, o)`; Knopf «Kamera folgen» in der Zugkarte (seite.js). Kamera fliegt in 1,4 s hin (Zoom < 13,5 → 15,3; Neigung < 40° → 55°, auch ohne Zwischenbilder am Ende gesetzt), danach in jedem Bild `jumpTo(center = trainPos jetzt)`, nur wenn ≥ ½ Bildpunkt Bewegung. Zoomen/Drehen frei; Ziehen (ein Finger/Maus, `dragstart`), Auswahl aufheben oder Fahrtende beenden das Folgen.
 - Während des Folgens rechnet fahrzeuge.js jedes Bild (sonst ruckelt das Fahrzeug gegen die Kamera).

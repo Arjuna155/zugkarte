@@ -6,6 +6,7 @@
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
+import { lichtAnmelden, fensterAnteil } from "./lichter.js";
 import { W3 } from "./welt3d.js";
 import { istHandy, nachLaden, beiRuhe } from "../util.js";
 
@@ -55,7 +56,7 @@ function bauen() {
   if (!map.getLayer("gebaeude-3d")) return;
   for (const f of map.queryRenderedFeatures({ layers: ["gebaeude-3d"] })) {
     const p = f.properties, H = +(p.render_height ?? p.height ?? 8), H0 = +(p.render_min_height ?? p.min_height ?? 0);
-    if (!(H >= H_MIN && H <= H_MAX) || H0 > 0) continue;   // nur Häuser bis ~6 Geschosse, ohne Überbauten
+    if (!(H >= 3)) continue; const nurFenster = !(H >= H_MIN && H <= H_MAX) || H0 > 0;   // Dach nur für Häuser bis ~6 Geschosse ohne Überbauten; grössere Gebäude nur Fenster (Lichter)
     const g = f.geometry; if (g.type !== "Polygon") continue; const ring = g.coordinates[0]; if (!ring || ring.length < 4 || ring.length > 60) continue;
     // Mitte wie MapLibre (Mittel der Eckpunkte) – darauf bezieht sich die Geländehöhe des ganzen Gebäudes
     let sx = 0, sy = 0; const n = ring.length - 1; for (let i = 0; i < n; i++) { sx += ring[i][0]; sy += ring[i][1]; }
@@ -66,7 +67,7 @@ function bauen() {
     const A = flaeche(P), schraeg = !(r.A > 650 || r.A < 25 || A / r.A < .8 || r.a / r.b > 4.5);   // Schrägdach nur auf kleinen, fast rechteckigen Häusern
     // Kennung für die Fassadenfarbe (wie die Gebäude-Ebene: ohne Kennung 0); Zufall für das Dach aus der festen Lage
     const id = f.id !== undefined && f.id !== null ? Math.abs(+f.id || 0) : 0, fest = Math.round(ml[0] * 2e5) * 31 + Math.round(ml[1] * 2e5);
-    liste.push({ ml, x: dx, y: dy, H, r, id, h: hash(fest), d: Math.hypot(dx, dy), z: NaN, schraeg, P });
+    liste.push({ ml, x: dx, y: dy, H, H0, r, id, h: hash(fest), fest, d: Math.hypot(dx, dy), z: NaN, schraeg: schraeg && !nurFenster, nurFenster, P });
   }
   if (liste.length > N_MAX) { liste.sort((a, b) => a.h - b.h); liste.length = N_MAX; }   // Auswahl unabhängig von der Bildmitte
   anker = o; ams = ms; DA.liste = liste; DA.n = liste.length; DA.fertig = 0; hEx = -1; version++;
@@ -120,20 +121,57 @@ function schicht() {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
       this.r = gemeinsamerZeichner(m, gl);
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.v = -1; this.f = -1;
+      // Fenster: eigene Szene, gezeichnet von lichter.js nach der Abdunkelung
+      this.fensterSzene = new THREE.Scene(); this.fenster = null; this.fensterM = new THREE.Matrix4(); this.fensterAn = false;
+      this.fensterMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexColors: true,
+        uniforms: { uNacht: { value: 0 }, uAnteil: { value: .3 } },
+        vertexShader: "attribute float rnd; varying float vR; varying vec3 vC; void main(){ vR = rnd; vC = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        fragmentShader: "uniform float uNacht; uniform float uAnteil; varying float vR; varying vec3 vC; void main(){ if (vR > uAnteil) discard; gl_FragColor = vec4(vC, uNacht); }" });
+      const U = this.fensterMat.uniforms;
+      lichtAnmelden({ aktiv: () => this.fensterAn && !!this.fenster, szene: this.fensterSzene, matrix: this.fensterM, nacht: v => { U.uNacht.value = v; U.uAnteil.value = fensterAnteil(); } });
+    },
+    // Fenster als leuchtende Rechtecke vor den Mauern (nur die, die nachts höchstens brennen; welche brennen, entscheidet
+    // der Zufallswert gegen den Anteil der Uhrzeit im Shader)
+    fensterBauen() {
+      const pos = [], col = [], rnd = []; let n = 0; const MAX = istHandy() ? 15000 : 60000;
+      const FARBEN = ["#ffd58f", "#ffe3a8", "#ffcc7a", "#fff0cf", "#dfe7ff"].map(c => new THREE.Color(c));
+      for (let i = 0; i < DA.fertig && n < MAX; i++) {
+        const b = DA.liste[i]; if (isNaN(b.z)) continue;
+        const oben = b.nurFenster ? b.H : b.H - dachH(b.H), unten = b.nurFenster ? b.H0 : 0, gross = b.H > 22, P = b.P;
+        let sa = 0; for (let k = 0; k < P.length; k++) { const p = P[k], q = P[(k + 1) % P.length]; sa += p[0] * q[1] - q[0] * p[1]; } const sg = sa >= 0 ? 1 : -1;
+        for (let k = 0; k < P.length && n < MAX; k++) {
+          const a = P[k], c = P[(k + 1) % P.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 2.6) continue;
+          const ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L, nx = sg * uy * .12, ny = -sg * ux * .12;   // 12 cm vor der Mauer
+          const ab = gross ? 2.6 : 3.2, w = gross ? 1.6 : 1.3, nw = Math.floor((L - .8) / ab);
+          for (let st = 0, z = unten + 1.0; z + 1.3 < oben - .3 && n < MAX; st++, z += 3) for (let j = 0; j < nw; j++) {
+            const r = hash(b.fest * 7919 + k * 131 + st * 17 + j); if (r > .5) continue;   // höchstens die Hälfte kann brennen
+            const m = (L - nw * ab) / 2 + ab * (j + .5), x0 = b.x + a[0] + ux * (m - w / 2) + nx, y0 = b.y + a[1] + uy * (m - w / 2) + ny, x1 = x0 + ux * w, y1 = y0 + uy * w, z0 = b.z + z, z1 = z0 + 1.3;
+            const C = FARBEN[Math.floor(hash(b.fest + st * 3 + j) * FARBEN.length)];
+            for (const q of [[x0, y0, z0], [x1, y1, z0], [x1, y1, z1], [x0, y0, z0], [x1, y1, z1], [x0, y0, z1]]) { pos.push(q[0], q[1], q[2]); col.push(C.r, C.g, C.b); rnd.push(r); }
+            n++;
+          }
+        }
+      }
+      if (this.fenster) { this.fensterSzene.remove(this.fenster); this.fenster.geometry.dispose(); this.fenster = null; }
+      if (!n) return;
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); g.setAttribute("rnd", new THREE.Float32BufferAttribute(rnd, 1));
+      this.fenster = new THREE.Mesh(g, this.fensterMat); this.fenster.frustumCulled = false; this.fensterSzene.add(this.fenster); DA.fenster = n;
     },
     render(gl, args) {
-      const map = K.map; if (!DA.liste || !W3.gebaeudeAn || map.getZoom() < ZD - .2) return;
+      const map = K.map; if (!DA.liste || !W3.gebaeudeAn || map.getZoom() < ZD - .2) { this.fensterAn = false; return; }
       const neu = hoehen();
       // neu bauen, wenn neue Höhen da sind (höchstens alle 25 % und am Ende)
       if (this.v !== version || (this.f !== DA.fertig && (DA.fertig === DA.n || DA.fertig - this.f > DA.n / 4))) {
         this.v = version; this.f = DA.fertig; const pos = [], nor = [], col = [];
-        for (let i = 0; i < DA.fertig; i++) { const b = DA.liste[i]; if (!isNaN(b.z)) (b.schraeg ? dach : aufstock)(b, pos, nor, col); }
+        for (let i = 0; i < DA.fertig; i++) { const b = DA.liste[i]; if (!isNaN(b.z) && !b.nurFenster) (b.schraeg ? dach : aufstock)(b, pos, nor, col); }
+        this.fensterBauen();
         if (this.netz) { this.szene.remove(this.netz); this.netz.geometry.dispose(); this.netz = null; }
         if (pos.length) { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
           this.netz = new THREE.Mesh(g, this.mat); this.netz.frustumCulled = false; this.szene.add(this.netz); }
       }
-      if (!this.netz) { if (neu) map.triggerRepaint(); return; }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(anker.x, anker.y, 0).scale(new THREE.Vector3(ams, ams, ams));
+      this.fensterM.copy(lm); this.fensterAn = true;
+      if (!this.netz) { if (neu) map.triggerRepaint(); return; }
       this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
       if (neu) map.triggerRepaint();
     },

@@ -7,6 +7,7 @@ import { K } from "./karte.js";
 import { wgs } from "../util.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
+import { lichtAnmelden, fahrzeugLichtMaterial } from "./lichter.js";
 import { einrasten } from "./gleise.js";
 import { busAufBruecke } from "./strassen.js";
 import { ebene } from "../ui/ebenen.js";
@@ -210,6 +211,7 @@ function z3Ebene() {
       this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(0, 0, 0, "ZYX"); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(1, 1, 1); this.SH = new THREE.Matrix4();
       this.weiss = new THREE.Color(1, 1, 1); this.gelb = new THREE.Color(1, .82, .35);
       this.seile = new Map(); this.seilMat = new THREE.LineBasicMaterial({ color: 0x2f353a });
+      this.lichtM = new THREE.Matrix4(); lichtAnmelden({ aktiv: () => Z3.liste.length > 0, szene: this.szene, matrix: this.lichtM, ueber: fahrzeugLichtMaterial() });   // Fenster leuchten nachts
     },
     // Tragseile der Luftseilbahnen in der Nähe (Linien entlang des Seilprofils)
     seileZeichnen(o) {
@@ -251,7 +253,7 @@ function z3Ebene() {
       for (const [g, n] of this.netze) if (zahl.has(g)) { n.count = zahl.get(g); n.instanceMatrix.needsUpdate = true; n.instanceColor.needsUpdate = true; }
       const s = o.meterInMercatorCoordinateUnits();
       const m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), l = new THREE.Matrix4().makeTranslation(o.x, o.y, o.z).scale(new THREE.Vector3(s, s, s));   // lokal: x Ost, y Süd, z hoch (Meter)
-      this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
+      this.lichtM.copy(l); this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
     }
   };
 }

@@ -5,7 +5,8 @@
 // Herausgezoomt Punkte und farbige Verkehrslage (grün flüssig, orange zähflüssig, rot Stau), nah 3D-Fahrzeuge.
 import { K } from "./karte.js";
 import { ladeThree, gemeinsamerZeichner, sonnenLicht } from "./drei.js";
-import { VOR_3D } from "./tageszeit.js";
+import { VOR_3D, TZ } from "./tageszeit.js";
+import { lichtAnmelden } from "./lichter.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
 import { fc, istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
@@ -207,6 +208,12 @@ function ebene3d() {
       this.punkte = new THREE.Points(this.pg, new THREE.PointsMaterial({ vertexColors: true, size: 3.2, sizeAttenuation: false })); this.punkte.frustumCulled = false; this.szene.add(this.punkte);
       this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.E = new THREE.Euler(); this.V = new THREE.Vector3(); this.Sk = new THREE.Vector3(1, 1, 1); this.C = new THREE.Color();
       this.LF = ["#5b6670", "#2f9e44", "#f08c00", "#e03131"].map(f => new THREE.Color(f));
+      // nachts: Scheinwerfer (vorne, warmweiss) und Rücklichter (hinten, rot) als leuchtende Punkte, gezeichnet nach der Abdunkelung
+      this.lp = new Float32Array(N_MAX * 6); this.lc = new Float32Array(N_MAX * 6); this.lg = new THREE.BufferGeometry();
+      this.lg.setAttribute("position", new THREE.BufferAttribute(this.lp, 3)); this.lg.setAttribute("color", new THREE.BufferAttribute(this.lc, 3));
+      this.lichtPkt = new THREE.Points(this.lg, new THREE.PointsMaterial({ vertexColors: true, size: 2.2, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      this.lichtPkt.frustumCulled = false; this.lichtSzene = new THREE.Scene(); this.lichtSzene.add(this.lichtPkt); this.lichtM = new THREE.Matrix4(); this.nl = 0;
+      lichtAnmelden({ aktiv: () => this.nl > 0, szene: this.lichtSzene, matrix: this.lichtM, nacht: v => { this.lichtPkt.material.opacity = v; } });
       this.t = performance.now();
     },
     render(gl, args) {
@@ -214,7 +221,7 @@ function ebene3d() {
       this.autos.count = this.lkws.count = 0; this.punkte.visible = false;
       if (!VK.an || !FZ.length || map.getZoom() < 8) return;
       const c = mc(map.getCenter()), ms = c.meterInMercatorCoordinateUnits(), nah = map.getZoom() >= ZOOM_3D, Tr = map.getTerrain();
-      let na = 0, nl = 0, np = 0;
+      let na = 0, nl = 0, np = 0, nlicht = 0; const licht = TZ.nacht > .02, lw = nah ? 1 : 0;
       for (const f of FZ) {
         let k = f.k; f.s += f.r * f.v * dt; if (f.s > k.len) { if (k.vor && f.r === 1) { const n = k.vor; f.s -= k.len; f.r = k.vorR; if (f.r < 0) f.s = n.len - f.s; f.k = n; } else f.s -= k.len; }   // weiter auf der nächsten Kette, sonst von vorne
         else if (f.s < 0) { if (k.rueck && f.r === -1) { const n = k.rueck; f.r = k.rueckR; f.s = f.r < 0 ? n.len + f.s : -f.s; f.k = n; } else f.s += k.len; }
@@ -226,6 +233,11 @@ function ebene3d() {
         const u = (f.s - k.cum[lo]) / ((k.cum[hi] - k.cum[lo]) || 1), dx = (k.x[hi] - k.x[lo]) / ankerMs, dy = (k.y[hi] - k.y[lo]) / ankerMs, l = Math.hypot(dx, dy) || 1;
         const nx = -dy / l * f.r, ny = dx / l * f.r;   // rechts in Fahrtrichtung (y nach Süden: Normale so gedreht, dass Rechtsverkehr entsteht)
         const px = (k.x[lo] + (k.x[hi] - k.x[lo]) * u - c.x) / ms + nx * f.spur, py = (k.y[lo] + (k.y[hi] - k.y[lo]) * u - c.y) / ms + ny * f.spur, pz = Tr ? k.z[lo] + (k.z[hi] - k.z[lo]) * u : 0;
+        if (licht) {   // vorne zwei Scheinwerfer als ein Punkt, hinten Rücklicht
+          const ex = dx / l * f.r, ey = dy / l * f.r, hl = (f.lkw ? 7 : 2.3), q = nlicht * 6, zz = pz + (nah ? .7 : 2.5), sz = nah ? 1 : 0;
+          this.lp[q] = px + ex * hl; this.lp[q + 1] = py + ey * hl; this.lp[q + 2] = zz; this.lc[q] = 1; this.lc[q + 1] = .93; this.lc[q + 2] = .75;
+          this.lp[q + 3] = px - ex * hl * sz; this.lp[q + 4] = py - ey * hl * sz; this.lp[q + 5] = zz; this.lc[q + 3] = .9 * sz; this.lc[q + 4] = .08 * sz; this.lc[q + 5] = .05 * sz; nlicht++;   // herausgezoomt nur ein Lichtpunkt je Auto
+        }
         if (nah) {
           const ziel = f.lkw ? this.lkws : this.autos, i = f.lkw ? nl++ : na++;
           this.E.set(0, Math.atan2(k.z[hi] - k.z[lo], (k.cum[hi] - k.cum[lo]) || 1) * -f.r, Math.atan2(dy * f.r, dx * f.r), "ZYX"); this.Q.setFromEuler(this.E); this.V.set(px, py, pz); this.M.compose(this.V, this.Q, this.Sk);
@@ -238,6 +250,9 @@ function ebene3d() {
       if (nah) { this.autos.count = na; this.lkws.count = nl; for (const x of [this.autos, this.lkws]) { x.instanceMatrix.needsUpdate = true; if (x.instanceColor) x.instanceColor.needsUpdate = true; } }
       else { this.pg.setDrawRange(0, np); this.pg.attributes.position.needsUpdate = true; this.pg.attributes.color.needsUpdate = true; this.punkte.visible = true; this.punkte.material.size = map.getZoom() < 10 ? 2.2 : 3.2; }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(c.x, c.y, 0).scale(new THREE.Vector3(ms, ms, ms));
+      this.nl = nlicht; if (nlicht) { this.lg.setDrawRange(0, nlicht * 2); this.lg.attributes.position.needsUpdate = true; this.lg.attributes.color.needsUpdate = true;
+        const lm_ = this.lichtPkt.material; lm_.size = nah ? 2.2 : 3; if (lm_.sizeAttenuation !== nah) { lm_.sizeAttenuation = nah; lm_.needsUpdate = true; } }
+      this.lichtM.copy(lm);
       this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
       // nächstes Bild erst, wenn sich ein Fahrzeug um ~½ Bildpunkt bewegt haben kann (herausgezoomt selten, nah bis 30/s)
       if (dt || S.speed > 0) { const mpp = 78271.5 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** map.getZoom(), pxs = 36 / mpp * (1 + map.getPitch() / 30);

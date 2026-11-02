@@ -375,7 +375,12 @@ function bauWagen(W){const k=schluessel(W);if(CACHE[k])return CACHE[k];
   if(W.strom&&!sonder)stromabnehmer(B,W.T,W.T.tram?0:W.rolle==="lok"?W.L/2-4:W.L/4);
   if(!sonder&&W.rolle!=="lok"&&W.T.strom&&W.L>8)dachKiste(B,W.T,-W.L/2+3,-W.L/2+6,1.6,.35);
   const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(B.p,3));g.setAttribute("normal",new THREE.Float32BufferAttribute(B.n,3));g.setAttribute("color",new THREE.Float32BufferAttribute(B.c,3));
+  // Fensterglas markieren (leuchtet nachts, lichter.js): Ecken mit einer der Glasfarben
+  const GL=GLAS_LIN||(GLAS_LIN=["#16191c","#1b2127","#1d2328"].map(h=>new THREE.Color(h))),li=new Float32Array(B.c.length/3);
+  for(let i=0;i<li.length;i++){const r=B.c[i*3],gg=B.c[i*3+1],bb=B.c[i*3+2];for(const c of GL)if(Math.abs(c.r-r)<.002&&Math.abs(c.g-gg)<.002&&Math.abs(c.b-bb)<.002){li[i]=1;break}}
+  g.setAttribute("licht",new THREE.BufferAttribute(li,1));
   g.computeBoundingSphere();return CACHE[k]=g}
+let GLAS_LIN=null;
 return {T,bauWagen,schluessel,wagenTeile,ausFormation,rueckfall,REGELN}})();
 
 export { ZM };

@@ -78,11 +78,12 @@ export function tageszeitAktualisieren() {
   map.triggerRepaint();
 }
 
-// Abdunkelung als eigene Ebene: ein Dreieck über das ganze Bild, multipliziert mit der Tönung (eigenes kleines WebGL-Programm)
+// Abdunkelung als eigene Ebene (renderingMode «3d»: als «2d» würde sie mit Gelände nur auf das Gelände gelegt und die
+// 3D-Ebenen davor – Wasser, Häuser, Züge – blieben hell): ein Dreieck über das ganze Bild, multipliziert mit der Tönung (eigenes kleines WebGL-Programm)
 function nachtEbene() {
   let prog = null, buf = null, uT = null, aP = 0;
   return {
-    id: "nacht", type: "custom", renderingMode: "2d",
+    id: "nacht", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       const sh = (t, q) => { const s = gl.createShader(t); gl.shaderSource(s, q); gl.compileShader(s); return s; };
       prog = gl.createProgram();
