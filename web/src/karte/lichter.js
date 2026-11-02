@@ -51,6 +51,6 @@ function lichtEbene() {
 export function lichterStarten() {
   const map = K.map; let da = false;
   const laden = () => { if (da || !(TZ.nacht > .02) || map.getZoom() < 12.5) return; da = true;
-    ladeThree().then(() => { try { const ids = map.getStyle().layers.map(l => l.id), i = ids.indexOf("ls-strassenlicht"); map.addLayer(lichtEbene(), i >= 0 ? ids[i + 1] : undefined); } catch (e) { console.error(e); } }); };
+    ladeThree().then(() => { try { map.addLayer(lichtEbene(), TZ.danach && map.getLayer(TZ.danach) ? TZ.danach : undefined); } catch (e) { console.error(e); } }); };
   map.on("moveend", laden); setInterval(laden, 20000); laden();
 }

@@ -1,7 +1,7 @@
 // Tageszeit in Echtzeit: Sonnenstand für die Schweiz → Himmel, Licht (Gebäude, 3D-Ebenen, Wasserglanz) und eine
 // Abdunkelung der ganzen Landschaft (Ebene «nacht», Multiplikation mit einer Tönung: Tag 1, Abendrot warm, Nacht blau).
 // Die Karteninformationen (Linien, Bahnhöfe, Fahrzeugpunkte, Beschriftungen) liegen darüber und bleiben hell.
-// Nachts leuchten Siedlungen und Strassen schwach warm (Ebenen ls-nachtlicht, ls-strassenlicht).
+// Nachts leuchten nur Fenster und Fahrzeuglichter (lichter.js) – kein flächiger Schein über Dörfern und Strassen (Arjuna: gefällt nicht).
 // Vorschau: ?uhr=21:30 zeigt die Beleuchtung dieser Uhrzeit (heute), der Fahrplan bleibt Echtzeit.
 import { K } from "./karte.js";
 import { S } from "../zustand.js";
@@ -69,12 +69,6 @@ export function tageszeitAktualisieren() {
   LICHT.dir = [dx, dy, dz]; LICHT.farbe = st.licht;
   for (const d of LICHT.lichter) { d.position.set(dx, dy, dz); d.color.setRGB(...st.licht); }
   for (const u of LICHT.wasser) u.value.set(dx, dy, dz).normalize();
-  // Lichter der Siedlungen und Strassen
-  const o = TZ.nacht;
-  for (const [id, f] of [["ls-nachtlicht", .5], ["ls-strassenlicht", .85]]) if (map.getLayer(id)) {
-    map.setLayoutProperty(id, "visibility", o > .02 ? "visible" : "none");
-    map.setPaintProperty(id, id === "ls-nachtlicht" ? "fill-opacity" : "line-opacity", o * f);
-  }
   map.triggerRepaint();
 }
 
@@ -110,17 +104,7 @@ export function tageszeitStarten() {
   // Abdunkelung direkt nach den Gebäuden, vor den Kartenlinien
   const naechste = map.getStyle().layers.map(l => l.id), i = naechste.indexOf("gebaeude-3d"), danach = i >= 0 ? naechste[i + 1] : naechste.find(id => !id.startsWith("ls-"));
   map.addLayer(nachtEbene(), danach);
-  // Nachtlichter: über der Abdunkelung, also hell
-  const basis = map.getLayer("ls-siedlung") && map.getLayer("ls-siedlung").source;
-  if (basis) {
-    map.addLayer({ id: "ls-nachtlicht", type: "fill", source: basis, "source-layer": "landuse", layout: { visibility: "none" },
-      filter: ["match", ["get", "class"], ["residential", "suburb", "neighbourhood", "village", "town", "city", "commercial", "retail", "industrial"], true, false],
-      paint: { "fill-color": "#ffc46b", "fill-opacity": 0, "fill-antialias": false } }, danach);
-    map.addLayer({ id: "ls-strassenlicht", type: "line", source: basis, "source-layer": "transportation", minzoom: 11, layout: { visibility: "none", "line-cap": "round", "line-join": "round" },
-      filter: ["all", ["match", ["get", "class"], ["motorway", "trunk", "primary", "secondary", "tertiary", "minor"], true, false], ["!=", ["get", "brunnel"], "tunnel"]],
-      paint: { "line-color": "#ffd28a", "line-opacity": 0, "line-blur": ["interpolate", ["linear"], ["zoom"], 11, 1, 16, 6],
-        "line-width": ["interpolate", ["exponential", 2], ["zoom"], 11, ["match", ["get", "class"], ["motorway", "trunk", "primary"], 1.2, .5], 16, ["match", ["get", "class"], ["motorway", "trunk", "primary"], 14, 7]] } }, danach);
-  }
+  TZ.danach = danach;   // Ebene direkt nach der Abdunkelung (dort setzt lichter.js die Lichter ein)
   K.himmelNeu = tageszeitAktualisieren;
   tageszeitAktualisieren();
   setInterval(tageszeitAktualisieren, 20000);   // die Sonne bewegt sich ~1° in 4 Minuten
