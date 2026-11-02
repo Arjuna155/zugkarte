@@ -115,8 +115,9 @@ function karteBauen(stil) {
     // Hinweis beim Zeigen: Fahrzeuge sofort (eigene Punkte), Kartenobjekte erst, wenn die Maus kurz ruht – queryRenderedFeatures
     // liest mit Gelände Pixel von der Grafikkarte zurück und würde beim Bewegen jedes Bild ausbremsen
     let tipT = 0, tipW = 0;
+    const mitMaus = matchMedia("(hover: hover)").matches;   // Handy: kein Zeigen, nur Antippen (Klick)
     map.on("mousemove", e => {
-      clearTimeout(tipW); if (e.originalEvent.buttons) return;
+      clearTimeout(tipW); if (!mitMaus || e.originalEvent.buttons) return;
       const jetzt = performance.now(); if (jetzt - tipT < 50) return; tipT = jetzt;
       const fz = K.fzTip && K.fzTip(e.point);
       if (fz) { map.getCanvas().style.cursor = "pointer"; showTip(fz, e.originalEvent); return; }

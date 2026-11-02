@@ -5,7 +5,7 @@
 import { K } from "./karte.js";
 import { ladeThree, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
-import { istHandy, bildIn } from "../util.js";
+import { istHandy, bildIn, nachLaden, quellMerkmale } from "../util.js";
 
 export const ZW = 10;
 export const WA = { an: true, flaechen: 0, dreiecke: 0 };
@@ -20,7 +20,7 @@ function bauen() {
   if (!quelle) quelle = quelleSuchen(map); if (!quelle) return;
   const o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), T = map.getTerrain(), ex = T ? T.exaggeration || 1 : 0;
   const pos = [], gesehen = new Set(); let fl = 0; fehlt = false;
-  for (const f of map.querySourceFeatures(quelle, { sourceLayer: "water" })) {
+  for (const f of quellMerkmale(map, quelle, "water")) {
     const g = f.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
     for (const poly of polys) {
       if (!poly[0] || poly[0].length < 4) continue;
@@ -115,7 +115,7 @@ function schicht() {
 }
 export function wasserStarten() {
   const map = K.map; let geladen = false, t = 0;
-  const neu = () => { clearTimeout(t); t = setTimeout(() => { bauen(); map.triggerRepaint(); }, 350); };
+  const neu = () => nachLaden(map, "wasser", () => { bauen(); map.triggerRepaint(); }, 350, 3);
   const laden = () => { if (geladen || map.getZoom() < ZW - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } neu(); }); };
   map.on("moveend", () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZW) neu(); });

@@ -14,7 +14,8 @@ for (const f of fs.readdirSync(path.join(OUT, "js"))) if (/^app\.[0-9a-f]+\.js$/
 fs.writeFileSync(path.join(OUT, "js", `app.${h}.js`), js);
 // Datennamen direkt in die Seite (spart eine Abfrage) und die Grunddaten sofort mitladen
 const daten = JSON.parse(fs.readFileSync(path.join(OUT, "daten", "index.json"), "utf8"));
-const html = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8").replace("__APP__", `js/app.${h}.js`)
-  .replace("</head>", `<link rel="preload" href="${daten.basis}" as="fetch" crossorigin><link rel="preload" href="lib/maplibre-gl-csp.js" as="script"><script>window.ZK_DATEN=${JSON.stringify(daten)}</script></head>`);
+const roh = fs.readFileSync(path.join(ROOT, "web", "index.html"), "utf8"), ml = (roh.match(/src="(lib\/maplibre-gl-csp\.js[^"]*)"/) || [, "lib/maplibre-gl-csp.js"])[1];   // gleiche Adresse wie das Skript (mit ?v=…), sonst lädt der Browser es zweimal
+const html = roh.replace("__APP__", `js/app.${h}.js`)
+  .replace("</head>", `<link rel="preload" href="${daten.basis}" as="fetch" crossorigin><link rel="preload" href="${ml}" as="script"><script>window.ZK_DATEN=${JSON.stringify(daten)}</script></head>`);
 fs.writeFileSync(path.join(OUT, "karte.html"), html);
 console.log(`app/public/karte.html, app/public/js/app.${h}.js: ${(js.length / 1024).toFixed(0)} KB`);

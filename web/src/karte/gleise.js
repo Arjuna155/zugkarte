@@ -2,6 +2,7 @@
 // Die 3D-Züge rasten darauf ein: jeder Wagen auf das nächste Gleis, bevorzugt das linke in Fahrtrichtung
 // (in der Schweiz fahren die Züge auf Doppelspur links). So fahren sie auf den Gleisen, die die Karte zeigt.
 import { K } from "./karte.js";
+import { nachLaden, quellMerkmale } from "../util.js";
 
 const ZELLE = 25, RADIUS = 7;   // Meter
 export const GL = { n: 0, bereit: false };
@@ -11,7 +12,7 @@ const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 function quelleSuchen(map) { for (const l of map.getStyle().layers) if (l["source-layer"] === "transportation") return l.source; return null; }
 function aufbauen() {
   const map = K.map; if (!quelle) quelle = quelleSuchen(map); if (!quelle || map.getZoom() < 13) { GL.bereit = false; return; }
-  const feats = map.querySourceFeatures(quelle, { sourceLayer: "transportation" });
+  const feats = quellMerkmale(map, quelle, "transportation");
   o = mc(map.getCenter()); ms = o.meterInMercatorCoordinateUnits(); raster = new Map(); let n = 0;
   const gesehen = new Set();
   for (const f of feats) {
@@ -71,6 +72,6 @@ export function gleisStuecke() {
   return [...set].map(s => ({ ax: o.x + s[0] * ms, ay: o.y + s[1] * ms, bx: o.x + s[2] * ms, by: o.y + s[3] * ms, tun: !!s[4] }));
 }
 export function gleiseStarten() {
-  const map = K.map; let t = 0; const neu = () => { clearTimeout(t); t = setTimeout(aufbauen, 200); };
+  const map = K.map; let t = 0; const neu = () => nachLaden(map, "gleise", aufbauen, 200, 1);
   map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
 }

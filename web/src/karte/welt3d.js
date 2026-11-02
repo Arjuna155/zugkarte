@@ -5,6 +5,7 @@ import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
+import { quellMerkmale, nachLaden } from "../util.js";
 
 export const W3 = { an: true, gebaeudeAn: true, gebaeude: false, bauwerke: 0, quelle: null };
 const ZOOM_GEBAEUDE = 14, ZOOM_BAUWERKE = 14;
@@ -69,7 +70,7 @@ const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 // Kacheln liefern Linien in Stücken (an Kachelgrenzen geschnitten, mit Überlappung). Für die Höhe einer Brücke zählt nur,
 // wo sie wirklich beginnt und endet: ein echtes Ende hat eine gleichartige Strasse/Bahn ohne Brücke als Fortsetzung.
 function bauwerkeBauen(map, g) {
-  const feats = map.querySourceFeatures(g.quelle, { sourceLayer: "transportation" });
+  const feats = quellMerkmale(map, g.quelle, "transportation");
   const c = map.getCenter(), o = mc(c), ms = o.meterInMercatorCoordinateUnits();
   const lokal = ([lng, lat]) => { const m = mc([lng, lat]); return [(m.x - o.x) / ms, (m.y - o.y) / ms]; };
   const hoehe = p => { const e = map.queryTerrainElevation(p); return e == null ? null : e; };
@@ -167,12 +168,11 @@ export function welt3dStarten() {
   ebene({ id: "gebaeude", name: "Gebäude (3D)", an: true, setze: an => { W3.gebaeudeAn = an; if (map.getLayer("gebaeude-3d")) map.setLayoutProperty("gebaeude-3d", "visibility", an ? "visible" : "none"); } });
   let schicht = null, laedt = false, timer = 0;
   const neu = () => {
-    clearTimeout(timer);
-    timer = setTimeout(async () => {
+    nachLaden(map, "bauwerke", async () => {
       if (!W3.an || map.getZoom() < ZOOM_BAUWERKE || !map.getTerrain() || !g.verkehr) return;
       if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = bauwerkEbene(); map.addLayer(schicht, map.getLayer("fz") ? "fz" : undefined); }
       const { G, o, n } = bauwerkeBauen(map, g); schicht.setze(G, o); W3.bauwerke = n; map.triggerRepaint();
-    }, 250);
+    }, 250, 6);
   };
   map.on("moveend", neu); map.on("terrain", neu);
   ebene({ id: "bauwerke", name: "Brücken & Tunnelportale", an: true, setze: an => { W3.an = an; if (schicht) { if (!an) schicht.setze({ p: [] }, null); else neu(); map.triggerRepaint(); } } });

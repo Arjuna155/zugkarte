@@ -49,3 +49,28 @@ export function bildIn(map, ms) {
   const z = performance.now() + ms; if (z >= bildZiel) return;
   bildZiel = z; clearTimeout(bildTimer); bildTimer = setTimeout(() => { bildZiel = Infinity; map.triggerRepaint(); }, ms);
 }
+
+// Neuaufbau nach dem Laden/Verschieben (Bäume, Dächer, Gleise …): jeder Auftrag höchstens einmal vorgemerkt, ausgeführt
+// erst, wenn die Karte ruht, einer nach dem anderen (nach Vorrang) mit einem gezeichneten Bild dazwischen – statt dass acht
+// Ebenen gleichzeitig loslegen und das Bild lange anhalten
+const auftraege = new Map(); let abLaeuft = false, abTimer = 0;
+export function nachLaden(map, name, fn, warte = 300, vorrang = 5) {
+  auftraege.set(name, { fn, vorrang });
+  if (!abLaeuft) { clearTimeout(abTimer); abTimer = setTimeout(() => abarbeiten(map), warte); }
+}
+function abarbeiten(map) {
+  if (map.isMoving()) { abTimer = setTimeout(() => abarbeiten(map), 150); return; }
+  let best = null; for (const [n, a] of auftraege) if (!best || a.vorrang < best[1].vorrang) best = [n, a];
+  if (!best) { abLaeuft = false; return; }
+  abLaeuft = true; auftraege.delete(best[0]);
+  try { best[1].fn(); } catch (e) { console.error(best[0], e); }
+  requestAnimationFrame(() => setTimeout(() => abarbeiten(map), 0));   // erst ein Bild zeichnen lassen
+}
+// Merkmale einer Kartenquelle (querySourceFeatures) einmal lesen und teilen, bis neue Kacheln kommen oder die Karte bewegt wird
+const mStand = {}; let mBewegt = 0; const mSpeicher = new Map(); let mGebunden = null;
+export function quellMerkmale(map, quelle, schicht) {
+  if (mGebunden !== map) { mGebunden = map; map.on("sourcedata", e => { if (e.sourceId) mStand[e.sourceId] = (mStand[e.sourceId] || 0) + 1; }); map.on("moveend", () => mBewegt++); }
+  const k = quelle + "|" + schicht, st = (mStand[quelle] || 0) + ":" + mBewegt, v = mSpeicher.get(k);
+  if (v && v.st === st) return v.f;
+  const f = map.querySourceFeatures(quelle, { sourceLayer: schicht }); mSpeicher.set(k, { st, f }); return f;
+}

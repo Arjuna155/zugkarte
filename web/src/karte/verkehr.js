@@ -7,7 +7,7 @@ import { K } from "./karte.js";
 import { ladeThree, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
-import { fc, istHandy, bildIn } from "../util.js";
+import { fc, istHandy, bildIn, nachLaden, quellMerkmale } from "../util.js";
 
 export const VK = { stellen: [], an: true, ketten: [], zeit: 0, fz: [], lage: f => lage(f) };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -28,7 +28,7 @@ function bauen() {
   const map = K.map; if (!quelle) quelle = quelleSuchen(map); if (!quelle) return;
   if (map.getZoom() < 8 || !VK.an) { VK.ketten = []; lageZeichnen(); fahrzeugeVerteilen(); return; }
   anker = mc(map.getCenter()); ankerMs = anker.meterInMercatorCoordinateUnits();
-  const feats = map.querySourceFeatures(quelle, { sourceLayer: "transportation" }), gesehen = new Set(), stuecke = [];
+  const feats = quellMerkmale(map, quelle, "transportation"), gesehen = new Set(), stuecke = [];
   const Tr = map.getTerrain(), ex = Tr ? Tr.exaggeration || 1 : 0;
   for (const f of feats) {
     const p = f.properties; if (p.class !== "motorway" && p.class !== "trunk") continue;
@@ -253,7 +253,7 @@ export function verkehrStarten() {
     "line-color": ["case", [">=", ["get", "v"], 70], "#2f9e44", [">=", ["get", "v"], 40], "#f08c00", "#e03131"],
     "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2, 12, 4, 15, 7], "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, .85, 13, .55, 15, .35] } }, vor);
   ladeThree().then(() => { try { map.addLayer(ebene3d(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } });
-  let t = 0; const neu = () => { clearTimeout(t); t = setTimeout(bauen, 300); };
+  const neu = () => nachLaden(map, "verkehr", bauen, 300, 7);
   map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
   ebene({ id: "verkehr", name: "Verkehr (Autobahn)", an: true, setze: an => { VK.an = an; K.verkehrAus = !an; if (map.getLayer("verkehr-lage")) map.setLayoutProperty("verkehr-lage", "visibility", an && K.linienAn ? "visible" : "none"); neu(); map.triggerRepaint(); } });
   laden(); setInterval(laden, 60000);

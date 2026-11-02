@@ -3,7 +3,7 @@
 // (Strassen ab Zoom 13, Busse als Punkte ab Zoom 12) und höchstens 4 ms pro Bild; bis dahin fährt der Bus gerade.
 // Wege in Kartenkoordinaten (LV95 / 100), 1,8 m rechts der Strassenmitte (Rechtsverkehr).
 import { stOf } from "../kern/basis.js";
-import { X, Y, lv95, glatt } from "../util.js";
+import { X, Y, lv95, glatt, nachLaden, quellMerkmale } from "../util.js";
 
 export const STR = { gen: 0, n: 0, q: 0, bild: 0, rest: 0, an: true, wege: 0, gerade: 0 };
 const KLASSEN = new Set(["motorway", "trunk", "primary", "secondary", "tertiary", "minor", "service", "busway", "bus_guideway"]);
@@ -13,7 +13,7 @@ let kx = [], ky = [], adj = [], raster = new Map(), quelle = null, map = null;
 function quelleSuchen() { for (const l of map.getStyle().layers) if (l["source-layer"] === "transportation") return l.source; return null; }
 function aufbauen() {
   if (!quelle) quelle = quelleSuchen(); const z = map.getZoom(); if (!quelle || z < 13) return;   // grosse Ausschnitte (Zoom 12) wären zu viele Strassen
-  const feats = map.querySourceFeatures(quelle, { sourceLayer: "transportation" });
+  const feats = quellMerkmale(map, quelle, "transportation");
   const id = new Map(), X_ = [], Y_ = [], A_ = [], R = new Map(), kanten = new Set();
   const knoten = (x, y) => { const k = Math.round(x * 100) + "," + Math.round(y * 100); let i = id.get(k); if (i === undefined) { i = X_.length; id.set(k, i); X_.push(x); Y_.push(y); A_.push([]); } return i; };
   const zelle = (x, y) => Math.floor(x / ZELLE) + "," + Math.floor(y / ZELLE);
@@ -115,6 +115,6 @@ export function busWeg(i, j) {
 // je Bild: Rechenzeit für neue Wege (bis 4 ms)
 export function strassenBild() { STR.bild++; STR.rest = 4; }
 export function strassenStarten(m) {
-  map = m; let t = 0; const neu = () => { clearTimeout(t); t = setTimeout(aufbauen, 300); };
+  map = m; let t = 0; const neu = () => nachLaden(map, "strassen", aufbauen, 300, 4);
   map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= 13) neu(); }); neu();
 }

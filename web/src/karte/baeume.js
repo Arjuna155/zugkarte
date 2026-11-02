@@ -5,7 +5,7 @@
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { ebene } from "../ui/ebenen.js";
-import { istHandy } from "../util.js";
+import { istHandy, nachLaden, quellMerkmale } from "../util.js";
 
 export const ZB = 14;
 const RASTER = 7, N_MAX = istHandy() ? 12000 : 40000;
@@ -36,7 +36,7 @@ function bauen() {
   // Raster fest im Raum: Zellgrösse aus einem festen Bezugspunkt (Mitte der Schweiz), nicht aus der Bildmitte – sonst
   // verschiebt sich das Raster beim Verschieben der Karte und jede Zelle bekäme einen anderen Baum
   const zelle = RASTER * MS_FEST(), kand = [], gesehen = new Set();
-  for (const f of map.querySourceFeatures(quelle, { sourceLayer: "landcover" })) {
+  for (const f of quellMerkmale(map, quelle, "landcover")) {
     const a = art(f.properties); if (!a) continue; const g = f.geometry;
     const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
     for (const poly of polys) {
@@ -130,7 +130,7 @@ function schicht() {
 }
 export function baeumeStarten() {
   const map = K.map; let geladen = false, t = 0;
-  const neu = () => { clearTimeout(t); t = setTimeout(() => { bauen(); map.triggerRepaint(); }, 400); };
+  const neu = () => nachLaden(map, "baeume", () => { bauen(); map.triggerRepaint(); }, 400, 6);
   const laden = () => { if (geladen || map.getZoom() < ZB - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } neu(); }); };
   map.on("moveend", () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZB) neu(); });

@@ -56,18 +56,28 @@ function ebene() {
       for (const [k, farbe, deck] of [["nebel", 0xf3f5f6, .55], ["nebel2", 0xe4e8ea, .35], ["wolken", 0x8d969e, .1]]) {
         const g = new THREE.BufferGeometry(), me = new THREE.Mesh(g, mat(farbe, deck)); me.frustumCulled = false; me.visible = false; this.szene.add(me); this.flaechen[k] = { g, me };
       }
-      this.bauAnker = null; this.feldV = -1; this.bauen = () => { this.neuBauen = true; }; m.on("moveend", this.bauen);
-      this.ziehen = () => { const t = performance.now(); if (t - (this.letzterBau || 0) > 350) { this.letzterBau = t; this.neuBauen = true; } }; m.on("move", this.ziehen); this.neuBauen = true;   // auch während des Ziehens nachführen
+      // neu bauen nur, wenn der Ausschnitt den gebauten Bereich (doppelt so gross wie das Bild) verlässt oder stark gezoomt wurde
+      const raus = () => { const B = this.gebaut; if (!B) return true; const b = m.getBounds();
+        return b.getWest() < B.w || b.getEast() > B.e || b.getSouth() < B.s || b.getNorth() > B.n || Math.abs(m.getZoom() - B.z) > .8; };
+      this.bauAnker = null; this.feldV = -1; this.bauen = () => { if (raus()) this.neuBauen = true; }; m.on("moveend", this.bauen);
+      this.ziehen = () => { const t = performance.now(); if (t - (this.letzterBau || 0) > 350 && raus()) { this.letzterBau = t; this.neuBauen = true; } }; m.on("move", this.ziehen); this.neuBauen = true;   // auch während des Ziehens nachführen
     },
     onRemove(m) { m.off("moveend", this.bauen); m.off("move", this.ziehen); },
     // Nebel- und Wolkenflächen für den sichtbaren Ausschnitt (Gitter 56 × 56, Höhe und Deckung aus dem Wetterfeld)
     flaechenBauen(map, anker, ms, ex) {
-      const b = map.getBounds(), w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth(), dx = (e - w) * .5, dy = (n - s) * .5, G = 64;   // mit Rand, damit beim Verschieben kein Loch entsteht
+      const b = map.getBounds(), w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth(), dx = (e - w) * .5, dy = (n - s) * .5, G = istHandy() ? 40 : 56;   // mit Rand, damit beim Verschieben kein Loch entsteht
+      this.gebaut = { w: w - dx * .8, e: e + dx * .8, s: s - dy * .8, n: n + dy * .8, z: map.getZoom() };
+      // Gitterpunkte einmal für alle Flächen (Lage in Mercator); Flächen ohne Nebel/Wolken im Ausschnitt gar nicht bauen
+      const N = (G + 1) * (G + 1), LL = new Float64Array(N * 2), XY = new Float32Array(N * 2);
+      for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) { const p = j * (G + 1) + i, lng = w - dx + (e - w + 2 * dx) * i / G, lat = s - dy + (n - s + 2 * dy) * j / G, q = mc([lng, lat]);
+        LL[p * 2] = lng; LL[p * 2 + 1] = lat; XY[p * 2] = (q.x - anker.x) / ms; XY[p * 2 + 1] = (q.y - anker.y) / ms; }
+      const etwas = wert => { for (let j = 0; j <= 10; j++) for (let i = 0; i <= 10; i++) if (wert(w - dx + (e - w + 2 * dx) * i / 10, s - dy + (n - s + 2 * dy) * j / 10) > .02) return true; return false; };
       const mach = (k, wert, hoehe) => {
-        const pos = new Float32Array((G + 1) * (G + 1) * 3), al = new Float32Array((G + 1) * (G + 1)); let max = 0;
-        for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) {
-          const lng = w - dx + (e - w + 2 * dx) * i / G, lat = s - dy + (n - s + 2 * dy) * j / G, q = mc([lng, lat]), a = wert(lng, lat), p = (j * (G + 1) + i);
-          pos[p * 3] = (q.x - anker.x) / ms; pos[p * 3 + 1] = (q.y - anker.y) / ms; pos[p * 3 + 2] = hoehe(lng, lat) * ex; al[p] = a; if (a > max) max = a;
+        const F0 = this.flaechen[k]; if (!etwas(wert)) { F0.max = 0; return; }
+        const pos = new Float32Array(N * 3), al = new Float32Array(N); let max = 0;
+        for (let p = 0; p < N; p++) {
+          const lng = LL[p * 2], lat = LL[p * 2 + 1], a = wert(lng, lat);
+          pos[p * 3] = XY[p * 2]; pos[p * 3 + 1] = XY[p * 2 + 1]; pos[p * 3 + 2] = hoehe(lng, lat) * ex; al[p] = a; if (a > max) max = a;
         }
         const idx = []; for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) { const a = j * (G + 1) + i; idx.push(a, a + 1, a + G + 1, a + 1, a + G + 2, a + G + 1); }
         const F = this.flaechen[k]; F.g.dispose(); F.g = new THREE.BufferGeometry(); F.g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); F.g.setAttribute("a", new THREE.BufferAttribute(al, 1)); F.g.setIndex(idx);
