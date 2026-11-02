@@ -14,8 +14,9 @@ const KEY_FILE = path.join(DATA_DIR, "schluessel.txt");
 const clean = k => (k || "").trim().replace(/^["']+|["']+$/g, "").replace(/^Bearer\s+/i, "").trim();
 const isPlaceholder = k => /^HIER_/i.test(k);
 // Leere Schlüsseldateien anlegen und für alle beschreibbar machen, damit sie sich mit der Dateien-App des NAS
-// bearbeiten lassen: schluessel.txt (opentransportdata) und tailscale-key.txt (liest der Tailscale-Container).
-for (const f of [KEY_FILE, path.join(DATA_DIR, "tailscale-key.txt")]) {
+// bearbeiten lassen: schluessel.txt (opentransportdata), tailscale-key.txt (liest der Tailscale-Container) und
+// cloudflare-token.txt (liest der Cloudflare-Container, eigene Domain).
+for (const f of [KEY_FILE, path.join(DATA_DIR, "tailscale-key.txt"), path.join(DATA_DIR, "cloudflare-token.txt")]) {
   try { if (fs.existsSync(DATA_DIR) && !fs.existsSync(f)) fs.writeFileSync(f, ""); fs.chmodSync(f, 0o666); } catch {}
 }
 // Funnel-Einstellung für den Tailscale-Container (liest data/tailscale-serve.json und beobachtet Änderungen).

@@ -1,18 +1,21 @@
-# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 4
+# ZugKarte auf dem UGREEN-NAS (UGOS Pro → Docker → Projekt)          Konfiguration Version 5
 #
 # Hier muss NICHTS ersetzt werden. Beide Schlüssel kommen als Textdateien in den Ordner «data»
 # im Projektordner (mit der Dateien-App von UGOS bearbeiten, jeweils nur den Schlüssel, eine Zeile):
 #
 #   data/schluessel.txt       → Schlüssel von opentransportdata.swiss (SIRI-ET)
 #   data/tailscale-key.txt    → Auth-Key aus der Tailscale-Admin-Konsole (beginnt mit «tskey-auth-»)
+#   data/cloudflare-token.txt → Token des Cloudflare-Tunnels (eigene Domain, beginnt meist mit «eyJ»)
 #
-# Beide Dateien legt der Container «zugkarte» beim Start leer an (dazu data/tailscale-serve.json
+# Die Dateien legt der Container «zugkarte» beim Start leer an (dazu data/tailscale-serve.json
 # mit der Funnel-Einstellung – die nicht bearbeiten, sie wird bei Updates automatisch gepflegt). Nach dem Eintragen ist kein
 # Neustart nötig: die Karte liest ihren Schlüssel bei jeder Abfrage, Tailscale versucht es alle paar Sekunden neu.
 #
 # Danach ist die Karte erreichbar:
 #   im Heimnetz:  http://<IP-des-NAS>:8080
 #   öffentlich:   https://zugkarte.<dein-tailnet>.ts.net   (über Tailscale Funnel)
+#   eigene Domain: https://<deine Adresse>                 (über Cloudflare Tunnel; im Cloudflare-Dashboard beim
+#                  Tunnel als «Public Hostname» eintragen, Dienst: HTTP → 127.0.0.1:8080)
 #
 # Updates: Der Container «zugkarte» holt neue Versionen selbst von GitHub (alle 5 Minuten).
 
@@ -31,7 +34,7 @@ services:
         && mv /data/launcher.neu /data/launcher.js;
         exec node /data/launcher.js
     environment:
-      - ZK_COMPOSE=4
+      - ZK_COMPOSE=5
       - REPO=Arjuna155/zugkarte
       - BRANCH=main
       - CHECK_MINUTES=5
@@ -58,4 +61,16 @@ services:
       - TS_USERSPACE=true
     volumes:
       - ./tailscale:/var/lib/tailscale
+      - ./data:/zkdata:ro
+
+  cloudflare:
+    image: cloudflare/cloudflared:latest
+    container_name: zugkarte-cloudflare
+    # teilt das Netzwerk mit «zugkarte» → der Tunnel erreicht die Karte über 127.0.0.1:8080
+    network_mode: service:zugkarte
+    restart: unless-stopped
+    depends_on:
+      - zugkarte
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/zkdata/cloudflare-token.txt"]
+    volumes:
       - ./data:/zkdata:ro
