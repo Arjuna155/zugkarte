@@ -8,6 +8,7 @@ import { foWunsch } from "../kern/formation.js";
 import { S, KLASSEN, TNAME, DNAME, TYPES } from "../zustand.js";
 import { K, markSt, kartenAuswahl, fit, hinZu } from "../karte/karte.js";
 import { $, X, Y, fmt, norm, an, istHandy } from "../util.js";
+import { FOLGE, folgen, folgenAus } from "../karte/folgen.js";
 
 // ---- Legenden ----
 function legende() {
@@ -85,9 +86,11 @@ export function zug(tr, o, center) {
   const dln = delayNow(rt, p);
   const where = rt && rt.canc ? "Dieser Zug fällt heute aus" : !p ? "Nicht mehr unterwegs" : (p.moving ? `Unterwegs nach ${B.SN[tr.st[p.next].i]}` : `Hält in ${B.SN[tr.st[p.stop].i]}`) + (rt ? (dln >= 60 ? ` · ${Math.round(dln / 60)} Min. verspätet` : " · pünktlich") : " · nur Fahrplan, keine Echtzeit");
   $("detail").innerHTML = `<div class="card"><p class="eyebrow">${TNAME[tr.cls]}</p><h2><span class="badge ${tr.cls}">${tr.label}</span> → ${tr.to}</h2>
-    <p class="sub">${where}</p><p class="eyebrow">Halte im Hauptnetz</p><ol class="trip">${items}</ol>
+    <p class="sub">${where}</p>${p ? `<button class="folgen${FOLGE.an ? " an" : ""}" id="folgen" aria-pressed="${FOLGE.an}">${FOLGE.an ? "◉ Kamera folgt" : "○ Kamera folgen"}</button>` : ""}
+    <p class="eyebrow">Halte im Hauptnetz</p><ol class="trip">${items}</ol>
     <button class="link" id="back">Auswahl aufheben</button></div>`;
   bindDetail();
+  const fb = $("folgen"); fb && (fb.onclick = () => { if (FOLGE.an) folgenAus(); else folgen(tr, o); zug(tr, o, false); });
   if (center && p) hinZu(p.x, p.y, 13);
 }
 // Abfahrten an einem Bahnhof (nächste 45 Minuten, auch über Mitternacht)
@@ -146,7 +149,7 @@ export function seiteStarten() {
   document.querySelectorAll("#colmode button").forEach(b => b.onclick = () => farbModus(b.dataset.v));
   document.querySelectorAll("#speed button").forEach(b => b.onclick = () => { S.speed = +b.dataset.v; document.querySelectorAll("#speed button").forEach(x => x.setAttribute("aria-pressed", x === b)); });
   if ($("now")) $("now").onclick = () => { S.simMs = Date.now(); };
-  an("bahnhof", n => bahnhof(n)); an("strecke", i => strecke(i)); an("zug", (tr, o) => zug(tr, o, false)); an("leer", auswahlWeg);
+  an("bahnhof", n => bahnhof(n)); an("strecke", i => strecke(i)); an("zug", (tr, o) => zug(tr, o, false)); an("leer", auswahlWeg); an("folgen", () => { if (S.sel) zug(S.sel.tr, S.sel.o, false); });
   an("echtzeit", echtzeitAnzeige); echtzeitAnzeige(); setInterval(echtzeitAnzeige, 15000);
 }
 // zweimal pro Sekunde: Zähler, Fahrplan-Hinweis, offene Details nachführen

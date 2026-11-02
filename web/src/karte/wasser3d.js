@@ -6,7 +6,7 @@ import { K } from "./karte.js";
 import { ladeThree, gemeinsamerZeichner, LICHT } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
-import { istHandy, bildIn, nachLaden, quellMerkmale } from "../util.js";
+import { istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
 
 export const ZW = 10;
 export const WA = { an: true, flaechen: 0, dreiecke: 0 };
@@ -118,7 +118,7 @@ export function wasserStarten() {
   const map = K.map; let geladen = false, t = 0;
   const neu = () => nachLaden(map, "wasser", () => { bauen(); map.triggerRepaint(); }, 350, 3);
   const laden = () => { if (geladen || map.getZoom() < ZW - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
-  map.on("moveend", () => { laden(); neu(); });
+  beiRuhe(map, () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZW) neu(); });
   map.on("terrain", neu);
   map.on("sourcedata", e => { if (fehlt && e.sourceId === "dem" && e.isSourceLoaded) neu(); });   // Gelände nachgeladen

@@ -3,7 +3,7 @@
 // (Strassen ab Zoom 13, Busse als Punkte ab Zoom 12) und höchstens 4 ms pro Bild; bis dahin fährt der Bus gerade.
 // Wege in Kartenkoordinaten (LV95 / 100), 1,8 m rechts der Strassenmitte (Rechtsverkehr).
 import { stOf } from "../kern/basis.js";
-import { X, Y, lv95, glatt, nachLaden, quellMerkmale } from "../util.js";
+import { X, Y, lv95, glatt, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
 
 export const STR = { gen: 0, n: 0, q: 0, bild: 0, rest: 0, an: true, wege: 0, gerade: 0 };
 const KLASSEN = new Set(["motorway", "trunk", "primary", "secondary", "tertiary", "minor", "service", "busway", "bus_guideway"]);
@@ -116,5 +116,5 @@ export function busWeg(i, j) {
 export function strassenBild() { STR.bild++; STR.rest = 4; }
 export function strassenStarten(m) {
   map = m; let t = 0; const neu = () => nachLaden(map, "strassen", aufbauen, 300, 4);
-  map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= 13) neu(); }); neu();
+  beiRuhe(map, neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= 13) neu(); }); neu();
 }

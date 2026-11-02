@@ -125,6 +125,11 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Nachts: `ls-nachtlicht` (Siedlungs-/Gewerbeflächen warm, Deckkraft 0,5 × Nacht) und `ls-strassenlicht` (Strassen ab Zoom 11, weich), nur sichtbar, wenn Nacht > 0.
 - Vorschau: `?uhr=21:30` (nur Beleuchtung, Fahrplan bleibt Echtzeit); in Tests `__tz.setze("22:00")`.
 
+## Kamera folgt (02.11.2026)
+- `web/src/karte/folgen.js`: Antippen eines Fahrzeugs (`K.fzTreffer`) wählt es aus und startet `folgen(tr, o)`; Knopf «Kamera folgen» in der Zugkarte (seite.js). Kamera fliegt in 1,4 s hin (Zoom < 13,5 → 15,3; Neigung < 40° → 55°, auch ohne Zwischenbilder am Ende gesetzt), danach in jedem Bild `jumpTo(center = trainPos jetzt)`, nur wenn ≥ ½ Bildpunkt Bewegung. Zoomen/Drehen frei; Ziehen (ein Finger/Maus, `dragstart`), Auswahl aufheben oder Fahrtende beenden das Folgen.
+- Während des Folgens rechnet fahrzeuge.js jedes Bild (sonst ruckelt das Fahrzeug gegen die Kamera).
+- `beiRuhe(map, fn)` (util.js) statt `map.on("moveend")` für Neuaufbauten: Folge-Schritte ({folgen: true}) lösen nur aus, wenn das Bild ¼ der kleineren Seite weitergewandert ist ({weit: true}).
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

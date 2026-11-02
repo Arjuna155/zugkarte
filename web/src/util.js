@@ -69,8 +69,11 @@ function abarbeiten(map) {
 // Merkmale einer Kartenquelle (querySourceFeatures) einmal lesen und teilen, bis neue Kacheln kommen oder die Karte bewegt wird
 const mStand = {}; let mBewegt = 0; const mSpeicher = new Map(); let mGebunden = null;
 export function quellMerkmale(map, quelle, schicht) {
-  if (mGebunden !== map) { mGebunden = map; map.on("sourcedata", e => { if (e.sourceId) mStand[e.sourceId] = (mStand[e.sourceId] || 0) + 1; }); map.on("moveend", () => mBewegt++); }
+  if (mGebunden !== map) { mGebunden = map; map.on("sourcedata", e => { if (e.sourceId) mStand[e.sourceId] = (mStand[e.sourceId] || 0) + 1; }); beiRuhe(map, () => mBewegt++); }
   const k = quelle + "|" + schicht, st = (mStand[quelle] || 0) + ":" + mBewegt, v = mSpeicher.get(k);
   if (v && v.st === st) return v.f;
   const f = map.querySourceFeatures(quelle, { sourceLayer: schicht }); mSpeicher.set(k, { st, f }); return f;
 }
+// Nach dem Verschieben neu aufbauen – aber nicht bei jedem kleinen Schritt der Folge-Kamera (folgen.js), sondern erst,
+// wenn sie ein gutes Stück weitergewandert ist
+export function beiRuhe(map, fn) { map.on("moveend", e => { if (e && e.folgen && !e.weit) return; fn(e); }); }

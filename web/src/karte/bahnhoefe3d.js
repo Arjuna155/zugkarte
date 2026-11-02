@@ -12,7 +12,7 @@ import { huelle, rechteck } from "./daecher.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
-import { wgs, nachLaden } from "../util.js";
+import { wgs, nachLaden, beiRuhe } from "../util.js";
 
 export const ZBF = 14.5;
 export const BF = { an: true, perrons: 0, osm: 0, ersatz: 0, kacheln: 0 };
@@ -157,7 +157,7 @@ export function bahnhoefeStarten() {
   const neu = () => nachLaden(map, "bahnhoefe", () => { if (!GL.bereit && map.getZoom() >= ZBF && BF.an) { setTimeout(neu, 300); return; } bauen(); map.triggerRepaint(); }, 500, 2);   // nach den Gleisen (gleise.js baut nach 200 ms)
   neuBauen = neu;
   const laden = () => { if (geladen || map.getZoom() < ZBF - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("zuege3d") ? "zuege3d" : VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
-  map.on("moveend", () => { laden(); neu(); });
+  beiRuhe(map, () => { laden(); neu(); });
   map.on("terrain", neu);
   ebene({ id: "bahnhoefe", name: "Bahnhöfe (Perrons, 3D)", an: true, setze: an => { BF.an = an; if (an) { laden(); neu(); } else { daten = null; version++; } map.triggerRepaint(); } });
   laden();

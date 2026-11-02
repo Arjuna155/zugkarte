@@ -2,7 +2,7 @@
 // Die 3D-Züge rasten darauf ein: jeder Wagen auf das nächste Gleis, bevorzugt das linke in Fahrtrichtung
 // (in der Schweiz fahren die Züge auf Doppelspur links). So fahren sie auf den Gleisen, die die Karte zeigt.
 import { K } from "./karte.js";
-import { nachLaden, quellMerkmale } from "../util.js";
+import { nachLaden, quellMerkmale, beiRuhe } from "../util.js";
 
 const ZELLE = 25, RADIUS = 7;   // Meter
 export const GL = { n: 0, bereit: false };
@@ -73,5 +73,5 @@ export function gleisStuecke() {
 }
 export function gleiseStarten() {
   const map = K.map; let t = 0; const neu = () => nachLaden(map, "gleise", aufbauen, 200, 1);
-  map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
+  beiRuhe(map, neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
 }

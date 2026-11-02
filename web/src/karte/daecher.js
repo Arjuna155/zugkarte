@@ -7,7 +7,7 @@ import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { W3 } from "./welt3d.js";
-import { istHandy, nachLaden } from "../util.js";
+import { istHandy, nachLaden, beiRuhe } from "../util.js";
 
 export const ZD = 15;
 // Dachhöhe aus der Gesamthöhe (render_height = bis zum First): Mauern ab Zoom ZD nur bis zur Traufe (welt3d.js nutzt
@@ -143,7 +143,7 @@ export function daecherStarten() {
   const map = K.map; let geladen = false, t = 0;
   const neu = () => nachLaden(map, "daecher", () => { bauen(); map.triggerRepaint(); }, 400, 5);
   const laden = () => { if (geladen || map.getZoom() < ZD - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
-  map.on("moveend", () => { laden(); neu(); });
+  beiRuhe(map, () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZD) neu(); });
   map.on("terrain", neu);
   laden();

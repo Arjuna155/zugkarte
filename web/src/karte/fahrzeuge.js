@@ -1,6 +1,7 @@
 // Fahrzeuge: eigene WebGL-Ebene (Punkte), ohne GeoJSON-Umweg. Pro Bild nur die Fahrten, die laut Zeitindex unterwegs
 // sein können; nur sichtbare werden gezeichnet. Ab Zoom Z3D werden Züge zu 3D-Modellen (zuege3d.js).
 import { B } from "../kern/basis.js";
+import { folgen, FOLGE } from "./folgen.js";
 import { services, aktiv } from "../kern/fahrplan.js";
 import { trainPos } from "../kern/wege.js";
 import { rtFor, delayNow } from "../kern/echtzeit.js";
@@ -34,7 +35,7 @@ export function fahrzeugeBerechnen(now) {
   // Neu berechnen erst, wenn ein schneller Zug (200 km/h) sich um einen halben Pixel bewegt haben kann:
   // herausgezoomt etwa 1-mal pro Sekunde, ganz nah bei jedem Bild. Spart Rechenzeit und neues Zeichnen der Karte.
   const mpp = 156543 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** zoom, takt = Math.min(1000, 500 * mpp / (55 * Math.max(S.speed, 1e-3) || 1));
-  if (now - letzteBerechnung < takt && Math.abs(S.simMs - zuletztSim) < 60000) return false;
+  if (!FOLGE.an && now - letzteBerechnung < takt && Math.abs(S.simMs - zuletztSim) < 60000) return false;   // beim Folgen jedes Bild (sonst ruckelt das Fahrzeug gegen die Kamera)
   letzteBerechnung = now; zuletztSim = S.simMs; strassenBild();
   // Voller Durchgang (alle Fahrten, Zähler für die Legende) höchstens 2-mal pro Sekunde; dazwischen nur die Fahrten,
   // die beim letzten vollen Durchgang in oder nahe beim Bildausschnitt waren (Rand ≈ 5 km).
@@ -151,7 +152,7 @@ export function fahrzeugeStarten() {
   map.addLayer({ id: "fz-l", type: "symbol", source: "fzl", layout: { "text-field": ["get", "l"], "text-font": [SCHRIFT], "text-size": 11, "text-anchor": "bottom-left", "text-offset": [0.6, -0.4], "text-optional": true }, paint: { "text-color": "#16222b", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } });
   // beim Verschieben/Zoomen sofort neu berechnen (neu sichtbare Gegend), höchstens 10-mal pro Sekunde
   let zuletzt = 0; map.on("move", () => { const t = performance.now(); if (t - zuletzt > 100) { zuletzt = t; letzteBerechnung = 0; erzwingeVoll = true; } });
-  K.fzTreffer = pt => { const v = fahrzeugBei(pt); if (v) { melde("zug", v.tr, v.o); return true; } return false; };
+  K.fzTreffer = pt => { const v = fahrzeugBei(pt); if (v) { melde("zug", v.tr, v.o); folgen(v.tr, v.o); return true; } return false; };   // antippen = auswählen und Kamera folgt
   K.fzTip = pt => { const v = fahrzeugBei(pt); return v ? v.tr.label + " → " + v.tr.to : null; };
   try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", farben); } catch (e) { }
 }

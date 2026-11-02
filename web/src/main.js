@@ -20,6 +20,7 @@ import { daecherStarten, DA } from "./karte/daecher.js";
 import { bahnhoefeStarten, BF } from "./karte/bahnhoefe3d.js";
 import { busBrauche, BUS } from "./kern/busse.js";
 import { tageszeitStarten, TZ } from "./karte/tageszeit.js";
+import { folgeBild, folgenStarten, FOLGE } from "./karte/folgen.js";
 import { seiteStarten, seiteTakt, uhr } from "./ui/seite.js";
 import { an } from "./util.js";
 
@@ -29,7 +30,7 @@ function bild(now) {
   if (S.speed === 1) S.simMs = Date.now(); else S.simMs += dt * S.speed;   // immer Echtzeit (anhalten/raffen nur noch für Tests über __zk.S.speed)
   SPERR.heute = SPERR.teile.size > 0 && SPERR.datum === zh(S.simMs).date;
   const s = Math.floor(S.simMs / 1000); if (s !== sek) { sek = s; uhr(); }
-  if (K.bereit && K.fz) fahrzeugeBerechnen(now);
+  if (K.bereit && K.fz) { folgeBild(now); fahrzeugeBerechnen(now); }
   if (now - takt > 500) { takt = now; seiteTakt(); if (K.bereit) busBrauche(S.simMs, K.map); }
   requestAnimationFrame(bild);
 }
@@ -37,9 +38,9 @@ function bild(now) {
   await ladeBasis();
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
-  an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); K.fz = true; });
+  an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); folgenStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen
-  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR, BA, WA, DA, BF, TZ };
+  window.__zk = { S, K, zh, FZ, Z3, W3, GL, WE, VK, BUS, STR, BA, WA, DA, BF, TZ, FOLGE };
 })();

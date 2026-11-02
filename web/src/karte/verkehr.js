@@ -8,7 +8,7 @@ import { ladeThree, gemeinsamerZeichner, sonnenLicht } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
-import { fc, istHandy, bildIn, nachLaden, quellMerkmale } from "../util.js";
+import { fc, istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
 
 export const VK = { stellen: [], an: true, ketten: [], zeit: 0, fz: [], lage: f => lage(f) };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -255,7 +255,7 @@ export function verkehrStarten() {
     "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2, 12, 4, 15, 7], "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, .85, 13, .55, 15, .35] } }, vor);
   ladeThree().then(() => { try { map.addLayer(ebene3d(), VOR_3D()); } catch (e) { console.error(e); } });
   const neu = () => nachLaden(map, "verkehr", bauen, 300, 7);
-  map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
+  beiRuhe(map, neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
   ebene({ id: "verkehr", name: "Verkehr (Autobahn)", an: true, setze: an => { VK.an = an; K.verkehrAus = !an; if (map.getLayer("verkehr-lage")) map.setLayoutProperty("verkehr-lage", "visibility", an && K.linienAn ? "visible" : "none"); neu(); map.triggerRepaint(); } });
   laden(); setInterval(laden, 60000);
 }

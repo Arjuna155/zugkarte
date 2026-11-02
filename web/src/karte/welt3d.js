@@ -6,7 +6,7 @@ import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
-import { quellMerkmale, nachLaden } from "../util.js";
+import { quellMerkmale, nachLaden, beiRuhe } from "../util.js";
 
 export const W3 = { an: true, gebaeudeAn: true, gebaeude: false, bauwerke: 0, quelle: null };
 const ZOOM_GEBAEUDE = 14, ZOOM_BAUWERKE = 14;
@@ -175,7 +175,7 @@ export function welt3dStarten() {
       const { G, o, n } = bauwerkeBauen(map, g); schicht.setze(G, o); W3.bauwerke = n; map.triggerRepaint();
     }, 250, 6);
   };
-  map.on("moveend", neu); map.on("terrain", neu);
+  beiRuhe(map, neu); map.on("terrain", neu);
   ebene({ id: "bauwerke", name: "Brücken & Tunnelportale", an: true, setze: an => { W3.an = an; if (schicht) { if (!an) schicht.setze({ p: [] }, null); else neu(); map.triggerRepaint(); } } });
   map.on("sourcedata", e => { if (e.sourceId === g.quelle && e.isSourceLoaded) neu(); });
   neu();
