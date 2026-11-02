@@ -3,7 +3,8 @@
 // Nah kräftige Wellen, in der Ferne glatt (kein Flimmern). Ab Zoom ZW, Flächen neu nach jedem Verschieben.
 // Bewegung mit höchstens 30 Bildern/s (Handy 15), nur wenn Wasser im Bild ist.
 import { K } from "./karte.js";
-import { ladeThree, gemeinsamerZeichner } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner, LICHT } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { istHandy, bildIn, nachLaden, quellMerkmale } from "../util.js";
 
@@ -86,11 +87,11 @@ function schicht() {
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
       this.r = gemeinsamerZeichner(m, gl);
-      const sonne = new THREE.Vector3(-.35, .7, .55).normalize();   // Sonne im Südwesten (y zeigt nach Süden)
+      const sonne = new THREE.Vector3(...LICHT.dir).normalize();   // Sonnenrichtung aus tageszeit.js (y zeigt nach Süden)
       this.mat = new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-        uniforms: { uCam: { value: new THREE.Vector3() }, uT: { value: 0 }, uSonne: { value: sonne }, uAnker: { value: new THREE.Vector2() },
+        uniforms: { uCam: { value: new THREE.Vector3() }, uT: { value: 0 }, uSonne: (this.uS = { value: sonne }), uAnker: { value: new THREE.Vector2() },
           uTief: { value: new THREE.Color("#2c5f7c") }, uHimmel: { value: new THREE.Color("#8fb9dc") }, uHorizont: { value: new THREE.Color("#dde8ee") } } });
-      this.netz = null; this.v = -1; this.I = new THREE.Matrix4(); this.C = new THREE.Vector4(); this.t0 = performance.now(); this.naechstes = 0;
+      LICHT.wasser.push(this.uS); this.netz = null; this.v = -1; this.I = new THREE.Matrix4(); this.C = new THREE.Vector4(); this.t0 = performance.now(); this.naechstes = 0;
     },
     render(gl, args) {
       const map = K.map;
@@ -116,7 +117,7 @@ function schicht() {
 export function wasserStarten() {
   const map = K.map; let geladen = false, t = 0;
   const neu = () => nachLaden(map, "wasser", () => { bauen(); map.triggerRepaint(); }, 350, 3);
-  const laden = () => { if (geladen || map.getZoom() < ZW - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } neu(); }); };
+  const laden = () => { if (geladen || map.getZoom() < ZW - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
   map.on("moveend", () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZW) neu(); });
   map.on("terrain", neu);

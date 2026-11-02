@@ -4,6 +4,7 @@
 // Nadel- oder Laubbaum nach Höhe über Meer. Gezeichnet mit two InstancedMesh (three.js), Höhen in Portionen pro Bild.
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { istHandy, nachLaden, quellMerkmale } from "../util.js";
 
@@ -131,7 +132,7 @@ function schicht() {
 export function baeumeStarten() {
   const map = K.map; let geladen = false, t = 0;
   const neu = () => nachLaden(map, "baeume", () => { bauen(); map.triggerRepaint(); }, 400, 6);
-  const laden = () => { if (geladen || map.getZoom() < ZB - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } neu(); }); };
+  const laden = () => { if (geladen || map.getZoom() < ZB - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
   map.on("moveend", () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZB) neu(); });
   ebene({ id: "baeume", name: "Bäume (3D, beim Hineinzoomen)", an: true, setze: an => { BA.an = an; if (an) { laden(); neu(); } else { BA.liste = null; } map.triggerRepaint(); } });

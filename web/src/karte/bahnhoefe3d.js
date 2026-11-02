@@ -10,6 +10,7 @@ import { kachelnIm } from "../kern/busse.js";
 import { GL, gleisNah, gleisStuecke } from "./gleise.js";
 import { huelle, rechteck } from "./daecher.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { wgs, nachLaden } from "../util.js";
 
@@ -155,7 +156,7 @@ export function bahnhoefeStarten() {
   const map = K.map; let geladen = false, t = 0;
   const neu = () => nachLaden(map, "bahnhoefe", () => { if (!GL.bereit && map.getZoom() >= ZBF && BF.an) { setTimeout(neu, 300); return; } bauen(); map.triggerRepaint(); }, 500, 2);   // nach den Gleisen (gleise.js baut nach 200 ms)
   neuBauen = neu;
-  const laden = () => { if (geladen || map.getZoom() < ZBF - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("zuege3d") ? "zuege3d" : map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } neu(); }); };
+  const laden = () => { if (geladen || map.getZoom() < ZBF - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("zuege3d") ? "zuege3d" : VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
   map.on("moveend", () => { laden(); neu(); });
   map.on("terrain", neu);
   ebene({ id: "bahnhoefe", name: "Bahnhöfe (Perrons, 3D)", an: true, setze: an => { BF.an = an; if (an) { laden(); neu(); } else { daten = null; version++; } map.triggerRepaint(); } });

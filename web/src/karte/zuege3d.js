@@ -6,6 +6,7 @@ import { ZM } from "./modelle.js";
 import { K } from "./karte.js";
 import { wgs } from "../util.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { einrasten } from "./gleise.js";
 import { ebene } from "../ui/ebenen.js";
 import { B } from "../kern/basis.js";
@@ -134,7 +135,7 @@ function seilHoehe(A, Z, f) {
 }
 export function z3Laden() {
   if (Z3.laden) return; Z3.laden = true;
-  ladeThree().then(() => { try { K.map.addLayer(z3Ebene(), "fz"); Z3.bereit = true; } catch (e) { console.error(e); } });
+  ladeThree().then(() => { try { K.map.addLayer(z3Ebene(), VOR_3D()); Z3.bereit = true; } catch (e) { console.error(e); } });
 }
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter()); Z3.ms = Z3.ursprung.meterInMercatorCoordinateUnits(); Z3.hBudget = 2; Z3.hBis = performance.now() + 8;

@@ -120,6 +120,8 @@ function lageBeiMitte() {
 }
 function himmel(immer) {
   const J = WE.jetzt, grau = WE.an && !!J && (J.wolken > .6 || J.regen > .2 || J.nebel > .6);
-  if (!immer && WE.himmel === grau) return; WE.himmel = grau; const H = grau ? HIMMEL.grau : HIMMEL.klar;
+  if (!immer && WE.himmel === grau) return; WE.himmel = grau; K.himmelGrau = grau;
+  if (K.himmelNeu) { K.himmelNeu(); return; }   // Tageszeit mischt das Grau in den Himmel
+  const H = grau ? HIMMEL.grau : HIMMEL.klar;
   try { K.map.setSky({ ...H, "sky-horizon-blend": 0.6, "horizon-fog-blend": grau ? 0.25 : 0.4, "fog-ground-blend": grau ? 0.35 : 0.6 }); } catch (e) { }
 }

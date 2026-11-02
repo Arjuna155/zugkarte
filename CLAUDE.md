@@ -119,6 +119,12 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Nur Echtzeit (30.10.): Arjuna will keinen Zeitraffer – Knöpfe Pause/1×/10×/60× und «Jetzt» aus web/index.html entfernt; main.js setzt `S.simMs = Date.now()` in jedem Bild, solange `S.speed === 1` (Tests können über `__zk.S.speed = 0` und `S.simMs` weiterhin eine feste Zeit setzen).
 - Test: Testwelt mit `WELT_BERG=1` (Berg 3300 m mit Fels, Geröll, Gletscher, Wald, See, Siedlung, Relief-Quelle `relieftest`). Echte Kacheln sind aus der Testumgebung nicht erreichbar → Aussehen live prüfen.
 
+## Tageszeit (02.11.2026)
+- `web/src/karte/tageszeit.js`: Sonnenstand (NOAA-Näherung, für 46.8° N / 8.2° E) aus der Echtzeit, alle 20 s. Daraus nach Sonnenhöhe (`STUFEN`, linear dazwischen): Tönung, Himmel/Horizont/Dunst, Lichtfarbe. Abdunkelung = eigene WebGL-Ebene «nacht» (Dreieck übers Bild, Farbe × Tönung, am Tag übersprungen), liegt direkt nach den Gebäuden; alle 3D-Ebenen werden mit `VOR_3D()` davor eingefügt (Gebäude vor «nacht»), Kartenlinien, Bahnhöfe, Fahrzeugpunkte und Beschriftungen liegen darüber und bleiben hell. Himmelsfarben werden durch die Tönung geteilt (die Abdunkelung multipliziert den Himmel mit); bei grauem Wetter (`K.himmelGrau` aus wetter.js) Richtung Grau.
+- Licht: `map.setLight` aus Sonnenrichtung (Gebäude), three.js-Sonnenlichter über `sonnenLicht()`/`LICHT` in drei.js (alle 3D-Ebenen und Verkehr), Wasserglanz `uSonne` folgt der Sonne. Sonnenhöhe fürs Licht mindestens 12°.
+- Nachts: `ls-nachtlicht` (Siedlungs-/Gewerbeflächen warm, Deckkraft 0,5 × Nacht) und `ls-strassenlicht` (Strassen ab Zoom 11, weich), nur sichtbar, wenn Nacht > 0.
+- Vorschau: `?uhr=21:30` (nur Beleuchtung, Fahrplan bleibt Echtzeit); in Tests `__tz.setze("22:00")`.
+
 ## Deployment = push auf main
 Alles auf `main` geht innerhalb von ~5 Minuten live. Vor dem Push lokal prüfen:
 1. `python3 tools/build.py`

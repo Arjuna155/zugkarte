@@ -6,6 +6,7 @@
 // – Regenwolken als graue Schwaden über den Regengebieten.
 import { K } from "./karte.js";
 import { ladeThree, gemeinsamerZeichner } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { WE, feldBei, tempBei } from "./wetter.js";
 import { istHandy, bildIn } from "../util.js";
 
@@ -13,7 +14,7 @@ const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 let gestartet = false;
 export function wetter3dStarten() {
   if (gestartet) return; gestartet = true;
-  ladeThree().then(() => { try { K.map.addLayer(ebene(), K.map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } });
+  ladeThree().then(() => { try { K.map.addLayer(ebene(), VOR_3D()); } catch (e) { console.error(e); } });
 }
 // Kameralage aus Zoom, Neigung und Drehung (Sichtfeld wie MapLibre, ~37°)
 function kamera(map) {

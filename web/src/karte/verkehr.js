@@ -4,7 +4,8 @@
 // laut Messung unterwegs sind (Fahrzeuge pro Stunde ÷ Geschwindigkeit = Fahrzeuge pro km), so schnell wie gemessen.
 // Herausgezoomt Punkte und farbige Verkehrslage (grün flüssig, orange zähflüssig, rot Stau), nah 3D-Fahrzeuge.
 import { K } from "./karte.js";
-import { ladeThree, gemeinsamerZeichner } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner, sonnenLicht } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
 import { fc, istHandy, bildIn, nachLaden, quellMerkmale } from "../util.js";
@@ -196,7 +197,7 @@ function ebene3d() {
     id: "verkehr3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
-      this.szene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.8)); const d = new THREE.DirectionalLight(0xffffff, 1.3); d.position.set(-.5, -.4, .9); this.szene.add(d);
+      this.szene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.8)); this.szene.add(sonnenLicht(1.3));
       this.r = gemeinsamerZeichner(m, gl);
       const mat = new THREE.MeshLambertMaterial();
       this.autos = new THREE.InstancedMesh(autoGeo(4.4, 1.8, .85, false), mat, N_MAX); this.lkws = new THREE.InstancedMesh(autoGeo(14, 2.5, 3.2, true), mat, N_MAX);
@@ -252,7 +253,7 @@ export function verkehrStarten() {
   map.addLayer({ id: "verkehr-lage", type: "line", source: "verkehr-lage", minzoom: 7, layout: { "line-cap": "round", "line-join": "round" }, paint: {
     "line-color": ["case", [">=", ["get", "v"], 70], "#2f9e44", [">=", ["get", "v"], 40], "#f08c00", "#e03131"],
     "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2, 12, 4, 15, 7], "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, .85, 13, .55, 15, .35] } }, vor);
-  ladeThree().then(() => { try { map.addLayer(ebene3d(), map.getLayer("fz") ? "fz" : undefined); } catch (e) { console.error(e); } });
+  ladeThree().then(() => { try { map.addLayer(ebene3d(), VOR_3D()); } catch (e) { console.error(e); } });
   const neu = () => nachLaden(map, "verkehr", bauen, 300, 7);
   map.on("moveend", neu); map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded) neu(); }); neu();
   ebene({ id: "verkehr", name: "Verkehr (Autobahn)", an: true, setze: an => { VK.an = an; K.verkehrAus = !an; if (map.getLayer("verkehr-lage")) map.setLayoutProperty("verkehr-lage", "visibility", an && K.linienAn ? "visible" : "none"); neu(); map.triggerRepaint(); } });

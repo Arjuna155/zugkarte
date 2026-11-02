@@ -3,6 +3,7 @@
 // three.js nach jedem Verschieben für den sichtbaren Ausschnitt neu (ab Zoom 14, nur mit Gelände).
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
+import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
 import { quellMerkmale, nachLaden } from "../util.js";
@@ -24,7 +25,7 @@ function grundquelle(map) {
 const H_EXPR = ["to-number", ["coalesce", ["get", "render_height"], ["get", "height"], 8]];
 function gebaeudeAn(map, g) {
   if (!g.gebaeude || map.getLayer("gebaeude-3d")) return;
-  const vor = map.getLayer("schiff") ? "schiff" : undefined;
+  const vor = map.getLayer("nacht") ? "nacht" : map.getLayer("schiff") ? "schiff" : undefined;   // unter der Abdunkelung (tageszeit.js)
   map.addLayer({
     id: "gebaeude-3d", type: "fill-extrusion", source: g.quelle, "source-layer": "building", minzoom: ZOOM_GEBAEUDE,
     paint: {
@@ -170,7 +171,7 @@ export function welt3dStarten() {
   const neu = () => {
     nachLaden(map, "bauwerke", async () => {
       if (!W3.an || map.getZoom() < ZOOM_BAUWERKE || !map.getTerrain() || !g.verkehr) return;
-      if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = bauwerkEbene(); map.addLayer(schicht, map.getLayer("fz") ? "fz" : undefined); }
+      if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = bauwerkEbene(); map.addLayer(schicht, VOR_3D()); }
       const { G, o, n } = bauwerkeBauen(map, g); schicht.setze(G, o); W3.bauwerke = n; map.triggerRepaint();
     }, 250, 6);
   };
