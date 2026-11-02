@@ -6,6 +6,7 @@ import { K } from "./karte.js";
 import { TZ } from "./tageszeit.js";
 import { S } from "../zustand.js";
 import { ladeThree, gemeinsamerZeichner } from "./drei.js";
+import { ortslichterStarten } from "./ortslichter.js";
 
 const EINTRAEGE = [];
 // e = { aktiv: () => bool, szene: THREE.Scene, matrix: THREE.Matrix4 (lokal → Mercator), ueber: Material (optional, ersetzt alle Materialien) }
@@ -50,7 +51,7 @@ function lichtEbene() {
 
 export function lichterStarten() {
   const map = K.map; let da = false;
-  const laden = () => { if (da || !(TZ.nacht > .02) || map.getZoom() < 12.5) return; da = true;
-    ladeThree().then(() => { try { map.addLayer(lichtEbene(), TZ.danach && map.getLayer(TZ.danach) ? TZ.danach : undefined); } catch (e) { console.error(e); } }); };
+  const laden = () => { if (da || !(TZ.nacht > .02) || map.getZoom() < 9.5) return; da = true;   // ab 9.5: Ortslichter (ortslichter.js), ab 15 Fenster
+    ladeThree().then(() => { try { map.addLayer(lichtEbene(), TZ.danach && map.getLayer(TZ.danach) ? TZ.danach : undefined); ortslichterStarten(); } catch (e) { console.error(e); } }); };
   map.on("moveend", laden); setInterval(laden, 20000); laden();
 }
