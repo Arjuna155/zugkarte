@@ -8,13 +8,13 @@ import { wgs } from "../util.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden, fahrzeugLichtMaterial } from "./lichter.js";
-import { einrasten } from "./gleise.js";
+import { einrasten, gleisFolgen } from "./gleise.js";
 import { busAufBruecke } from "./strassen.js";
 import { ebene } from "../ui/ebenen.js";
 import { B } from "../kern/basis.js";
 import { BB } from "../kern/bergbahnen.js";
 import { gleiseLaden, gleisPunkt } from "../kern/gleislage.js";
-import { sektorenLaden, sektorPunkt } from "../kern/sektoren.js";
+import { sektorenLaden, sektorPunkt, gleisSektoren } from "../kern/sektoren.js";
 
 // Ein-/ausschalten über die Ebenen in der Seitenleiste (alte Adresse ?zuege3d=aus schaltet weiterhin ab)
 export let Z3D = 13.2;
@@ -162,7 +162,7 @@ export function z3Zug(tr, o, p, isSel, rt) {
   const os = Z3.ursprung, ms = Z3.ms, aus = [];
   // Halt am richtigen Gleis: in den letzten/ersten 600 m und im Bahnhof zur Kante des Gleises (Fahrplan oder Echtzeit) hin –
   // Zugmitte auf der Höhe der Kante, Einrasten auf das Gleis neben der Kante
-  let glVers = null;
+  let glVers = null, PKg = null, wg = 0;
   if (zug) {
     gleiseLaden(); let sj, w = 0;
     if (!p.moving) { sj = p.j; w = 1; }
@@ -171,7 +171,8 @@ export function z3Zug(tr, o, p, isSel, rt) {
     // Höhe der Kante. Seitlich (welches Gleis): immer nach der Kante – die Tafeln stehen auf dem Perron, oft zwischen zwei Gleisen.
     sektorenLaden(); const St = sj !== undefined ? tr.st[sj] : null, gl = St ? (rt && rt.G && rt.G[sj]) || St.gl : "";
     let PS = null; if (St && ZW.sek) for (const u of B.STUIC[St.i] || []) if (ZW.sek[u]) { PS = sektorPunkt(St.i, gl, ZW.sek[u], [u]); if (PS) break; }
-    const PK = St ? gleisPunkt(St.i, gl) : null, P = PS || PK;
+    if (!PS && St) { const gs = gleisSektoren(gl); if (gs) PS = sektorPunkt(St.i, gs[0], gs[1]); }   // Sektoren aus der Gleisangabe des Fahrplans («7AB»)
+    const PK = St ? gleisPunkt(St.i, gl) : null, P = PS || PK; PKg = PK; wg = w;
     if (P && w > 0) {
       const sS = sj === j && !amEnde ? PF.legS0[j] : PF.legS1[j], a = punkt(pf, sS), b2 = punkt(pf, sS + .05), tx = b2[0] - a[0], ty = b2[1] - a[1], tl = Math.hypot(tx, ty) || 1;
       const dx = P[0] - a[0], dy = P[1] - a[1], along = (dx * tx + dy * ty) / tl;
@@ -181,7 +182,6 @@ export function z3Zug(tr, o, p, isSel, rt) {
         const Pm = mc(wgs(Q[0], Q[1])), Am = mc(wgs(a[0] + qa * tx / tl, a[1] + qa * ty / tl)); glVers = { x: (Pm.x - Am.x) * w, y: (Pm.y - Am.y) * w };
       }
     }
-    Z3.sektor = PS ? (Z3.sektor || 0) + 1 : Z3.sektor;
   }
   { const q = mc(wgs(...punkt(pf, basis))); Z3.prio = Math.hypot(q.x - os.x, q.y - os.y) / ms < Z3.prioR || isSel; }
   if (bb && Z.teile[0].W.T.art !== "FUN") {   // Kabine/Sessel: am Seil, Höhe aus dem Seilprofil der Kante, immer waagrecht
@@ -191,13 +191,55 @@ export function z3Zug(tr, o, p, isSel, rt) {
     Z3.liste.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z, dreh: Math.atan2((mv.y - mh.y) / ms, (mv.x - mh.x) / ms), neig: 0, sel: isSel, ll: llm, tr, o });
     return true;
   }
+  // Züge und Trams: einmal an der Spitze auf ein Kartengleis setzen und die Wagen diesem Gleis nach hinten folgen lassen
+  // (statt jeden Wagen für sich auf das nächste Gleis – in Gleisfeldern sprangen die Wagen sonst zickzack über die Gleise).
+  // Die Spitze bleibt von Bild zu Bild auf ihrem Gleis (vom letzten Bild aus vorwärts gefolgt); an Weichen entscheidet die Nähe zu unserer Strecke.
+  let gp = null;
+  if (!schiff && !bb && !bus) {
+    const hw = t => tram ? Math.max(t.L * .42, .05) : t.L * .42, t0 = Z.teile[0], sF = kopf - t0.s + hw(t0);
+    const roh = sx => mc(wgs(...punkt(pf, sx))), sK = Math.min(sF, E - .05), r0 = roh(sK), r1 = roh(sK + .05), uF = { x: r1.x - r0.x, y: r1.y - r0.y };
+    // seitlich zur Kante des Gleises: senkrecht zu unserer Strecke an der Spitze gemessen (nicht am Bahnhofspunkt – der liegt
+    // z. B. in Zürich HB mitten in der Halle), höchstens 25 m
+    let lat = null;
+    if (PKg && wg > 0) { const Q = mc(wgs(PKg[0], PKg[1])), ul = Math.hypot(uF.x, uF.y) || 1, ux = uF.x / ul, uy = uF.y / ul, dx = Q.x - r0.x, dy = Q.y - r0.y, al = dx * ux + dy * uy, lx = dx - al * ux, ly = dy - al * uy;
+      if (Math.hypot(lx, ly) / ms < 25) lat = { x: lx * wg, y: ly * wg }; }
+    const vers = m => lat ? { x: m.x + lat.x, y: m.y + lat.y } : m, rp = sx => vers(roh(sx));
+    const rz = sx => sx < 0 || sx > E ? null : rp(sx);   // Zielpunkte an Weichen nur auf unserer Strecke (nicht verlängert)
+    const mF = rp(Math.min(sF, E));
+    let kopfG = null; const g = tr._gk;
+    if (sF > E - .01) {   // Spitze am Ende unserer Strecke (Kopfbahnhof, Endbahnhof): auf dem Gleis weiter bis höchstens zum Prellbock
+      const sE = Math.max(0, E - .3), a = einrasten(rp(sE), uF.x, uF.y, tram, !!lat);
+      const w = a && gleisFolgen(a, uF.x, uF.y, [(sF - sE) * 100], rz, .5, true); if (w) kopfG = w[0];
+    } else if (g && g.pf === pf && sF >= g.s - .001 && sF - g.s < 3) {   // vom letzten Bild aus auf demselben Gleis vorwärts
+      const ds = Math.max(0, (sF - g.s) * 100), w = gleisFolgen(g.m, g.u.x, g.u.y, [ds], d => rz(g.s + d / 100), .5);
+      if (w && w.aufGleis && Math.hypot(w[0].x - mF.x, w[0].y - mF.y) / ms < 6) kopfG = w[0];
+    }
+    if (!kopfG && sF <= E - .01) {
+      kopfG = einrasten(mF, uF.x, uF.y, tram, !!lat);
+      // kein Gleis an der Spitze (unsere Strecke beginnt z. B. mitten in der Bahnhofshalle): nächsten Punkt voraus mit Gleis suchen und von dort zurück
+      for (let sA = sF + .1; !kopfG && sA <= Math.min(E, sF + 1.5); sA += .1) {
+        const mA = rp(sA), mA2 = rp(Math.min(E, sA + .05)), a = einrasten(mA, mA2.x - mA.x, mA2.y - mA.y, tram, !!lat);
+        const w = a && gleisFolgen(a, -(mA2.x - mA.x), -(mA2.y - mA.y), [(sA - sF) * 100], d => rz(sA - d / 100), .5, true); if (w) kopfG = w[0];
+      }
+    }
+    if (kopfG) {
+      const ab = []; for (const t of Z.teile) { const sc = kopf - t.s, h = hw(t); ab.push((sF - (sc + h)) * 100, (sF - (sc - h)) * 100); }
+      gp = gleisFolgen(kopfG, -uF.x, -uF.y, ab, d => rz(sF - d / 100), 3, true);
+      // hinten zu Ende (Prellbock hinter einem abfahrenden Zug): ganzen Zug um das Fehlende vorziehen
+      if (gp && gp.fehlt > .5) { const v = gleisFolgen(kopfG, uF.x, uF.y, [gp.fehlt], d => rz(sF + d / 100), .5, true); if (v) { kopfG = v[0]; gp = gleisFolgen(kopfG, -uF.x, -uF.y, ab, d => rz(sF + (gp.fehlt - d) / 100), 3, true); } }
+      tr._gk = gp ? { pf, s: sF, m: kopfG, u: uF } : null;
+    } else { tr._gk = null; }
+  }
+  let ti = 0;
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = tram ? Math.max(t.L * .42, .05) : t.L * .42,   // Tram: kurze Glieder, Richtung über ±5 m (ruhiger)
       pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
     const steil = schiff ? "wasser" : bb ? "fun" : bus ? "bus" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
-    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !schiff && !bb && !bus && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !schiff && !bb && !bus && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
+    if (gp) { mv = gp[2 * ti]; mh = gp[2 * ti + 1]; mm = { x: (mv.x + mh.x) / 2, y: (mv.y + mh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
+    ti++;
+    const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !gp && !schiff && !bb && !bus && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !gp && !schiff && !bb && !bus && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
     if (gv && gh && ((gv.x - gh.x) * rx + (gv.y - gh.y) * ry) > .9 * Math.hypot(gv.x - gh.x, gv.y - gh.y) * Math.hypot(rx, ry)) { mv = gv;   // nur wenn die Richtung passt (Kreuzungen, Weichen)
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;

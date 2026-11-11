@@ -42,3 +42,9 @@ export function sektorPunkt(i, gl, ab, uics) {
   }
   cache.set(k, erg); return erg;
 }
+// Gleisangabe mit Sektoren aus dem Fahrplan («7AB», «3D», «1A-D», «12D-F») → [Gleis, "AB"], sonst null.
+// So steht es im GTFS, wenn ein Zug nur einen Teil des Perrons belegt (z. B. zwei Züge am selben Gleis).
+export function gleisSektoren(gl) {
+  const m = /^(\d{1,2})([A-Z])(?:-?([A-Z]))?$/.exec(gl || ""); if (!m) return null;
+  const a = m[2], b = m[3] || m[2]; return a <= b ? [m[1], a + b] : null;
+}
