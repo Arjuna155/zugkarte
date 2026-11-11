@@ -92,7 +92,7 @@ function naechstesStueck(x, y, ux, uy, r, zx, zy) {
       let t = ((x - s[0]) * dx + (y - s[1]) * dy); t = Math.max(0, Math.min(L, t));
       const px = s[0] + dx * t, py = s[1] + dy * t, d = Math.hypot(px - x, py - y); if (d > r) continue;
       const k = d + (zx === undefined ? 0 : .3 * Math.hypot(px - zx, py - zy));
-      if (k < bk) { bk = k; best = { px, py, ux: cs > 0 ? dx : -dx, uy: cs > 0 ? dy : -dy }; }
+      if (k < bk) { bk = k; best = { px, py, ux: cs > 0 ? dx : -dx, uy: cs > 0 ? dy : -dy, tun: s[4] }; }
     }
   }
   return best;
@@ -101,17 +101,17 @@ export function gleisFolgen(m, ux, uy, ab, ziel, rStart = 1.5, bisEnde = false) 
   if (!GL.bereit || !ab.length) return null;
   let x = (m.x - o.x) / ms, y = (m.y - o.y) / ms; const L = Math.hypot(ux, uy) || 1; ux /= L; uy /= L;
   const st = naechstesStueck(x, y, ux, uy, rStart); if (!st) return null;
-  x = st.px; y = st.py; ux = st.ux; uy = st.uy;
+  x = st.px; y = st.py; ux = st.ux; uy = st.uy; let tun = st.tun;
   const aus = []; aus.fehlt = 0; let d = 0, ohne = 0;
   for (const ziel_d of ab) {
     while (d < ziel_d - 1e-6) {
       const sch = Math.min(4, ziel_d - d), qx = x + ux * sch, qy = y + uy * sch;
       let zx, zy; if (ziel) { const z = ziel(d + sch); if (z) { zx = (z.x - o.x) / ms; zy = (z.y - o.y) / ms; } }
       const n = naechstesStueck(qx, qy, ux, uy, 1.5, zx, zy);
-      if (n) { x = n.px; y = n.py; ux = n.ux; uy = n.uy; ohne = 0; } else if (bisEnde && ![4, 8, 12].some(v => naechstesStueck(qx + ux * v, qy + uy * v, ux, uy, 2.5))) { aus.fehlt = ab[ab.length - 1] - d; while (aus.length < ab.length) aus.push({ x: o.x + x * ms, y: o.y + y * ms }); return aus; } else { x = qx; y = qy; ohne += sch; if (ohne > 40) return null; }
+      if (n) { x = n.px; y = n.py; ux = n.ux; uy = n.uy; tun = n.tun; ohne = 0; } else if (bisEnde && ![4, 8, 12].some(v => naechstesStueck(qx + ux * v, qy + uy * v, ux, uy, 2.5))) { aus.fehlt = ab[ab.length - 1] - d; while (aus.length < ab.length) aus.push({ x: o.x + x * ms, y: o.y + y * ms }); return aus; } else { x = qx; y = qy; ohne += sch; if (ohne > 40) return null; }
       d += sch;
     }
-    aus.push({ x: o.x + x * ms, y: o.y + y * ms });
+    aus.push({ x: o.x + x * ms, y: o.y + y * ms, tun: ohne > 0 ? null : tun });   // tun: auf einem Tunnelgleis (1), offen (0), ohne Gleis (null)
   }
   aus.aufGleis = ohne === 0; return aus;
 }

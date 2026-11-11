@@ -234,7 +234,7 @@ export function z3Zug(tr, o, p, isSel, rt) {
   for (const t of Z.teile) {
     const sc = kopf - t.s, h = tram ? Math.max(t.L * .42, .05) : t.L * .42,   // Tram: kurze Glieder, Richtung über ±5 m (ruhiger)
       pv = punkt(pf, sc + h), ph = punkt(pf, sc - h), pm = punkt(pf, sc);
-    const steil = schiff ? "wasser" : bb ? "fun" : bus ? "bus" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv = hoehe(pf, sc + h, steil), zh_ = hoehe(pf, sc - h, steil); if (zv === null || zh_ === null) return false;
+    const steil = schiff ? "wasser" : bb ? "fun" : bus ? "bus" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv0 = hoehe(pf, sc + h, steil), zh0 = hoehe(pf, sc - h, steil); if (zv0 === null || zh0 === null) return false; let zv = zv0, zh_ = zh0;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
     if (gp) { mv = gp[2 * ti]; mh = gp[2 * ti + 1]; mm = { x: (mv.x + mh.x) / 2, y: (mv.y + mh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
@@ -242,6 +242,11 @@ export function z3Zug(tr, o, p, isSel, rt) {
     const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !gp && !schiff && !bb && !bus && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !gp && !schiff && !bb && !bus && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
     if (gv && gh && ((gv.x - gh.x) * rx + (gv.y - gh.y) * ry) > .9 * Math.hypot(gv.x - gh.x, gv.y - gh.y) * Math.hypot(rx, ry)) { mv = gv;   // nur wenn die Richtung passt (Kreuzungen, Weichen)
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
+    // auf offenem Gleis (laut Karte kein Tunnel) nie unter dem Gelände an der wirklichen Lage des Wagens: das Höhenprofil entlang
+    // unserer Strecke hält Steigungen gering und taucht an steilen Stellen (Hang, Einschnitt) sonst wie in einen Tunnel ab
+    if (gp && !schiff && !bb) { const T = K.map.getTerrain();
+      if (T) { const auf = (q, z) => { if (q.tun !== 0) return z; const e = K.map.queryTerrainElevation(new maplibregl.MercatorCoordinate(q.x, q.y).toLngLat()); return e === null || e === undefined ? z : Math.max(z, e); };
+        zv = auf(mv, zv); zh_ = auf(mh, zh_); } }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
     aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: schiff ? Math.min(zv, zh_) : (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: schiff ? 0 : Math.atan2(zv - zh_, len), scher: bb, sel: isSel, ll: llm, tr, o });
   }
