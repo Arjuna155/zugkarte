@@ -142,6 +142,8 @@ const BW = require("./tunnel.js").start({ DATA_DIR, log });
 const WE = require("./wetter.js").start({ DATA_DIR, log });
 // Strassenverkehr: Verkehrszähler in Echtzeit (gleicher Schlüssel), siehe verkehr.js
 const PE = require("./perrons.js").start({ DATA_DIR, log });
+// Sektortafeln der SBB (Lage der Sektoren je Gleis), siehe sektoren.js
+const SK = require("./sektoren.js").start({ DATA_DIR, log });
 const VK = require("./verkehr.js").start({ DATA_DIR, log, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 const FO = require("./formation.js").start({ DATA_DIR, log, fahrplan: FP, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 
@@ -385,6 +387,8 @@ const server = http.createServer(async (req, res) => {
     const gz = PE.kacheln(ks); if (!gz) return json(req, res, 404, { fehler: "Noch keine Perrons" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz);
   }
   if (url.pathname === "/api/perrons/status") return json(req, res, 200, PE.status());
+  if (url.pathname === "/api/sektoren") { const gz = SK.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch keine Sektoren" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
+  if (url.pathname === "/api/sektoren/status") return json(req, res, 200, SK.status());
   if (url.pathname === "/api/verkehr/status") return json(req, res, 200, VK.status());
   if (url.pathname === "/api/formation/status") return json(req, res, 200, FO.status());
   if (url.pathname === "/api/verspaetungen") {

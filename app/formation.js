@@ -14,13 +14,14 @@ const PRO_MIN = +process.env.ZK_FORMATION_PRO_MIN || 40;   // Abfragen pro Minut
 function start({ DATA_DIR, log, key, fahrplan }) {
   const DIR = path.join(DATA_DIR, "formation");
   try { fs.mkdirSync(DIR, { recursive: true }); } catch {}
-  const TYP_FILE = path.join(DIR, "typisch.json");
+  const TYP_FILE = path.join(DIR, "typisch.json"), TYPS_FILE = path.join(DIR, "typisch_sektoren.json");
   let typisch = {}; try { typisch = JSON.parse(fs.readFileSync(TYP_FILE, "utf8")); } catch {}
-  const tage = {};   // datum → {z: {"evu:nr": [zeit, kompakt|""]}}
+  let typSek = {}; try { typSek = JSON.parse(fs.readFileSync(TYPS_FILE, "utf8")); } catch {}
+  const tage = {};   // datum → {z: {"evu:nr": [zeit, kompakt|"", Sektoren je Halt|""]}}
   const tagDatei = d => path.join(DIR, d + ".json");
   const tag = d => tage[d] || (tage[d] = (() => { try { return JSON.parse(fs.readFileSync(tagDatei(d), "utf8")); } catch { return { z: {} }; } })());
   let schmutzig = new Set(), typSchmutzig = false;
-  const st = { abfragen: 0, mitDaten: 0, ohneDaten: 0, fehler: 0, letzterFehler: null, pauseBis: 0, letzte: null, warteschlange: 0 };
+  const st = { abfragen: 0, mitDaten: 0, ohneDaten: 0, fehler: 0, letzterFehler: null, mitSektoren: 0, pauseBis: 0, letzte: null, warteschlange: 0 };
   const vorne = [];   // von der Karte gewünscht (Zug ausgewählt) – kommt zuerst dran
   let plan = [], planZeit = 0;
 
@@ -56,6 +57,33 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     }).join(";");
   }
 
+  // Sektoren je Halt: welche Sektoren der Zug am Perron belegt → «UIC:AD;UIC:BE» (erster und letzter Buchstabe, alphabetisch =
+  // Reihenfolge am Perron). Gesucht wird tolerant im ganzen JSON: Objekte mit «sectors» (je Wagen und Halt) oder
+  // «formationShortString» («@A,…@B,…», je Halt) unter einem Halt mit UIC (stopPoint/scheduledStop).
+  function sektoren(j) {
+    const spann = new Map();
+    const uicVon = o => { for (const k of ["stopPoint", "scheduledStop"]) { const x = o && o[k]; if (x && typeof x === "object") { const u = x.uic || (x.stopPoint && x.stopPoint.uic); if (u) return String(u); } } return o && o.uic && /^\d{7}$/.test(String(o.uic)) ? String(o.uic) : null; };
+    const dazu = (u, txt, nurAt) => { const m = String(txt).match(nurAt ? /@([A-Z])/g : /[A-Z]/g); if (!m) return; const ls = m.map(x => x.slice(-1)).sort(); const e = spann.get(u);
+      spann.set(u, e ? [e[0] < ls[0] ? e[0] : ls[0], e[1] > ls[ls.length - 1] ? e[1] : ls[ls.length - 1]] : [ls[0], ls[ls.length - 1]]); };
+    (function lauf(o, u, tiefe) {
+      if (!o || typeof o !== "object" || tiefe > 12) return;
+      if (Array.isArray(o)) { for (const x of o) lauf(x, u, tiefe + 1); return; }
+      u = uicVon(o) || u;
+      if (u && typeof o.sectors === "string" && /^[A-Z]+$/.test(o.sectors.replace(/[^A-Z]/g, "")) && o.sectors.replace(/[^A-Z]/g, "")) dazu(u, o.sectors.replace(/[^A-Z]/g, ""), false);
+      if (u && typeof o.formationShortString === "string") dazu(u, o.formationShortString, true);
+      for (const k in o) if (o[k] && typeof o[k] === "object") lauf(o[k], u, tiefe + 1);
+    })(j, null, 0);
+    return [...spann].map(([u, [a, b]]) => u + ":" + a + b).join(";");
+  }
+  // Aufbau der ersten Antwort (nur Schlüsselpfade, keine Werte) für den Status – zum Prüfen der Feldnamen
+  let aufbau = null;
+  function pfade(o, p = "", aus = new Set(), tiefe = 0) {
+    if (!o || typeof o !== "object" || tiefe > 7 || aus.size > 120) return aus;
+    if (Array.isArray(o)) { if (o.length) pfade(o[0], p + "[]", aus, tiefe + 1); return aus; }
+    for (const k in o) { aus.add(p + "." + k); pfade(o[k], p + "." + k, aus, tiefe + 1); }
+    return aus;
+  }
+
   async function abfragen(d, evu, nr) {
     const k = key(); if (!k) throw Object.assign(new Error("Kein API-Schlüssel"), { kein: true });
     const u = `${URL_FO}?evu=${encodeURIComponent(evu)}&operationDate=${d}&trainNumber=${encodeURIComponent(nr)}`;
@@ -63,10 +91,13 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     st.abfragen++;
     if (r.status === 429) { const e = new Error("Zu viele Abfragen (429)"); e.pause = 10 * 60000; throw e; }
     if (r.status === 401 || r.status === 403) { const e = new Error("Schlüssel nicht für den Formation-Dienst freigeschaltet (" + r.status + ")"); e.pause = 60 * 60000; throw e; }
-    if (r.status === 404 || r.status === 204) return "";
+    if (r.status === 404 || r.status === 204) return { f: "", sek: "" };
     if (!r.ok) { const e = new Error("HTTP " + r.status); e.pause = 60000; throw e; }
-    const t = await r.text(); if (!t.trim()) return "";
-    return kompakt(JSON.parse(t));
+    const t = await r.text(); if (!t.trim()) return { f: "", sek: "" };
+    const j = JSON.parse(t), f = kompakt(j), sek = f ? sektoren(j) : "";
+    if (f && !aufbau) aufbau = [...pfade(j)];
+    if (sek) st.mitSektoren++;
+    return { f, sek };
   }
 
   // Züge eines Tages aus dem aufbereiteten Fahrplan: [{evu, nr, ab}] (Zeilen «Kat,Linie,Ziel,Zugnr,Verwaltung|…»)
@@ -90,7 +121,7 @@ function start({ DATA_DIR, log, key, fahrplan }) {
       const T = tag(d);
       for (const z of zuegeVon(d)) {
         const e = T.z[z.evu + ":" + z.nr];
-        if (e && (e[1] || Date.now() - e[0] < 6 * 3600000)) continue;   // schon da (oder vor Kurzem ohne Daten)
+        if (e && ((e[1] && e.length > 2) || Date.now() - e[0] < 6 * 3600000)) continue;   // schon da (oder vor Kurzem ohne Daten); ältere Einträge ohne Sektorangabe neu
         const ab = z.ab + offs - jetzt.min; if (ab < -120) continue;
         liste.push({ d, evu: z.evu, nr: z.nr, prio: ab < 180 ? ab : 10000 + ab });
       }
@@ -105,9 +136,9 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     const job = vorne.shift() || plan.shift(); st.warteschlange = plan.length + vorne.length;
     if (!job) return;
     try {
-      const f = await abfragen(job.d, job.evu, job.nr);
-      tag(job.d).z[job.evu + ":" + job.nr] = [Date.now(), f]; schmutzig.add(job.d);
-      if (f) { st.mitDaten++; typisch[job.evu + ":" + job.nr] = f; typSchmutzig = true; } else st.ohneDaten++;
+      const { f, sek } = await abfragen(job.d, job.evu, job.nr), id = job.evu + ":" + job.nr;
+      tag(job.d).z[id] = [Date.now(), f, sek]; schmutzig.add(job.d);
+      if (f) { st.mitDaten++; typisch[id] = f; if (sek) typSek[id] = sek; typSchmutzig = true; } else st.ohneDaten++;
       st.letzte = Date.now();
     } catch (e) {
       st.fehler++; st.letzterFehler = e.message; if (e.pause) { st.pauseBis = Date.now() + e.pause; log("Formation:", e.message, "– Pause", Math.round(e.pause / 60000), "Min."); }
@@ -118,7 +149,7 @@ function start({ DATA_DIR, log, key, fahrplan }) {
   function speichern() {
     for (const d of schmutzig) try { fs.writeFileSync(tagDatei(d), JSON.stringify(tage[d])); } catch {}
     schmutzig.clear();
-    if (typSchmutzig) { try { fs.writeFileSync(TYP_FILE + ".tmp", JSON.stringify(typisch)); fs.renameSync(TYP_FILE + ".tmp", TYP_FILE); } catch {} typSchmutzig = false; }
+    if (typSchmutzig) { try { fs.writeFileSync(TYP_FILE + ".tmp", JSON.stringify(typisch)); fs.renameSync(TYP_FILE + ".tmp", TYP_FILE); fs.writeFileSync(TYPS_FILE + ".tmp", JSON.stringify(typSek)); fs.renameSync(TYPS_FILE + ".tmp", TYPS_FILE); } catch {} typSchmutzig = false; }
     // alte Tagesdateien löschen (älter als 3 Tage)
     const grenze = zh(Date.now() - 3 * 86400000).d;
     try { for (const f of fs.readdirSync(DIR)) if (/^\d{4}-\d\d-\d\d\.json$/.test(f) && f.slice(0, 10) < grenze) { fs.unlinkSync(path.join(DIR, f)); delete tage[f.slice(0, 10)]; } } catch {}
@@ -128,7 +159,7 @@ function start({ DATA_DIR, log, key, fahrplan }) {
   setInterval(speichern, 60000).unref();
 
   // Für die Karte: alle Zusammensetzungen eines Tages (heutige, sonst die zuletzt gesehene für diese Zugnummer).
-  // {f: [kompakt, …], z: {"Verwaltung:Zugnr": [Index, echt(1)/typisch(0)]}} – gleiche Zusammensetzungen nur einmal.
+  // {f: [kompakt, …], z: {"Verwaltung:Zugnr": [Index, echt(1)/typisch(0), Sektoren je Halt?]}} – gleiche Zusammensetzungen nur einmal.
   const ausgabeCache = new Map();
   function fuer(d) {
     const c = ausgabeCache.get(d); if (c && Date.now() - c.t < 60000) return c.gz;
@@ -137,7 +168,7 @@ function start({ DATA_DIR, log, key, fahrplan }) {
     const neu = s => { let i = idx.get(s); if (i === undefined) { idx.set(s, i = f.length); f.push(s); } return i; };
     for (const zg of zuegeVon(d)) {
       const id = zg.evu + ":" + zg.nr, e = T.z[id], ty = typisch[id];
-      if (e && e[1]) z[id] = [neu(e[1]), 1]; else if (ty) z[id] = [neu(ty), 0];
+      if (e && e[1]) z[id] = e[2] ? [neu(e[1]), 1, e[2]] : [neu(e[1]), 1]; else if (ty) z[id] = typSek[id] ? [neu(ty), 0, typSek[id]] : [neu(ty), 0];
     }
     const gz = zlib.gzipSync(JSON.stringify({ d, evu: EVU, f, z }));
     ausgabeCache.set(d, { t: Date.now(), gz }); if (ausgabeCache.size > 4) ausgabeCache.delete(ausgabeCache.keys().next().value);
@@ -151,8 +182,9 @@ function start({ DATA_DIR, log, key, fahrplan }) {
   }
   function status() {
     const d = zh(Date.now()).d, T = tag(d); let mit = 0, ohne = 0; for (const e of Object.values(T.z)) e[1] ? mit++ : ohne++;
-    return { ...st, heute: { mitDaten: mit, ohneDaten: ohne }, typisch: Object.keys(typisch).length, proMinute: PRO_MIN };
+    let sek = 0; for (const e of Object.values(T.z)) if (e[2]) sek++;
+    return { ...st, heute: { mitDaten: mit, ohneDaten: ohne, mitSektoren: sek }, typisch: Object.keys(typisch).length, typischSektoren: Object.keys(typSek).length, proMinute: PRO_MIN, aufbau };
   }
-  return { fuer, wunsch, status, kompakt };
+  return { fuer, wunsch, status, kompakt, sektoren };
 }
 module.exports = { start, EVU };

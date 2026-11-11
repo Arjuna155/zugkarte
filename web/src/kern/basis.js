@@ -15,7 +15,7 @@ export async function ladeBasis() {
   for (const [n, [E, N, lat, lon]] of Object.entries(d.st)) B.ST[n] = { n, E, N, lat, lon };
   for (const [n, [E, N, a]] of Object.entries(d.stx)) B.STX[n] = { n, E, N, a };
   B.SN = Object.keys(B.ST).concat(Object.keys(B.STX)); B.SN.forEach((n, i) => B.SIDX[n] = i);
-  d.stuic.forEach((l, i) => l.forEach(u => B.UIC2IDX[u] = i));
+  B.STUIC = d.stuic; d.stuic.forEach((l, i) => l.forEach(u => B.UIC2IDX[u] = i));
   B.MIT_OEV = B.OEV.t.length + B.OEV.s.length > 0;
   // Strecken: Gleisverlauf dekodieren (10-m-Raster, Delta-kodiert), Teilstücke je Bahnhofspaar, Ecken leicht gerundet
   B.LINES = d.lines.map(([name, type, stops, geo]) => {
