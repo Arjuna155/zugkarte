@@ -204,7 +204,7 @@ function schicht() {
       this.mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.v = -1; this.f = -1;
       // Normalen sind selbst nach aussen/oben gerechnet → nicht nach Blickseite umdrehen (y nach Süden kehrt den Umlaufsinn um,
       // sonst wurden Flachdächer und Mauern von hinten beleuchtet und viel zu dunkel)
-      this.mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;", "float faceDirection = 1.0;"); };
+      this.mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("gl_FrontFacing ? 1.0 : - 1.0", "1.0")); };   // Bausteine sind hier noch nicht eingesetzt
       // Fenster: eigene Szene, gezeichnet von lichter.js nach der Abdunkelung
       this.fensterSzene = new THREE.Scene(); this.fenster = null; this.fensterM = new THREE.Matrix4(); this.fensterAn = false;
       this.fensterMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexColors: true,

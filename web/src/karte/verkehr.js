@@ -4,7 +4,7 @@
 // laut Messung unterwegs sind (Fahrzeuge pro Stunde ÷ Geschwindigkeit = Fahrzeuge pro km), so schnell wie gemessen.
 // Herausgezoomt Punkte und farbige Verkehrslage (grün flüssig, orange zähflüssig, rot Stau), nah 3D-Fahrzeuge.
 import { K } from "./karte.js";
-import { ladeThree, gemeinsamerZeichner, sonnenLicht } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner, sonnenLicht, himmelLicht } from "./drei.js";
 import { VOR_3D, TZ } from "./tageszeit.js";
 import { lichtAnmelden } from "./lichter.js";
 import { ebene } from "../ui/ebenen.js";
@@ -198,7 +198,7 @@ function ebene3d() {
     id: "verkehr3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene();
-      this.szene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.8)); this.szene.add(sonnenLicht(1.3));
+      this.szene.add(himmelLicht(1.8)); this.szene.add(sonnenLicht(1.3));
       this.r = gemeinsamerZeichner(m, gl);
       const mat = new THREE.MeshLambertMaterial();
       this.autos = new THREE.InstancedMesh(autoGeo(4.4, 1.8, .85, false), mat, N_MAX); this.lkws = new THREE.InstancedMesh(autoGeo(14, 2.5, 3.2, true), mat, N_MAX);

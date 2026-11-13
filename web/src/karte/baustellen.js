@@ -6,7 +6,7 @@
 // (Ketten je Richtung) wird gelegt, was ≤ 150 m von der Meldungslinie liegt und in der gemeldeten Richtung fährt.
 import { K } from "./karte.js";
 import { VK } from "./verkehr.js";
-import { ladeThree, gemeinsamerZeichner, sonnenLicht } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner, sonnenLicht, himmelLicht } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden } from "./lichter.js";
 import { ebene } from "../ui/ebenen.js";
@@ -138,7 +138,7 @@ function ebene3d() {
   return {
     id: "baustellen3d", type: "custom", renderingMode: "3d",
     onAdd(m, gl) {
-      this.cam = new THREE.Camera(); this.szene = new THREE.Scene(); this.szene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a96, 1.8)); this.szene.add(sonnenLicht(1.3));
+      this.cam = new THREE.Camera(); this.szene = new THREE.Scene(); this.szene.add(himmelLicht(1.8)); this.szene.add(sonnenLicht(1.3));
       this.r = gemeinsamerZeichner(m, gl); M = modelle(); const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
       for (const [n, g] of Object.entries(M)) { const N = n === "bake" ? 4000 : n === "kegel" ? 1500 : 400; IM[n] = new THREE.InstancedMesh(g, mat, N); IM[n].count = 0; IM[n].frustumCulled = false; this.szene.add(IM[n]); }
       // Warnlichter (gelb, blinkend): Tag und Nacht sichtbar, nachts nach der Abdunkelung hell
