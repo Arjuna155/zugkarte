@@ -95,7 +95,7 @@ function karteBauen(stil) {
         "line-opacity": ["case", ["boolean", ["feature-state", "dim"], false], .1, .45]
       }
     }, "bahn");
-    map.addLayer({ id: "sperren", type: "line", source: "sperren", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#e5484d", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 3, 14, 6], "line-dasharray": [2, 1.5] } });
+    map.addLayer({ id: "sperren", type: "line", source: "sperren", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#e5484d", "line-width": ["interpolate", ["linear"], ["zoom"], 7, 3, 14, 6], "line-dasharray": [2, 1.5], "line-opacity": ["interpolate", ["linear"], ["zoom"], 13.5, 1, 15.5, .3] } });   // nah blass: liegt aufs Gelände gelegt (Viadukte: unten im Tobel)
     map.addLayer({ id: "sperren-z", type: "circle", source: "sperren", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": "#e5484d", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-pitch-alignment": "viewport" } });
     map.addLayer({ id: "sperren-zt", type: "symbol", source: "sperren", filter: ["==", ["geometry-type"], "Point"], layout: { "text-field": "-", "text-font": [SCHRIFT], "text-size": 18, "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#ffffff" } });
     // Bushaltestellen (erst nah: Punkte ab Zoom 14.5, Namen ab 16)

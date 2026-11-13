@@ -77,27 +77,37 @@ function bauwerkeBauen(map, g) {
   const hoehe = p => { const e = map.queryTerrainElevation(p); return e == null ? null : e; };
   // normale (Nicht-Brücken-)Strecken je Art in einem Raster (für «echtes Ende?»)
   const raster = new Map(), R = 20, rk = (x, y) => Math.floor(x / R) + "," + Math.floor(y / R);
-  const stuecke = [];
+  const stuecke = [], punkte = [];
   for (const f of feats) {
     const p = f.properties, art = p.class; if (!BREITE[art]) continue;
     const linien = f.geometry.type === "LineString" ? [f.geometry.coordinates] : f.geometry.type === "MultiLineString" ? f.geometry.coordinates : [];
     for (const ll of linien) {
       if (ll.length < 2) continue;
       if (p.brunnel === "bridge" || p.brunnel === "tunnel") stuecke.push({ art, typ: p.brunnel, ll, xy: ll.map(lokal) });
-      else for (const q of ll.map(lokal)) { const k = rk(q[0], q[1]); (raster.get(k) || raster.set(k, []).get(k)).push(art); }
+      else for (const q of ll.map(lokal)) { const k = rk(q[0], q[1]); (raster.get(k) || raster.set(k, []).get(k)).push(art); punkte.push([q[0], q[1], art]); }
     }
   }
+  // Portale brauchen genau am Ende eine offene Fortsetzung (Linie ist am Portal geteilt → gemeinsamer Punkt, ≤ 3 m) und
+  // kein weiteres Tunnelstück dort. Das grobe 20-m-Raster genügte nicht: neben parallelen Gleisen (Zermatt, viele kurze
+  // Tunnelstücke) bekam sonst jedes Stückende ein Portal.
+  const nahR = 4, nk = (x, y) => Math.floor(x / nahR) + "," + Math.floor(y / nahR), nahOffen = new Map(), nahTunnel = new Map();
+  const eintragen = (M, x, y, w) => { const k = nk(x, y); (M.get(k) || M.set(k, []).get(k)).push(w); };
+  for (const [x, y, art] of punkte) eintragen(nahOffen, x, y, [x, y, art]);
+  stuecke.forEach((s, i) => { if (s.typ === "tunnel") for (const q of [s.xy[0], s.xy[s.xy.length - 1]]) eintragen(nahTunnel, q[0], q[1], [q[0], q[1], s.art, i]); });
+  const beiPunkt = (M, q, r, ok) => { const cx = Math.floor(q[0] / nahR), cy = Math.floor(q[1] / nahR); for (let dx = -1; dx <= 1; dx++)for (let dy = -1; dy <= 1; dy++) for (const w of M.get((cx + dx) + "," + (cy + dy)) || []) if (Math.hypot(w[0] - q[0], w[1] - q[1]) <= r && ok(w)) return true; return false; };
+  const portalEcht = (q, art, i) => beiPunkt(nahOffen, q, 3, w => w[2] === art) && !beiPunkt(nahTunnel, q, 2, w => w[2] === art && w[3] !== i && !gleichesStueck(stuecke[w[3]], stuecke[i]));
+  const gleichesStueck = (a, b) => a.xy.length === b.xy.length && Math.hypot(a.xy[0][0] - b.xy[0][0], a.xy[0][1] - b.xy[0][1]) < .5 && Math.hypot(a.xy[a.xy.length - 1][0] - b.xy[b.xy.length - 1][0], a.xy[a.xy.length - 1][1] - b.xy[b.xy.length - 1][1]) < .5;
   const fortsetzung = (q, art) => { for (let dx = -1; dx <= 1; dx++)for (let dy = -1; dy <= 1; dy++) { const a = raster.get((Math.floor(q[0] / R) + dx) + "," + (Math.floor(q[1] / R) + dy)); if (a && a.includes(art)) return true; } return false; };
   // doppelte Stücke (Überlappung an Kachelgrenzen) nur einmal
   const gesehen = new Set(); const G = new Geo(); let n = 0;
-  for (const s of stuecke) {
+  for (const [si, s] of stuecke.entries()) {
     const key = s.typ + s.art + s.xy.map(q => Math.round(q[0]) + ":" + Math.round(q[1])).join("|"); if (gesehen.has(key)) continue; gesehen.add(key);
     const w = BREITE[s.art];
     if (s.typ === "tunnel") {   // Portal an echten Enden: Rahmen quer zur Fahrrichtung, dunkle Öffnung
       if (!HOEHE_PORTAL[s.art] && !["motorway", "trunk", "primary"].includes(s.art)) continue;
       const hP = HOEHE_PORTAL[s.art] || 7;
       for (const [i, j] of [[0, 1], [s.xy.length - 1, s.xy.length - 2]]) {
-        const a = s.xy[i], b = s.xy[j]; if (!fortsetzung(a, s.art)) continue;
+        const a = s.xy[i], b = s.xy[j]; if (!portalEcht(a, s.art, si)) continue;
         const z = hoehe(s.ll[i]); if (z == null) continue;
         const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux, B = w / 2 + 1.6;
         const P = (q, t) => [a[0] + ux * t + nx * q, a[1] + uy * t + ny * q];   // q quer, t längs (in den Berg)
