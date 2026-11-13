@@ -133,6 +133,12 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 - Nur Echtzeit (30.10.): Arjuna will keinen Zeitraffer – Knöpfe Pause/1×/10×/60× und «Jetzt» aus web/index.html entfernt; main.js setzt `S.simMs = Date.now()` in jedem Bild, solange `S.speed === 1` (Tests können über `__zk.S.speed = 0` und `S.simMs` weiterhin eine feste Zeit setzen).
 - Test: Testwelt mit `WELT_BERG=1` (Berg 3300 m mit Fels, Geröll, Gletscher, Wald, See, Siedlung, Relief-Quelle `relieftest`). Echte Kacheln sind aus der Testumgebung nicht erreichbar → Aussehen live prüfen.
 
+## Schweiz-Rundgang (13.11.2026)
+- Kamera: MapLibre 5.6 setzt bei easeTo/flyTo/fitBounds mit Gelände `map._elevationFreeze = true` und löst es nur nach Ziehen von Hand (oder mit `freezeElevation`). Danach jumpTo (Kamera folgen, Hash) an einen höheren Ort → Höhe der Bildmitte bleibt alt, Kamera im Boden (St. Gallen: nur graue Flächen, ganz ausgeblendet schwarz). karte.js löst es jetzt bei jedem `moveend`.
+- Tunnelportale (welt3d.js): nur noch, wenn am Stückende eine offene Linie gleicher Klasse einen Punkt ≤ 3 m hat und kein weiteres Tunnelstück dort endet (vorher 20-m-Raster → in Zermatt neben parallelen Gleisen ein Portal an jedem kurzen Tunnelstück).
+- Sperrlinien ab Zoom 13.5 blasser (liegen aufs Gelände gelegt, an Viadukten unten im Tobel).
+- Messung `__pruef()` (Abstand 3D-Wagen ↔ Kartengleis) bei Zoom 15.5: Ausreisser > 5 m verschwinden bei Zoom ≥ 16 (gröbere Kachelgeometrie), also nur bei Zoom ≥ 16 werten.
+
 ## Tageszeit (02.11.2026)
 - `web/src/karte/tageszeit.js`: Sonnenstand (NOAA-Näherung, für 46.8° N / 8.2° E) aus der Echtzeit, alle 20 s. Daraus nach Sonnenhöhe (`STUFEN`, linear dazwischen): Tönung, Himmel/Horizont/Dunst, Lichtfarbe. Abdunkelung = eigene WebGL-Ebene «nacht» (Dreieck übers Bild, Farbe × Tönung, am Tag übersprungen), liegt direkt nach den Gebäuden; alle 3D-Ebenen werden mit `VOR_3D()` davor eingefügt (Gebäude vor «nacht»), Kartenlinien, Bahnhöfe, Fahrzeugpunkte und Beschriftungen liegen darüber und bleiben hell. Himmelsfarben werden durch die Tönung geteilt (die Abdunkelung multipliziert den Himmel mit); bei grauem Wetter (`K.himmelGrau` aus wetter.js) Richtung Grau.
 - Licht: `map.setLight` aus Sonnenrichtung (Gebäude), three.js-Sonnenlichter über `sonnenLicht()`/`LICHT` in drei.js (alle 3D-Ebenen und Verkehr), Wasserglanz `uSonne` folgt der Sonne. Sonnenhöhe fürs Licht mindestens 12°.
