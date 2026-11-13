@@ -81,7 +81,8 @@ function hoehe(pf, s, steil) {
   const map = K.map, T = map.getTerrain(), ex = T ? T.exaggeration || 1 : 0; if (!ex) return 0;
   const k = Math.floor(s / (H_SCHRITT * H_STUECK)), zs = Math.min(14, Math.floor(map.getZoom())); let h = pf.h[k];
   const fehlt = !h || h.ex !== ex;
-  if ((fehlt || h.z < zs) && hZeit(fehlt)) { const neu = gleisHoehe(pf, k, steil, ex); if (neu) { neu.z = zs; neu.ex = ex; pf.h[k] = h = neu; } }
+  const teils = h && h.teil < .9 && performance.now() - h.t > 3000;   // nur teilweise bekanntes Gelände: alle 3 s neu versuchen
+  if ((fehlt || h.z < zs || teils) && hZeit(fehlt)) { const neu = gleisHoehe(pf, k, steil, ex); if (neu) { neu.z = zs; neu.ex = ex; neu.t = performance.now(); pf.h[k] = h = neu; } else if (h) h.t = performance.now(); }
   if (!h) return null;
   const f = (s - h.s0) / H_SCHRITT, i = Math.max(0, Math.min(h.length - 2, Math.floor(f))), u = f - i; return h[i] * (1 - u) + h[i + 1] * u;
 }
@@ -92,7 +93,7 @@ function gleisHoehe(pf, k, steil, ex) {
   const E = pf.cum[pf.cum.length - 1]; let gut = 0, im = 0;
   for (let i = 0; i < n; i++) { const s = s0 + i * H_SCHRITT; dem[i] = NaN; if (s < -.5 || s > E + .5) continue; im++;
     const p = punkt(pf, s), e = map.queryTerrainElevation(wgs(p[0], p[1])); if (e !== null && e !== undefined) { dem[i] = e; gut++; } }
-  if (!gut || gut < im * .25) return null;
+  if (!gut || gut < Math.min(im * .25, 12)) return null;   // mindestens 300 m bekannt (hineingezoomt liegt nur ein kleiner Teil der 4 km im Bild)
   for (let i = 1; i < n; i++) if (isNaN(dem[i])) dem[i] = dem[i - 1]; for (let i = n - 2; i >= 0; i--) if (isNaN(dem[i])) dem[i] = dem[i + 1];
   if (steil === "bus") {   // Bus auf einer Brücke: geradlinig von Brückenende zu Brückenende statt hinunter ins Tal/Flussbett
     const br = new Uint8Array(n); for (let i = 0; i < n; i++) { const s = s0 + i * H_SCHRITT; if (s < -.5 || s > E + .5) continue; const p = punkt(pf, s); br[i] = busAufBruecke(p[0], p[1]) ? 1 : 0; }
@@ -100,9 +101,9 @@ function gleisHoehe(pf, k, steil, ex) {
       if (i > 0 && j < n - 1) { const a = dem[i - 1], b = dem[j + 1]; for (let q = i; q <= j; q++) dem[q] = Math.max(dem[q], a + (b - a) * (q - i + 1) / (j - i + 2)); }
       i = j + 1; }
   }
-  if (steil === "fun") { const h = new Float32Array(n); for (let i = 0; i < n; i++) h[i] = dem[i] + .2; h.s0 = s0; return h; }   // Standseilbahn: auf dem Gelände
+  if (steil === "fun") { const h = new Float32Array(n); for (let i = 0; i < n; i++) h[i] = dem[i] + .2; h.s0 = s0; h.teil = im ? gut / im : 1; return h; }   // Standseilbahn: auf dem Gelände
   if (steil === "wasser") {   // Schiff: Wasserspiegel = tiefster Punkt im Umkreis von ±300 m (Ufer und Landestege sind höher)
-    const h = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 1e9; for (let q = Math.max(0, i - 12); q <= Math.min(n - 1, i + 12); q++) m = Math.min(m, dem[q]); h[i] = m; } h.s0 = s0; return h;
+    const h = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 1e9; for (let q = Math.max(0, i - 12); q <= Math.min(n - 1, i + 12); q++) m = Math.min(m, dem[q]); h[i] = m; } h.s0 = s0; h.teil = im ? gut / im : 1; return h;
   }
   const g = (steil ? .25 : .05) * ex * H_SCHRITT * 100, v = new Float32Array(n), r = new Float32Array(n), h = new Float32Array(n);
   v[0] = dem[0]; for (let i = 1; i < n; i++)v[i] = Math.min(Math.max(dem[i], v[i - 1] - g), v[i - 1] + g);
@@ -114,7 +115,7 @@ function gleisHoehe(pf, k, steil, ex) {
     if (L < 0 || (j - i + 1) * H_SCHRITT <= 8) for (let q = i; q <= j; q++) { const lin = a + (b - a) * (q - i + 1) / m; h[q] = L > 0 ? Math.max(lin, dem[q]) : Math.min(lin, dem[q]); }
     i = j + 1;
   }
-  h.s0 = s0; return h;
+  h.s0 = s0; h.teil = im ? gut / im : 1; return h;
 }
 // Unternehmen mit Normalspur (sonst: Schmal-/Zahnradbahn, steilere Strecken erlaubt)
 const NORMALSPUR = new Set(["11", "33", "65", "82", "78", "351", "81____", "87_LEX", "06____", "800693", "L7____", "817000"]);
@@ -147,7 +148,7 @@ export function z3Laden() {
   ladeThree().then(() => { try { K.map.addLayer(z3Ebene(), VOR_3D()); Z3.bereit = true; } catch (e) { console.error(e); } });
 }
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
-export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter()); Z3.ms = Z3.ursprung.meterInMercatorCoordinateUnits(); Z3.hBudget = 2; Z3.hBis = performance.now() + 8;
+export function z3Beginn() { Z3.liste = []; Z3.ursprung = mc(K.map.getCenter()); Z3.ms = Z3.ursprung.meterInMercatorCoordinateUnits(); Z3.hBudget = Z3.hMax || 2; Z3.hBis = performance.now() + (Z3.hMs || 8);   // hMax/hMs: in Tests (langsames Zeichnen) höher
   const c = K.map.getCanvas(), mpp = 40075016 * Math.cos(K.map.getCenter().lat * Math.PI / 180) / (512 * 2 ** K.map.getZoom()); Z3.prioR = .6 * Math.hypot(c.clientWidth, c.clientHeight) * mpp; }
 export function z3Ende() { }
 // Wagen eines Zuges: Lage, Richtung und Neigung jedes Wagens
