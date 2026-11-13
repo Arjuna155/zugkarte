@@ -66,6 +66,7 @@ Projekt von Arjuna (spricht Deutsch, Schweiz). Antworten und Texte in der Karte 
 
 ## Schiffe in 3D (28.10.2026)
 - Schiffe fahren ab Zoom 13.2 als 3D-Modelle (Ebene «zuege3d»). `modelle.js`: `bauSchiff()` (Rumpf mit spitzem Bug, Reling, Deckhäuser mit Fenstern, Flagge) in vier Arten: Motorschiff, Raddampfer (Schaufelradkästen, Kamin), Autofähre (Brücke quer, Autos auf Deck), kleines Schiff. `SCHIFF_AG` je Unternehmen (Länge, Breite, Farbe, Anteil Raddampfer), `FAEHRE_AG` für FAE. Welches Schiff eine Fahrt fährt, steht nicht im Fahrplan → Raddampfer nach festem Zufall (Abfahrtszeit + erster Halt), also plausibel, nicht echt.
+- Am Steg (13.11.2026, Zürich Bürkliplatz geprüft): Die Fahrlinien aus OSM enden oft vor dem Landesteg (Bürkliplatz 69 m) → Schiffe hielten draussen auf dem See. Jetzt in den letzten/ersten 300 m längs (`kopf`) und seitlich (`schVers`) zur Stationslage (`stOf`) geschoben, Bug bzw. Heck an der Station.
 - `zuege3d.js`: Schiffe ohne Abschnitte (nie «Wende»), Mitte an der Station (legt längsseits an), am Startort mit dem Heck, am Ziel mit dem Bug an der Station; Höhe = tiefstes Gelände im Umkreis ±300 m (Wasserspiegel), keine Neigung, kein Einrasten.
 - Test ohne GTFS: /tmp-Skript baut aus den Haltefolgen in `gtfs_oev.json.gz` einen künstlichen Schiffsfahrplan (ZIP) und rechnet ihn mit `umrechnen()` um.
 

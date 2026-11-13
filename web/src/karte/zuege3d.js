@@ -4,14 +4,14 @@ import { legs } from "../kern/wege.js";
 import { wagenVon, wagenJetzt } from "../kern/formation.js";
 import { ZM } from "./modelle.js";
 import { K } from "./karte.js";
-import { wgs } from "../util.js";
+import { wgs, X, Y } from "../util.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden, fahrzeugLichtMaterial } from "./lichter.js";
 import { einrasten, gleisFolgen } from "./gleise.js";
 import { busAufBruecke } from "./strassen.js";
 import { ebene } from "../ui/ebenen.js";
-import { B } from "../kern/basis.js";
+import { B, stOf } from "../kern/basis.js";
 import { BB } from "../kern/bergbahnen.js";
 import { gleiseLaden, gleisPunkt } from "../kern/gleislage.js";
 import { sektorenLaden, sektorPunkt, gleisSektoren } from "../kern/sektoren.js";
@@ -184,6 +184,19 @@ export function z3Zug(tr, o, p, isSel, rt) {
       }
     }
   }
+  // Schiff am Steg: die Fahrlinie (OSM) endet oft vor dem Landesteg (Zürich Bürkliplatz: 69 m) → in den letzten/ersten 300 m
+  // längs und seitlich zur Lage der Station hin schieben (Bug bzw. Heck am Steg)
+  let schVers = null;
+  if (schiff) {
+    let sj, w = 0; if (!p.moving) { sj = amEnde ? nL : p.j; w = 1; }
+    else { const rest = PF.legS1[j] - basis, weg = basis - PF.legS0[j]; if (rest < 3) { sj = j + 1; w = 1 - rest / 3; } else if (weg < 3) { sj = j; w = 1 - weg / 3; } }
+    const St = sj !== undefined ? tr.st[Math.min(sj, tr.st.length - 1)] : null, s0 = St && stOf(St.i), S = s0 && [X(s0), Y(s0)];
+    if (S && w > 0) {
+      const sS = sj === j && !amEnde ? PF.legS0[j] : PF.legS1[Math.min(j, nL - 1)], a = punkt(pf, sS), b2 = punkt(pf, sS + .05), tx = b2[0] - a[0], ty = b2[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+      const dx = S[0] - a[0], dy = S[1] - a[1], along = (dx * tx + dy * ty) / tl;
+      if (Math.hypot(dx, dy) < 3) { kopf += along * w; const lx = dx - along * tx / tl, ly = dy - along * ty / tl, A0 = mc(wgs(a[0], a[1])), A1 = mc(wgs(a[0] + lx, a[1] + ly)); schVers = { x: (A1.x - A0.x) * w, y: (A1.y - A0.y) * w }; }
+    }
+  }
   { const q = mc(wgs(...punkt(pf, basis))); Z3.prio = Math.hypot(q.x - os.x, q.y - os.y) / ms < Z3.prioR || isSel; }
   if (bb && Z.teile[0].W.T.art !== "FUN") {   // Kabine/Sessel: am Seil, Höhe aus dem Seilprofil der Kante, immer waagrecht
     const t = Z.teile[0], lj = amEnde ? nL - 1 : j, f = amEnde ? 1 : p.moving ? p.f : 0, A = tr.st[lj], E2 = tr.st[lj + 1]; if (!E2) return false;
@@ -239,6 +252,7 @@ export function z3Zug(tr, o, p, isSel, rt) {
     const steil = schiff ? "wasser" : bb ? "fun" : bus ? "bus" : t.W.T.spur < 1.2 || !NORMALSPUR.has(tr.ag), zv0 = hoehe(pf, sc + h, steil), zh0 = hoehe(pf, sc - h, steil); if (zv0 === null || zh0 === null) return false; let zv = zv0, zh_ = zh0;
     let llm = wgs(pm[0], pm[1]), mv = mc(wgs(pv[0], pv[1])), mh = mc(wgs(ph[0], ph[1])), mm = mc(llm);
     // auf die Gleise der Karte einrasten (vorne und hinten getrennt, damit der Wagen der Kurve folgt)
+    if (schVers) { mv = { x: mv.x + schVers.x, y: mv.y + schVers.y }; mh = { x: mh.x + schVers.x, y: mh.y + schVers.y }; mm = { x: mm.x + schVers.x, y: mm.y + schVers.y }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     if (gp) { mv = gp[2 * ti]; mh = gp[2 * ti + 1]; mm = { x: (mv.x + mh.x) / 2, y: (mv.y + mh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     ti++;
     const rx = mv.x - mh.x, ry = mv.y - mh.y, gv = !gp && !schiff && !bb && !bus && einrasten(glVers ? { x: mv.x + glVers.x, y: mv.y + glVers.y } : mv, rx, ry, tram, !!glVers), gh = !gp && !schiff && !bb && !bus && einrasten(glVers ? { x: mh.x + glVers.x, y: mh.y + glVers.y } : mh, rx, ry, tram, !!glVers);
