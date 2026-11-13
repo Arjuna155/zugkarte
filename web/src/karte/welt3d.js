@@ -30,7 +30,7 @@ function gebaeudeAn(map, g) {
     id: "gebaeude-3d", type: "fill-extrusion", source: g.quelle, "source-layer": "building", minzoom: ZOOM_GEBAEUDE,
     paint: {
       "fill-extrusion-color": ["case", [">", ["coalesce", ["get", "render_height"], 8], 22], ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 8], 22, "#dedad3", 80, "#d3d0ca"],
-        ["to-color", ["at", ["%", ["abs", ["round", ["to-number", ["id"], 0]]], 6], ["literal", FASSADE]]]],   // Fassaden wie die Giebel der Dächer (daecher.js)
+        ["to-color", ["at", ["%", ["abs", ["round", ["to-number", ["id"], 0]]], FASSADE.length], ["literal", FASSADE]]]],   // Fassaden wie die Giebel der Dächer (daecher.js)
       // ab Zoom ZD enden die Mauern der Häuser an der Traufe – das Dach (daecher.js) reicht bis zur Gesamthöhe
       "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], ZOOM_GEBAEUDE, 0, ZOOM_GEBAEUDE + .6, H_EXPR, ZD - .05, H_EXPR, ZD + .05,
         ["case", ["all", [">=", H_EXPR, H_MIN], ["<=", H_EXPR, H_MAX], ["<=", ["coalesce", ["get", "render_min_height"], ["get", "min_height"], 0], 0]],
