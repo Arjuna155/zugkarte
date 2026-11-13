@@ -24,7 +24,7 @@ function aufbauen() {
         const m = mc(q), x = (m.x - o.x) / ms, y = (m.y - o.y) / ms;
         if (vor) {
           const key = Math.round(vor[0] * 2) + "," + Math.round(vor[1] * 2) + "," + Math.round(x * 2) + "," + Math.round(y * 2); if (gesehen.has(key)) { vor = [x, y]; continue; } gesehen.add(key);
-          const s = [vor[0], vor[1], x, y, p.brunnel === "tunnel" ? 1 : 0], L = Math.hypot(x - vor[0], y - vor[1]), k = Math.max(1, Math.ceil(L / ZELLE)), zellen = new Set();   // s = [x0, y0, x1, y1, Tunnel]
+          const s = [vor[0], vor[1], x, y, p.brunnel === "tunnel" ? 1 : 0], L = Math.hypot(x - vor[0], y - vor[1]), k = Math.max(1, Math.ceil(L / 4)), zellen = new Set();   // alle 4 m eine Zelle eintragen (bei 25 m fehlten schräge Stücke in Zellen, die sie nur an der Ecke streifen)   // s = [x0, y0, x1, y1, Tunnel]
           for (let i = 0; i <= k; i++) zellen.add(Math.floor((vor[0] + (x - vor[0]) * i / k) / ZELLE) + "," + Math.floor((vor[1] + (y - vor[1]) * i / k) / ZELLE));
           for (const z of zellen) { let a = raster.get(z); if (!a) raster.set(z, a = []); a.push(s); } n++;
         }
@@ -35,7 +35,7 @@ function aufbauen() {
   GL.n = n; GL.bereit = n > 0;
 }
 // Punkt (Mercator) mit Fahrtrichtung (rechts = Rechtsverkehr, Trams) (dx, dy in Mercator, y nach Süden) auf ein Gleis setzen; liefert Mercator-Punkt oder null
-export function einrasten(m, dx, dy, rechts, frei) {
+export function einrasten(m, dx, dy, rechts, frei, cosMin = COS25) {
   if (!GL.bereit) return null;
   const x = (m.x - o.x) / ms, y = (m.y - o.y) / ms, L = Math.hypot(dx, dy) || 1, lx = dy / L, ly = -dx / L;   // links (y nach Süden)
   const cx = Math.floor(x / ZELLE), cy = Math.floor(y / ZELLE); let best = null, bk = 1e9;
@@ -43,7 +43,7 @@ export function einrasten(m, dx, dy, rechts, frei) {
     const a = raster.get((cx + i) + "," + (cy + j)); if (!a) continue;
     for (const s of a) {
       const ex = s[2] - s[0], ey = s[3] - s[1], l2 = ex * ex + ey * ey || 1e-9; let t = ((x - s[0]) * ex + (y - s[1]) * ey) / l2; t = Math.max(0, Math.min(1, t));
-      if (Math.abs(ex * dx + ey * dy) < COS25 * Math.sqrt(l2) * L) continue;   // nur Gleise in gleicher Richtung (keine kreuzenden)
+      if (Math.abs(ex * dx + ey * dy) < cosMin * Math.sqrt(l2) * L) continue;   // nur Gleise in gleicher Richtung (keine kreuzenden)
       const px = s[0] + ex * t, py = s[1] + ey * t, d = Math.hypot(px - x, py - y); if (d > RADIUS) continue;
       const seite = (px - x) * lx + (py - y) * ly, kosten = frei ? d : d - 1.2 * Math.max(0, rechts ? -seite : seite);   // Bahn: linke Gleise bevorzugt, Tram: rechte
       if (kosten < bk) { bk = kosten; best = [px, py]; }
@@ -82,13 +82,13 @@ export function gleiseStarten() {
 // Richtung (±25°) am nächsten liegt; an Weichen (mehrere Stücke ≤ 1,5 m) das, das näher an ziel(d) liegt (unsere Strecke,
 // Mercator). Ohne Gleis geht es geradeaus weiter (Lücken, Brückenenden); nach 40 m ohne Gleis wird abgebrochen (null).
 // So bleiben alle Wagen eines Zuges auf demselben Gleis, statt dass jeder Wagen für sich auf das nächste Gleis springt.
-function naechstesStueck(x, y, ux, uy, r, zx, zy) {
+function naechstesStueck(x, y, ux, uy, r, zx, zy, cosMin = COS25) {
   let best = null, bk = 1e9; const c0x = Math.floor((x - r) / ZELLE), c1x = Math.floor((x + r) / ZELLE), c0y = Math.floor((y - r) / ZELLE), c1y = Math.floor((y + r) / ZELLE);
   for (let cx = c0x; cx <= c1x; cx++) for (let cy = c0y; cy <= c1y; cy++) {
     const a = raster.get(cx + "," + cy); if (!a) continue;
     for (const s of a) {
       const ex = s[2] - s[0], ey = s[3] - s[1], L = Math.hypot(ex, ey); if (L < 1e-6) continue;
-      const dx = ex / L, dy = ey / L, cs = dx * ux + dy * uy; if (Math.abs(cs) < COS25) continue;
+      const dx = ex / L, dy = ey / L, cs = dx * ux + dy * uy; if (Math.abs(cs) < cosMin) continue;
       let t = ((x - s[0]) * dx + (y - s[1]) * dy); t = Math.max(0, Math.min(L, t));
       const px = s[0] + dx * t, py = s[1] + dy * t, d = Math.hypot(px - x, py - y); if (d > r) continue;
       const k = d + (zx === undefined ? 0 : .3 * Math.hypot(px - zx, py - zy));
@@ -100,7 +100,7 @@ function naechstesStueck(x, y, ux, uy, r, zx, zy) {
 export function gleisFolgen(m, ux, uy, ab, ziel, rStart = 1.5, bisEnde = false) {   // bisEnde: am Gleisende (Prellbock) anhalten, .fehlt = nicht gefahrene Meter
   if (!GL.bereit || !ab.length) return null;
   let x = (m.x - o.x) / ms, y = (m.y - o.y) / ms; const L = Math.hypot(ux, uy) || 1; ux /= L; uy /= L;
-  const st = naechstesStueck(x, y, ux, uy, rStart); if (!st) return null;
+  const st = naechstesStueck(x, y, ux, uy, rStart, undefined, undefined, .5); if (!st) return null;   // Start: Richtung ±60° (unsere Strecke ist an Knoten ungenau), danach folgt die Richtung dem Gleis
   x = st.px; y = st.py; ux = st.ux; uy = st.uy; let tun = st.tun;
   const aus = []; aus.fehlt = 0; let d = 0, ohne = 0;
   for (const ziel_d of ab) {

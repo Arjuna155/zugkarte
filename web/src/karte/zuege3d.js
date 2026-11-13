@@ -215,13 +215,14 @@ export function z3Zug(tr, o, p, isSel, rt) {
       if (w && w.aufGleis && Math.hypot(w[0].x - mF.x, w[0].y - mF.y) / ms < 6) kopfG = w[0];
     }
     if (!kopfG && sF <= E - .01) {
-      kopfG = einrasten(mF, uF.x, uF.y, tram, !!lat);
+      kopfG = einrasten(mF, uF.x, uF.y, tram, !!lat) || einrasten(mF, uF.x, uF.y, tram, !!lat, .5);
       // kein Gleis an der Spitze (unsere Strecke beginnt z. B. mitten in der Bahnhofshalle): nächsten Punkt voraus mit Gleis suchen und von dort zurück
       for (let sA = sF + .1; !kopfG && sA <= Math.min(E, sF + 1.5); sA += .1) {
         const mA = rp(sA), mA2 = rp(Math.min(E, sA + .05)), a = einrasten(mA, mA2.x - mA.x, mA2.y - mA.y, tram, !!lat);
         const w = a && gleisFolgen(a, -(mA2.x - mA.x), -(mA2.y - mA.y), [(sA - sF) * 100], d => rz(sA - d / 100), .5, true); if (w) kopfG = w[0];
       }
     }
+    if (kopfG) kopfG = einrasten(kopfG, uF.x, uF.y, tram, true) || einrasten(kopfG, uF.x, uF.y, tram, true, .5);   // Spitze sicher auf einem Gleis (Wege über Lücken enden sonst daneben)
     if (kopfG) {
       const ab = []; for (const t of Z.teile) { const sc = kopf - t.s, h = hw(t); ab.push((sF - (sc + h)) * 100, (sF - (sc - h)) * 100); }
       gp = gleisFolgen(kopfG, -uF.x, -uF.y, ab, d => rz(sF - d / 100), 3, true);
