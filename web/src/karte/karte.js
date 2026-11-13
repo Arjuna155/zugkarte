@@ -51,6 +51,10 @@ function karteBauen(stil) {
     map.on("error", e => { if (!geladen && !K.ersatzStil && /layers\[|style|Style/.test(String(e && e.error && e.error.message))) { K.ersatzStil = true; console.warn("Landschaftsstil fehlerhaft, nehme Karte:", e.error.message); setTimeout(() => karteBauen(STIL_URL), 0); } }); }
   // kein Massstab: MapLibre rechnet ihn mit Gelände bei jeder Bewegung über readPixels (bremst die Grafikkarte aus)
   try { new ResizeObserver(() => map.resize()).observe($("map")); } catch (e) { }
+  // MapLibre 5.6 friert mit Gelände bei easeTo/flyTo/fitBounds (auch Knöpfe +/−) die Höhe der Bildmitte ein und gibt sie
+  // erst nach dem nächsten Ziehen mit der Hand wieder frei. Danach mit jumpTo (Kamera folgen, Suche) an einen höheren Ort →
+  // Kamera rechnet mit der alten Höhe und landet im Boden (St. Gallen, 870 m: nur graue Flächen). Nach jeder Bewegung lösen.
+  map.on("moveend", () => { if (map._elevationFreeze && !map.isEasing() && !(map.handlers && map.handlers.isActive())) { map._elevationFreeze = false; map.triggerRepaint(); } });
   $("zin").onclick = () => map.zoomIn(); $("zout").onclick = () => map.zoomOut();
   $("zreset").onclick = () => map.fitBounds(CH_BOX, { padding: 20, pitch: K.mit3d ? 35 : 0, bearing: 0, duration: 1000 });
   $("z3d").setAttribute("aria-pressed", K.mit3d); $("z3d").onclick = () => setze3d(!K.mit3d);
