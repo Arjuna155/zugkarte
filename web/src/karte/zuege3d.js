@@ -209,7 +209,8 @@ export function z3Zug(tr, o, p, isSel, rt) {
   // (statt jeden Wagen für sich auf das nächste Gleis – in Gleisfeldern sprangen die Wagen sonst zickzack über die Gleise).
   // Die Spitze bleibt von Bild zu Bild auf ihrem Gleis (vom letzten Bild aus vorwärts gefolgt); an Weichen entscheidet die Nähe zu unserer Strecke.
   let gp = null;
-  if (!schiff && !bb && !bus) {
+  const fun = bb && Z.teile[0].W.T.art === "FUN";   // Standseilbahn: folgt ebenfalls dem Kartengleis (class rail, subclass funicular)
+  if (!schiff && !bus && (!bb || fun)) {
     const hw = t => tram ? Math.max(t.L * .42, .05) : t.L * .42, t0 = Z.teile[0], sF = kopf - t0.s + hw(t0);
     const roh = sx => mc(wgs(...punkt(pf, sx))), sK = Math.min(sF, E - .05), r0 = roh(sK), r1 = roh(sK + .05), uF = { x: r1.x - r0.x, y: r1.y - r0.y };
     // seitlich zur Kante des Gleises: senkrecht zu unserer Strecke an der Spitze gemessen (nicht am Bahnhofspunkt – der liegt
@@ -260,7 +261,7 @@ export function z3Zug(tr, o, p, isSel, rt) {
       mh = gh; mm = { x: (gv.x + gh.x) / 2, y: (gv.y + gh.y) / 2 }; llm = new maplibregl.MercatorCoordinate(mm.x, mm.y).toLngLat().toArray(); }
     // auf offenem Gleis (laut Karte kein Tunnel) nie unter dem Gelände an der wirklichen Lage des Wagens: das Höhenprofil entlang
     // unserer Strecke hält Steigungen gering und taucht an steilen Stellen (Hang, Einschnitt) sonst wie in einen Tunnel ab
-    if (gp && !schiff && !bb) { const T = K.map.getTerrain();
+    if (gp && !schiff && (!bb || fun)) { const T = K.map.getTerrain();
       if (T) { const auf = (q, z) => { if (q.tun !== 0) return z; const e = K.map.queryTerrainElevation(new maplibregl.MercatorCoordinate(q.x, q.y).toLngLat()); return e === null || e === undefined ? z : Math.max(z, e); };
         zv = auf(mv, zv); zh_ = auf(mh, zh_); } }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
