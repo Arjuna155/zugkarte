@@ -7,7 +7,9 @@
 "use strict";
 const fs = require("fs"), path = require("path"), zlib = require("zlib");
 
-const URL_ZAEHLER = process.env.OTD_VERKEHR_URL || "https://api.opentransportdata.swiss/TDP/Soap_Datex2/TrafficCounters/Pull";
+// Adresse laut Datensatz «trafficcountersrealtime» (Stand 11.2026); die frühere …/TrafficCounters/Pull gibt 404.
+// Bei 404 wird die nächste Adresse versucht (welche gilt, steht im Status).
+const URLS = process.env.OTD_VERKEHR_URL ? [process.env.OTD_VERKEHR_URL] : ["https://api.opentransportdata.swiss/TDP/Soap_Datex2/Pull", "https://api.opentransportdata.swiss/TDP/Soap_Datex2/TrafficCounters/Pull"];
 const AKTION = "http://opentransportdata.swiss/TDP/Soap_Datex2/Pull/v1/";
 const KOPF = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Header/><soapenv:Body>`
   + `<d2LogicalModel xmlns="http://datex2.eu/schema/2/2_0" modelBaseVersion="2"><exchange><supplierIdentification><country>ch</country><nationalIdentifier>ZugKarte</nationalIdentifier></supplierIdentification></exchange>`;
@@ -29,13 +31,14 @@ const attr = (s, a) => { const m = s.match(new RegExp(`\\b${a}="([^"]*)"`)); ret
 function start({ DATA_DIR, log, key }) {
   const DATEI = path.join(DATA_DIR, "verkehr.json");
   const S = { stellen: {}, stellenZeit: 0, variante: null, letzte: null, fehler: null, http: null, pauseBis: 0, abfragen: 0, laeuft: false };
-  let gz = null;
-  async function soap(aktion, body) {
+  let gz = null, ui = 0;
+  async function soap(aktion, body, versuch = 0) {
     const k = key(); if (!k) throw Object.assign(new Error("kein Schlüssel"), { ohneSchluessel: true });
-    const r = await fetch(URL_ZAEHLER, { method: "POST", headers: { Authorization: "Bearer " + k, "Content-Type": "text/xml; charset=utf-8", SOAPAction: AKTION + aktion, "Accept-Encoding": "gzip" }, body, signal: AbortSignal.timeout(60000) });
+    const r = await fetch(URLS[ui], { method: "POST", headers: { Authorization: "Bearer " + k, "Content-Type": "text/xml; charset=utf-8", SOAPAction: AKTION + aktion, "Accept-Encoding": "gzip" }, body, signal: AbortSignal.timeout(60000) });
     S.abfragen++; S.http = r.status; const t = await r.text();
     if (r.status === 401 || r.status === 403) { S.pauseBis = Date.now() + 3600e3; throw new Error(`HTTP ${r.status}: Schlüssel nicht für «Traffic Counters» freigeschaltet (api-manager.opentransportdata.swiss)`); }
     if (r.status === 429) { S.pauseBis = Date.now() + 5 * 60e3; throw new Error("HTTP 429: zu viele Abfragen"); }
+    if (r.status === 404 && versuch + 1 < URLS.length) { ui = (ui + 1) % URLS.length; return soap(aktion, body, versuch + 1); }
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${t.slice(0, 200).replace(/\s+/g, " ")}`);
     return t;
   }
@@ -93,7 +96,7 @@ function start({ DATA_DIR, log, key }) {
   setTimeout(() => { runde(); setInterval(runde, 60e3); }, +(process.env.ZK_VERKEHR_START_MS || 30000));
   return {
     gz: () => gz,
-    status: () => ({ messstellen: Object.keys(S.stellen).length, variante: S.variante, letzte: S.letzte, fehler: S.fehler, http: S.http, abfragen: S.abfragen, pauseBis: S.pauseBis > Date.now() ? new Date(S.pauseBis).toISOString() : null }),
+    status: () => ({ url: URLS[ui], messstellen: Object.keys(S.stellen).length, variante: S.variante, letzte: S.letzte, fehler: S.fehler, http: S.http, abfragen: S.abfragen, pauseBis: S.pauseBis > Date.now() ? new Date(S.pauseBis).toISOString() : null }),
   };
 }
 module.exports = { start };

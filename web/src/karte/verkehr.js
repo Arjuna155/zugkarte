@@ -9,7 +9,7 @@ import { VOR_3D, TZ } from "./tageszeit.js";
 import { lichtAnmelden } from "./lichter.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
-import { fc, istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
+import { fc, istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe, melde } from "../util.js";
 
 export const VK = { stellen: [], an: true, ketten: [], zeit: 0, fz: [], lage: f => lage(f) };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -98,7 +98,7 @@ function bauen() {
     const dAx = (k.x[0] - k.x[1]), dAy = (k.y[0] - k.y[1]);
     const qr = !k.einweg ? ende(k.erst, dAx, dAy) : null; k.rueck = qr ? qr.k : null; k.rueckR = qr && qr === qr.k.letzt ? -1 : qr && qr === qr.k.erst ? 1 : 0; if (!k.rueckR) k.rueck = null;
   }
-  VK.ketten = ketten; for (const k of ketten) zuordnen(k); lageZeichnen(); fahrzeugeVerteilen();
+  VK.ketten = ketten; for (const k of ketten) zuordnen(k); lageZeichnen(); fahrzeugeVerteilen(); melde("verkehrKetten");
 }
 // je Punkt der Kette die nächste Messstelle (bis 15 km; Verkehrslage nur bis 6 km) – hängt nur vom Ort ab, nicht davon,
 // wie die Kette gerade zusammengesetzt ist (sonst ändern sich Dichte und Tempo beim Verschieben)
@@ -232,7 +232,8 @@ function ebene3d() {
         f.v = k.va[lo] / 3.6 * (f.faktor || 1);   // Tempo der Messstelle an dieser Stelle
         const u = (f.s - k.cum[lo]) / ((k.cum[hi] - k.cum[lo]) || 1), dx = (k.x[hi] - k.x[lo]) / ankerMs, dy = (k.y[hi] - k.y[lo]) / ankerMs, l = Math.hypot(dx, dy) || 1;
         const nx = -dy / l * f.r, ny = dx / l * f.r;   // rechts in Fahrtrichtung (y nach Süden: Normale so gedreht, dass Rechtsverkehr entsteht)
-        const px = (k.x[lo] + (k.x[hi] - k.x[lo]) * u - c.x) / ms + nx * f.spur, py = (k.y[lo] + (k.y[hi] - k.y[lo]) * u - c.y) / ms + ny * f.spur, pz = Tr ? k.z[lo] + (k.z[hi] - k.z[lo]) * u : 0;
+        const spur = k.bz && VK.spurBei ? VK.spurBei(k, f.s, f.spur) : f.spur;   // vor Baustellen auf den offenen Streifen
+        const px = (k.x[lo] + (k.x[hi] - k.x[lo]) * u - c.x) / ms + nx * spur, py = (k.y[lo] + (k.y[hi] - k.y[lo]) * u - c.y) / ms + ny * spur, pz = Tr ? k.z[lo] + (k.z[hi] - k.z[lo]) * u : 0;
         if (licht) {   // vorne zwei Scheinwerfer als ein Punkt, hinten Rücklicht
           const ex = dx / l * f.r, ey = dy / l * f.r, hl = (f.lkw ? 7 : 2.3), q = nlicht * 6, zz = pz + (nah ? .7 : 2.5), sz = nah ? 1 : 0;
           this.lp[q] = px + ex * hl; this.lp[q + 1] = py + ey * hl; this.lp[q + 2] = zz; this.lc[q] = 1; this.lc[q + 1] = .93; this.lc[q + 2] = .75;

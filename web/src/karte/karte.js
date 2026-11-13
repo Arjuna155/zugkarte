@@ -114,8 +114,8 @@ function karteBauen(stil) {
       }, paint: { "text-color": "#16222b", "text-halo-color": "#ffffff", "text-halo-width": 1.6 }
     });
     // Hinweise beim Überfahren; Fahrzeuge zuerst (eigene Ebene, siehe fahrzeuge.js)
-    const ebenen = ["bushalte", "st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z", "wetter-pkt"];
-    const text = f => f.layer.id === "wetter-pkt" ? "Wetterstation " + f.properties.n + " (antippen)" : f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id === "bushalte" ? "Bushaltestelle: " + f.properties.l : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
+    const ebenen = ["bushalte", "st0", "st1", "st2", "bahn", "bahn-tunnel", "tram", "schiff", "bergbahn", "bergbahn-fun", "sperren", "sperren-z", "wetter-pkt", "baustellen-pkt", "baustellen-linie"];
+    const text = f => f.layer.id.startsWith("baustellen") ? "Baustelle: " + f.properties.n : f.layer.id === "wetter-pkt" ? "Wetterstation " + f.properties.n + " (antippen)" : f.layer.id === "tram" ? "Tram: " + f.properties.n : f.layer.id === "schiff" ? "Schiff: " + f.properties.n : f.layer.id.startsWith("bergbahn") ? "Bergbahn: " + f.properties.n : f.layer.id === "bushalte" ? "Bushaltestelle: " + f.properties.l : f.layer.id.startsWith("sperren") ? "Gesperrt: heute kein Zugverkehr (Bahnersatz)" : f.properties.n;
     // Hinweis beim Zeigen: Fahrzeuge sofort (eigene Punkte), Kartenobjekte erst, wenn die Maus kurz ruht – queryRenderedFeatures
     // liest mit Gelände Pixel von der Grafikkarte zurück und würde beim Bewegen jedes Bild ausbremsen
     let tipT = 0, tipW = 0;
@@ -137,6 +137,7 @@ function karteBauen(stil) {
       if (K.fzTreffer && K.fzTreffer(p)) return;
       const s = map.queryRenderedFeatures(box, { layers: ["st0", "st1", "st2", "bushalte"] })[0]; if (s) { melde("bahnhof", s.properties.n); return; }
       const l = map.queryRenderedFeatures(box, { layers: ["bahn", "bahn-tunnel"] })[0]; if (l) { melde("strecke", l.properties.i); return; }
+      const bs = map.getLayer("baustellen-pkt") && map.queryRenderedFeatures(box, { layers: ["baustellen-pkt", "baustellen-linie"] })[0]; if (bs) { showTip(text(bs), e.originalEvent); return; }
       melde("leer");
     });
     map.on("movestart", hideTip);

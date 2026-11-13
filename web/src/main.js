@@ -13,6 +13,7 @@ import { welt3dStarten, W3 } from "./karte/welt3d.js";
 import { gleiseStarten, GL } from "./karte/gleise.js";
 import { wetterStarten, WE } from "./karte/wetter.js";
 import { verkehrStarten, VK } from "./karte/verkehr.js";
+import { baustellenStarten } from "./karte/baustellen.js";
 import { strassenStarten, STR } from "./karte/strassen.js";
 import { baeumeStarten, BA } from "./karte/baeume.js";
 import { wasserStarten, WA } from "./karte/wasser3d.js";
@@ -39,7 +40,7 @@ function bild(now) {
   await ladeBasis();
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten();
-  an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); verkehrStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); folgenStarten(); if (!K.ersatzStil) lichterStarten(); K.fz = true; });
+  an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); verkehrStarten(); baustellenStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); folgenStarten(); if (!K.ersatzStil) lichterStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen

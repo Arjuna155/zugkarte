@@ -145,6 +145,8 @@ const PE = require("./perrons.js").start({ DATA_DIR, log });
 // Sektortafeln der SBB (Lage der Sektoren je Gleis), siehe sektoren.js
 const SK = require("./sektoren.js").start({ DATA_DIR, log });
 const VK = require("./verkehr.js").start({ DATA_DIR, log, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
+// Baustellen: Verkehrsmeldungen des ASTRA (gleicher Schlüssel) + TMC-Codetabelle, siehe baustellen.js
+const BS = require("./baustellen.js").start({ DATA_DIR, log, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 const FO = require("./formation.js").start({ DATA_DIR, log, fahrplan: FP, key: () => { loadKey(); return KEY && !isPlaceholder(KEY) ? KEY : ""; } });
 
 // ---- Sperrungen (Bahnersatz) ----
@@ -390,6 +392,8 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/sektoren") { const gz = SK.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch keine Sektoren" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
   if (url.pathname === "/api/sektoren/status") return json(req, res, 200, SK.status());
   if (url.pathname === "/api/verkehr/status") return json(req, res, 200, VK.status());
+  if (url.pathname === "/api/baustellen") { const gz = BS.gz(); if (!gz) return json(req, res, 404, { fehler: "Noch keine Baustellen" }); return json(req, res, 200, gzOk(req) ? null : JSON.parse(zlib.gunzipSync(gz)), gz); }
+  if (url.pathname === "/api/baustellen/status") return json(req, res, 200, BS.status());
   if (url.pathname === "/api/formation/status") return json(req, res, 200, FO.status());
   if (url.pathname === "/api/verspaetungen") {
     try { const d = await getData(); return json(req, res, 200, d, d === cache ? cacheGz : null); }
