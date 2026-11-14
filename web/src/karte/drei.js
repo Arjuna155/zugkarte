@@ -12,6 +12,10 @@ export function sonnenLicht(staerke) { const d = new THREE.DirectionalLight(0xff
 // Himmelslicht von oben: three.js nimmt +y als «oben», unsere Szenen haben z nach oben (y nach Süden) – vorher kam der
 // Himmel von Süden, Flachdächer und Baumkronen bekamen nur halbes Himmelslicht und wirkten grau
 export function himmelLicht(staerke) { const h = new THREE.HemisphereLight(0xffffff, 0x7d8a96, staerke); h.position.set(0, 0, 1); return h; }
+// Material mit eigenen Normalen (nach aussen/oben gerechnet): three.js dreht bei DoubleSide die Normale von Rückseiten um –
+// mit y nach Süden gilt aber oft die Vorderseite als Rückseite, und Flächen werden dunkel. Die Shader-Bausteine sind in
+// onBeforeCompile noch nicht eingesetzt, deshalb den Baustein selbst ersetzen.
+export function ohneUmkehr(mat) { mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("gl_FrontFacing ? 1.0 : - 1.0", "1.0")); }; return mat; }
 export function szeneMitLicht() {
   const sz = new THREE.Scene();
   sz.add(himmelLicht(1.7)); sz.add(sonnenLicht(1.5));

@@ -24,7 +24,7 @@ function aufbauen() {
         const m = mc(q), x = (m.x - o.x) / ms, y = (m.y - o.y) / ms;
         if (vor) {
           const key = Math.round(vor[0] * 2) + "," + Math.round(vor[1] * 2) + "," + Math.round(x * 2) + "," + Math.round(y * 2); if (gesehen.has(key)) { vor = [x, y]; continue; } gesehen.add(key);
-          const s = [vor[0], vor[1], x, y, p.brunnel === "tunnel" ? 1 : 0], L = Math.hypot(x - vor[0], y - vor[1]), k = Math.max(1, Math.ceil(L / 4)), zellen = new Set();   // alle 4 m eine Zelle eintragen (bei 25 m fehlten schräge Stücke in Zellen, die sie nur an der Ecke streifen)   // s = [x0, y0, x1, y1, Tunnel]
+          const s = [vor[0], vor[1], x, y, p.brunnel === "tunnel" ? 1 : 0, p.brunnel === "bridge" ? 1 : 0], L = Math.hypot(x - vor[0], y - vor[1]), k = Math.max(1, Math.ceil(L / 4)), zellen = new Set();   // alle 4 m eine Zelle eintragen (bei 25 m fehlten schräge Stücke in Zellen, die sie nur an der Ecke streifen)   // s = [x0, y0, x1, y1, Tunnel]
           for (let i = 0; i <= k; i++) zellen.add(Math.floor((vor[0] + (x - vor[0]) * i / k) / ZELLE) + "," + Math.floor((vor[1] + (y - vor[1]) * i / k) / ZELLE));
           for (const z of zellen) { let a = raster.get(z); if (!a) raster.set(z, a = []); a.push(s); } n++;
         }
@@ -70,7 +70,7 @@ export const gleisMs = () => ms;
 // alle Gleisstücke im Ausschnitt (Mercator-Endpunkte, Tunnel-Kennzeichen) – für die Schienen in bahnhoefe3d.js
 export function gleisStuecke() {
   if (!GL.bereit) return []; const set = new Set(); for (const a of raster.values()) for (const s of a) set.add(s);
-  return [...set].map(s => ({ ax: o.x + s[0] * ms, ay: o.y + s[1] * ms, bx: o.x + s[2] * ms, by: o.y + s[3] * ms, tun: !!s[4] }));
+  return [...set].map(s => ({ ax: o.x + s[0] * ms, ay: o.y + s[1] * ms, bx: o.x + s[2] * ms, by: o.y + s[3] * ms, tun: !!s[4], bru: !!s[5] }));
 }
 export function gleiseStarten() {
   const map = K.map; let t = 0; const neu = () => nachLaden(map, "gleise", aufbauen, 200, 1);

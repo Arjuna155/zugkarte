@@ -88,7 +88,7 @@ function bauen() {
   // Schienen (ab Zoom 15.5, Umkreis 1,3 km): je Gleis zwei Schienen in Normalspur, 25 cm über dem Gelände
   const S = [];
   if (map.getZoom() >= 15.5) for (const s of gleisStuecke()) {
-    if (s.tun) continue; const ax = (s.ax - o.x) / ms, ay = (s.ay - o.y) / ms, bx = (s.bx - o.x) / ms, by = (s.by - o.y) / ms;
+    if (s.tun || s.bru) continue; const ax = (s.ax - o.x) / ms, ay = (s.ay - o.y) / ms, bx = (s.bx - o.x) / ms, by = (s.by - o.y) / ms;
     if (Math.hypot(ax, ay) > 1300 && Math.hypot(bx, by) > 1300) continue;
     const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * .7175, ny = (bx - ax) / L * .7175, za = hoehe(ax, ay), zb = hoehe(bx, by); if (isNaN(za) || isNaN(zb)) continue;
     for (const e of [1, -1]) S.push(ax + nx * e, ay + ny * e, za + .25, bx + nx * e, by + ny * e, zb + .25);
