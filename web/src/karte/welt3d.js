@@ -195,7 +195,7 @@ function bauwerkeBauen(map, g) {
     // Widerlager an wirklichen Enden: Block unter dem Plattenende und zwei Flügelmauern schräg ins Land
     const lager = (i, j) => { const a = P[i], b = P[j], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / l, uy = (b[1] - a[1]) / l, nx = -uy, ny = ux, z = a[2];   // u zeigt zur Brückenmitte
       G.balken([a[0] - ux * 1.2, a[1] - uy * 1.2], [a[0] + ux * 1.3, a[1] + uy * 1.3], ws + .8, z - 7, z - 1.2, z - 7, z - 1.2, FARBE.pfeiler, FARBE.pfeiler);
-      for (const sg of [1, -1]) { const c = [a[0] + nx * sg * (ws / 2 + .15), a[1] + ny * sg * (ws / 2 + .15)], e = [c[0] - ux * 4.5 + nx * sg * 2.6, c[1] - uy * 4.5 + ny * sg * 2.6]; G.balken(c, e, .5, z - 7, z + .14, z - 7, z - 2.2, FARBE.pfeiler, FARBE.pfeiler); } };
+      for (const sg of [1, -1]) { const c = [a[0] + nx * sg * (ws / 2 + .15), a[1] + ny * sg * (ws / 2 + .15)], e = [c[0] - ux * 3.2 + nx * sg * 1.3, c[1] - uy * 3.2 + ny * sg * 1.3]; G.balken(c, e, .45, z - 7, z + .14, z - 7, z - 1.6, FARBE.pfeiler, FARBE.pfeiler); } };
     if (e0) lager(1, 2); if (e1) lager(M - 2, M - 3);
     n++;
   }
