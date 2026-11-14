@@ -59,7 +59,10 @@ function Geo() { this.p = []; this.n = []; this.c = []; }
 // Viereck; «nach» = Richtung, in die die Fläche zeigen soll (Normale wird danach gedreht)
 Geo.prototype.quad = function (a, b, c, d, col, nach) {
   const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [d[0] - a[0], d[1] - a[1], d[2] - a[2]];
-  let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]; const l = Math.hypot(...n) || 1; n = n.map(x => x / l);
+  let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], l = Math.hypot(...n);
+  if (l < 1e-9) { const u2 = [c[0] - b[0], c[1] - b[1], c[2] - b[2]]; n = [u[1] * u2[2] - u[2] * u2[1], u[2] * u2[0] - u[0] * u2[2], u[0] * u2[1] - u[1] * u2[0]]; l = Math.hypot(...n); }   // Ecke a = d (auslaufende Brüstung): andere Ecke nehmen
+  if (l < 1e-9) { n = nach ? [...nach] : [0, 0, 1]; l = Math.hypot(...n) || 1; }
+  n = n.map(x => x / l);
   if (nach && n[0] * nach[0] + n[1] * nach[1] + n[2] * nach[2] < 0) n = n.map(x => -x);
   for (const q of [a, b, c, a, c, d]) { this.p.push(...q); this.n.push(...n); this.c.push(...col); }
 };
