@@ -25,6 +25,7 @@ import { folgeBild, folgenStarten, FOLGE } from "./karte/folgen.js";
 import { lichterStarten } from "./karte/lichter.js";
 import { seiteStarten, seiteTakt, uhr } from "./ui/seite.js";
 import { an } from "./util.js";
+import { feedbackStarten, ortAusAdresse } from "./ui/feedback.js";
 
 let takt = 0, sek = -1;
 function bild(now) {
@@ -39,7 +40,8 @@ function bild(now) {
 (async () => {
   await ladeBasis();
   fpBrauche(S.simMs);
-  seiteStarten(); karteStarten();
+  seiteStarten(); karteStarten(); feedbackStarten();
+  an("karte", () => ortAusAdresse(K.map));
   an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); verkehrStarten(); baustellenStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); folgenStarten(); if (!K.ersatzStil) lichterStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);

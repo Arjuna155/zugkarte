@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Feedback – ZugKarte</title>
+<style>
+:root{--bg:#f4f5f6;--panel:#fff;--ink:#14191e;--mut:#5b6670;--line:#d9dee2;--akz:#0b6bcb;--ok:#2b8a3e;--warn:#c2410c}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1418;--panel:#182026;--ink:#e8edf0;--mut:#9aa7b0;--line:#2a343c;--akz:#5aa9f0;--ok:#69c07a;--warn:#f08c4a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 60px}h1{font-size:22px;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 18px}
+.zeile{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 16px}
+input,button,select{font:inherit;color:inherit}input[type=password],input[type=text]{flex:1;min-width:200px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+button{padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer}button.haupt{background:var(--akz);border-color:var(--akz);color:#fff}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--akz);outline-offset:2px}
+.karte{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 12px}
+.karte.erl{opacity:.6}.kopf{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;color:var(--mut);font-size:13px;margin:0 0 6px}
+.art{font-weight:700;font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor}.art.fehler{color:var(--warn)}.art.idee{color:var(--akz)}.art.sonst{color:var(--mut)}
+.text{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 10px}.fuss{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px}
+a{color:var(--akz)}.leer,.fehler{color:var(--mut);padding:24px 0;text-align:center}.fehler{color:var(--warn)}
+</style></head><body><main>
+<h1>Feedback zur ZugKarte</h1>
+<p class="sub">Meldungen der Besucher. Zum Lesen braucht es den Lesecode aus der Datei <b>feedback-code.txt</b> im Datenordner auf dem NAS.</p>
+<form class="zeile" id="f"><input type="password" id="code" placeholder="Lesecode" autocomplete="off" aria-label="Lesecode"><button class="haupt">Anzeigen</button>
+<label><input type="checkbox" id="alle"> auch erledigte</label></form>
+<div id="aus" aria-live="polite"></div>
+</main><script>
+const $ = id => document.getElementById(id), ARTEN = { fehler: "Fehler", idee: "Idee", sonst: "Sonstiges" };
+let code = ""; try { code = localStorage.getItem("zk_feedback_code") || ""; } catch (e) { }
+$("code").value = code;
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };   // Text immer als Text, nie als HTML
+async function laden() {
+  const aus = $("aus"); aus.replaceChildren(el("p", "leer", "Lade …"));
+  let r, j; try { r = await fetch("/api/feedback/liste", { headers: { "X-Feedback-Code": code } }); j = await r.json(); } catch (e) { aus.replaceChildren(el("p", "fehler", "Server nicht erreichbar.")); return; }
+  if (!r.ok) { aus.replaceChildren(el("p", "fehler", j.fehler || "Fehler " + r.status)); return; }
+  try { localStorage.setItem("zk_feedback_code", code); } catch (e) { }
+  window.__feedback = j.liste;   // zum Auslesen (Claude)
+  const liste = j.liste.filter(e => $("alle").checked || !e.erledigt).reverse();
+  if (!liste.length) { aus.replaceChildren(el("p", "leer", j.liste.length ? "Keine offenen Meldungen." : "Noch keine Meldungen.")); return; }
+  aus.replaceChildren(el("p", "sub", j.offen + " offen, " + j.liste.length + " insgesamt"), ...liste.map(e => {
+    const k = el("article", "karte" + (e.erledigt ? " erl" : "")), kopf = el("div", "kopf");
+    kopf.append(el("span", "art " + e.art, ARTEN[e.art] || e.art), el("span", "", "Nr. " + e.id), el("span", "", new Date(e.zeit).toLocaleString("de-CH")), el("span", "", [e.geraet, e.browser, e.bild].filter(Boolean).join(" · ")));
+    const fuss = el("div", "fuss");
+    if (e.ort) { const a = el("a", "", "Stelle auf der Karte ansehen"); a.href = "/?ort=" + [e.ort.lng, e.ort.lat, e.ort.zoom, e.ort.pitch, e.ort.bearing].join(","); a.target = "_blank"; a.rel = "noopener"; fuss.append(a); }
+    if (e.auswahl) fuss.append(el("span", "", "Ausgewählt: " + e.auswahl));
+    if (e.notiz) fuss.append(el("span", "", "Notiz: " + e.notiz));
+    const b = el("button", "", e.erledigt ? "Wieder öffnen" : "Erledigt"); b.onclick = async () => { b.disabled = true; await fetch("/api/feedback/erledigt", { method: "POST", headers: { "X-Feedback-Code": code, "Content-Type": "application/json" }, body: JSON.stringify({ id: e.id, erledigt: !e.erledigt }) }); laden(); };
+    fuss.append(b); k.append(kopf, el("p", "text", e.text), fuss); return k;
+  }));
+}
+$("f").onsubmit = ev => { ev.preventDefault(); code = $("code").value.trim(); laden(); };
+$("alle").onchange = () => code && laden();
+if (code) laden();
+</script></body></html>

@@ -70,7 +70,12 @@ export function landschaftStil(stil) {
     const KL = ["minor", "service"], HS = ["primary", "secondary", "tertiary"], AB = ["motorway", "trunk"];
     tr("ls-pfad", ["path", "footway", "trail"], FARBE.pfad, 1.5, 15.5);
     tr("ls-feldweg", ["track"], FARBE.feldweg, 3, 14.5);
-    band("ls-bahn", ["rail", "transit"], STRASSENFARBE.schotter, STRASSENBREITE.rail, 13.5);
+    // Bahn auf Schotter; Tram (transit/tram) liegt meist in der Strasse → Band in Asphaltfarbe (Schienen zeichnet bahnhoefe3d.js)
+    const TRAM = ["==", ["get", "subclass"], "tram"];
+    for (const br of [false, true]) {
+      linie("ls-bahn" + (br ? "-bruecke" : ""), ["rail", "transit"], br, 13.5, { "line-color": STRASSENFARBE.schotter, "line-width": meter(STRASSENBREITE.rail), "line-opacity": ein(13.5) }, [["!", TRAM]]);
+      linie("ls-tram" + (br ? "-bruecke" : ""), ["transit"], br, 14, { "line-color": STRASSENFARBE.haupt, "line-width": meter(3.4), "line-opacity": ein(14) }, [TRAM]);
+    }
     // Rand (Randstein, Trottoir, Bankett): etwas breiteres helles Band unter dem Asphalt
     linie("ls-rand-klein", KL, false, 15, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.minor + 2.2), "line-opacity": ein(15, .9) });
     linie("ls-rand", HS, false, 14.5, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.primary + 2.6), "line-opacity": ein(14.5, .9) });

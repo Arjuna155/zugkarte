@@ -297,9 +297,18 @@ function fahrplanFenster(d, buf, f) {
   }
   return gz;
 }
+// Feedback der Besucher (Knopf auf der Karte), siehe feedback.js; Übersicht unter /feedback
+const FB = require("./feedback.js").start({ DATA_DIR, log, version: VERSION });
+let FB_SEITE = null; try { const raw = fs.readFileSync(path.join(__dirname, "public", "feedback.html")); FB_SEITE = { raw, gz: zlib.gzipSync(raw) }; } catch {}
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
+  if (url.pathname.startsWith("/api/feedback")) { try { if (await FB.behandle(req, res, url, json)) return; } catch (e) { log("Feedback:", e.message); if (!res.headersSent) return json(req, res, 500, { fehler: "Fehler" }); return; } }
   if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405, SEC); return res.end(); }
+  if (url.pathname === "/feedback" && FB_SEITE) {
+    const h = { ...SEC, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "X-Robots-Tag": "noindex", Vary: "Accept-Encoding" };
+    if (gzOk(req)) { res.writeHead(200, { ...h, "Content-Encoding": "gzip" }); return res.end(req.method === "HEAD" ? undefined : FB_SEITE.gz); }
+    res.writeHead(200, h); return res.end(req.method === "HEAD" ? undefined : FB_SEITE.raw);
+  }
   if ((url.pathname === "/" && !PAGE3D && !PAGEV2) || url.pathname === "/index.html" || url.pathname === "/2d") {   // 2D-Karte (Rückfall)
     if (req.headers["if-none-match"] === PAGE.etag) { res.writeHead(304, { ...SEC, ETag: PAGE.etag }); return res.end(); }
     const h = { ...SEC, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", ETag: PAGE.etag, Vary: "Accept-Encoding" };

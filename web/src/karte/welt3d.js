@@ -229,7 +229,7 @@ function bauwerkEbene() {
 // Strassen- und Gleisbänder auf Brücken (Ebenen «…-bruecke» aus landschaft.js) nur zeigen, solange es keine 3D-Brücken gibt
 function brueckenLinien(map) {
   const drei = W3.an && !!map.getTerrain();
-  for (const id of ["ls-bahn-bruecke", "ls-strasse-klein-bruecke", "ls-strasse-bruecke", "ls-autobahn-bruecke"]) { const l = map.getLayer(id); if (!l) continue;
+  for (const id of ["ls-bahn-bruecke", "ls-tram-bruecke", "ls-strasse-klein-bruecke", "ls-strasse-bruecke", "ls-autobahn-bruecke"]) { const l = map.getLayer(id); if (!l) continue;
     const max = drei ? ZOOM_BAUWERKE + .3 : 24; if (l.maxzoom !== max) map.setLayerZoomRange(id, l.minzoom, max); }
 }
 export function welt3dStarten() {
