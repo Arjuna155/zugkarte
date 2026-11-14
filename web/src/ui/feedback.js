@@ -29,5 +29,6 @@ export function feedbackStarten() {
 // Ausschnitt aus der Adresse (?ort=lng,lat,zoom,neigung,richtung) – Link aus der Feedback-Übersicht
 export function ortAusAdresse(map) {
   try { const o = (new URLSearchParams(location.search).get("ort") || "").split(",").map(Number); if (o.length < 3 || o.slice(0, 3).some(v => !isFinite(v))) return;
+    K.ortFest = true;   // die Startansicht «ganze Schweiz» (Handy) überschreibt den Ausschnitt sonst wieder
     map.jumpTo({ center: [o[0], o[1]], zoom: o[2], pitch: isFinite(o[3]) ? o[3] : 0, bearing: isFinite(o[4]) ? o[4] : 0 }); } catch (e) { }
 }

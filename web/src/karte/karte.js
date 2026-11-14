@@ -143,7 +143,7 @@ function karteBauen(stil) {
     map.on("movestart", hideTip);
     if (istHandy()) {
       const a = document.querySelector(".maplibregl-ctrl-attrib"); if (a) a.classList.remove("maplibregl-compact-show");
-      setTimeout(() => { map.resize(); map.fitBounds(CH_BOX, { padding: 20, duration: 0 }); }, 300);   // Seitenleiste ist inzwischen zugeklappt
+      setTimeout(() => { map.resize(); if (!K.ortFest) map.fitBounds(CH_BOX, { padding: 20, duration: 0 }); }, 300);   // Seitenleiste ist inzwischen zugeklappt
     }
     ebene({ id: "busse", name: "Busse (beim Hineinzoomen)", an: true, setze: an => { BUS.an = an; for (const l of ["bushalte", "bushalte-l"]) if (map.getLayer(l)) map.setLayoutProperty(l, "visibility", an ? "visible" : "none"); } });
     // Kartenlinien (Bahnnetz, Tram, Schiff, Bergbahn, Verkehrslage): standardmässig aus – die Grundkarte ist eine Landschaft
