@@ -25,23 +25,34 @@ function bauen(map, quelle) {
   const hoehe = q => { const e = map.queryTerrainElevation(new maplibregl.MercatorCoordinate(o.x + q[0] * ms, o.y + q[1] * ms).toLngLat()); return e == null ? null : e; };
   const ASPHALT = hex(STRASSENFARBE.haupt), KANTE = hex(STRASSENFARBE.rand), BANKETT = hex(STRASSENFARBE.bankett), WEISS = hex(STRASSENFARBE.linie);
   const F = quellMerkmale(map, quelle, "transportation"); let zmax = 0; for (const f of F) if (f.tile && f.tile.z > zmax) zmax = f.tile.z;
-  const G = new Geo(), gesehen = new Set(); let n = 0;
+  const G = new Geo(), gesehen = new Set(), stuecke = [], enden = new Map(); let n = 0;
+  const ek = q => Math.round(q[0]) + "," + Math.round(q[1]);
   for (const f of F) {
     const p = f.properties, art = p.class, w = BREIT[art] || strassenBreite(art, p.oneway === 1, p.ramp === 1); if (!w || p.brunnel === "tunnel" || p.brunnel === "bridge") continue;
     if (f.tile && f.tile.z !== zmax) continue;   // gröbere Kacheln (weiter weg geladen) haben dieselben Strassen nochmals, vereinfacht
     const g = f.geometry, linien = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
     for (const ll of linien) {
-      if (ll.length < 2) continue; const roh = ll.map(lokal);
-      if (!roh.some(q => Math.hypot(q[0], q[1]) < R + 60)) continue;
-      const key = art + "|" + Math.round(roh[0][0]) + "," + Math.round(roh[0][1]) + "|" + Math.round(roh[roh.length - 1][0]) + "," + Math.round(roh[roh.length - 1][1]) + "|" + roh.length; if (gesehen.has(key)) continue; gesehen.add(key);
-      // verdichten und in Stücke innerhalb des Umkreises teilen
-      const pts = [roh[0]]; for (let i = 1; i < roh.length; i++) { const a = roh[i - 1], b = roh[i], k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / SCHRITT)); for (let j = 1; j <= k; j++) pts.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); }
-      let lauf = []; const fertig = () => { if (lauf.length > 1) { band(lauf, w, art, p.oneway === 1, p.ramp === 1); n++; } lauf = []; };
-      for (const q of pts) { if (Math.hypot(q[0], q[1]) > R) { fertig(); continue; } const zc = hoehe(q); if (zc == null) { fertig(); continue; } lauf.push([q[0], q[1], zc]); }
-      fertig();
+      if (ll.length < 2) continue; const roh0 = ll.map(lokal), roh = [roh0[0]];
+      // fast gleiche Punkte weg (sonst kippt die Querrichtung am Ende → Striche quer über die Strasse)
+      for (let i = 1; i < roh0.length; i++) { const a = roh[roh.length - 1], b = roh0[i]; if (Math.hypot(b[0] - a[0], b[1] - a[1]) >= .8) roh.push(b); else if (i === roh0.length - 1 && roh.length > 1) roh[roh.length - 1] = b; }
+      if (roh.length < 2 || !roh.some(q => Math.hypot(q[0], q[1]) < R + 60)) continue;
+      const key = art + "|" + ek(roh[0]) + "|" + ek(roh[roh.length - 1]) + "|" + roh.length; if (gesehen.has(key)) continue; gesehen.add(key);
+      stuecke.push({ roh, art, w, einweg: p.oneway === 1, rampe: p.ramp === 1 });
+      for (const q of [roh[0], roh[roh.length - 1]]) { const k = ek(q); enden.set(k, (enden.get(k) || 0) + 1); }
     }
   }
-  function band(P, w, art, einweg, rampe) {
+  // Randlinien enden vor Verzweigungen, Einmündungen und offenen Enden (dort kreuzen sich sonst die Linien der Fahrbahnen);
+  // nur wo genau zwei Stücke zusammenstossen (Kachelrand, gewöhnlicher Knick), laufen sie durch
+  const KUERZ = 14;
+  for (const s of stuecke) {
+    const { roh, art, w } = s;
+    const pts = [roh[0]], D = [0]; for (let i = 1; i < roh.length; i++) { const a = roh[i - 1], b = roh[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(l / SCHRITT)); for (let j = 1; j <= k; j++) { pts.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); D.push(D[D.length - 1] + l / k); } }
+    const L = D[D.length - 1], t0 = enden.get(ek(roh[0])) === 2 ? 0 : KUERZ, t1 = enden.get(ek(roh[roh.length - 1])) === 2 ? L : L - KUERZ;
+    let lauf = [], ls = []; const fertig = () => { if (lauf.length > 1) { band(lauf, ls, t0, t1, w, art, s.einweg, s.rampe); n++; } lauf = []; ls = []; };
+    for (let i = 0; i < pts.length; i++) { const q = pts[i]; if (Math.hypot(q[0], q[1]) > R) { fertig(); continue; } const zc = hoehe(q); if (zc == null) { fertig(); continue; } lauf.push([q[0], q[1], zc]); ls.push(D[i]); }
+    fertig();
+  }
+  function band(P, S, t0, t1, w, art, einweg, rampe) {
     const M = P.length, N = [], D = [0], ZL = [], ZR = [], rb = RAND[art] || 0, auto = art === "motorway" || art === "trunk";
     for (let i = 0; i < M; i++) {
       const a = P[Math.max(0, i - 1)], b = P[i], c = P[Math.min(M - 1, i + 1)]; let u1 = [b[0] - a[0], b[1] - a[1]], u2 = [c[0] - b[0], c[1] - b[1]]; const l1 = Math.hypot(u1[0], u1[1]);
@@ -56,9 +67,12 @@ function bauen(map, quelle) {
     const Q = w / 2 + rb, zq = (q, plus) => i => (q >= 0 ? ZL[i] : ZR[i]) * Math.abs(q) / Q + plus;
     if (rb) for (const sg of [1, -1]) G.streifen(P, N, sg * Q, zq(sg * Q, .07), sg * w / 2, zq(sg * w / 2, .07), auto ? BANKETT : KANTE, "auf");
     G.streifen(P, N, -w / 2, zq(-w / 2, .1), 0, .1, ASPHALT, "auf"); G.streifen(P, N, 0, .1, w / 2, zq(w / 2, .1), ASPHALT, "auf");
-    if (auto) { const r = rampe ? MARKE.rampe : MARKE.rand; for (const sg of [1, -1]) G.streifen(P, N, sg * (r - .1), zq(sg * (r - .1), .15), sg * (r + .1), zq(sg * (r + .1), .15), WEISS, "auf"); }
-    const strich = (an, takt) => { for (let i = 1; i < M; i++) { const a = P[i - 1], b = P[i], l = D[i] - D[i - 1]; if (l < .01) continue; const nx = -(b[1] - a[1]) / l * .09, ny = (b[0] - a[0]) / l * .09;
-      for (let k = Math.floor(D[i - 1] / takt); k * takt < D[i]; k++) { const s0 = Math.max(D[i - 1], k * takt), s1 = Math.min(D[i], k * takt + an); if (s1 <= s0) continue;
+    // Markierungen nur im Bereich [t0, t1] des ganzen Stücks (mindestens 15 m lang)
+    let i0 = 0, i1 = M - 1; while (i0 < M - 1 && S[i0] < t0) i0++; while (i1 > 0 && S[i1] > t1) i1--;
+    const mark = t1 - t0 >= 15 && i1 > i0;
+    if (auto && mark) { const r = rampe ? MARKE.rampe : MARKE.rand; for (const sg of [1, -1]) G.streifen(P, N, sg * (r - .1), zq(sg * (r - .1), .15), sg * (r + .1), zq(sg * (r + .1), .15), WEISS, "auf", i0, i1); }
+    const strich = (an, takt) => { if (!mark) return; for (let i = i0 + 1; i <= i1; i++) { const a = P[i - 1], b = P[i], l = D[i] - D[i - 1]; if (l < .01) continue; const o = S[i - 1] - D[i - 1]; const nx = -(b[1] - a[1]) / l * .09, ny = (b[0] - a[0]) / l * .09;
+      for (let k = Math.floor((D[i - 1] + o) / takt); k * takt < D[i] + o; k++) { const s0 = Math.max(D[i - 1], k * takt - o), s1 = Math.min(D[i], k * takt + an - o); if (s1 <= s0) continue;
         const at = s => { const u = (s - D[i - 1]) / l; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u + .15]; }, A = at(s0), B = at(s1);
         G.quad([A[0] + nx, A[1] + ny, A[2]], [B[0] + nx, B[1] + ny, B[2]], [B[0] - nx, B[1] - ny, B[2]], [A[0] - nx, A[1] - ny, A[2]], WEISS, [0, 0, 1]); } } };
     if (auto && !rampe) strich(6, 18); else if (["primary", "secondary", "tertiary"].includes(art) && !einweg) strich(3, 9);
