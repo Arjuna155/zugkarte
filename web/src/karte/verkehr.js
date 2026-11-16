@@ -239,7 +239,7 @@ function ebene3d() {
         f.v = k.va[lo] / 3.6 * (f.faktor || 1);   // Tempo der Messstelle an dieser Stelle
         const u = (f.s - k.cum[lo]) / ((k.cum[hi] - k.cum[lo]) || 1), dx = (k.x[hi] - k.x[lo]) / ankerMs, dy = (k.y[hi] - k.y[lo]) / ankerMs, l = Math.hypot(dx, dy) || 1;
         const nx = -dy / l * f.r, ny = dx / l * f.r;   // rechts in Fahrtrichtung (y nach Süden: Normale so gedreht, dass Rechtsverkehr entsteht)
-        const spur = k.bz && VK.spurBei ? VK.spurBei(k, f.s, f.spur) : f.spur;   // vor Baustellen auf den offenen Streifen
+        const spur = k.rampe ? 0 : k.bz && VK.spurBei ? VK.spurBei(k, f.s, f.spur) : f.spur;   // Rampe: ein Fahrstreifen in der Mitte;   // vor Baustellen auf den offenen Streifen
         const px = (k.x[lo] + (k.x[hi] - k.x[lo]) * u - c.x) / ms + nx * spur, py = (k.y[lo] + (k.y[hi] - k.y[lo]) * u - c.y) / ms + ny * spur, pz = Tr ? k.z[lo] + (k.z[hi] - k.z[lo]) * u : 0;
         if (licht) {   // vorne zwei Scheinwerfer als ein Punkt, hinten Rücklicht
           const ex = dx / l * f.r, ey = dy / l * f.r, hl = (f.lkw ? 7 : 2.3), q = nlicht * 6, zz = pz + (nah ? .7 : 2.5), sz = nah ? 1 : 0;

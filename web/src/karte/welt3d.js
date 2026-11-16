@@ -3,7 +3,7 @@
 // three.js nach jedem Verschieben für den sichtbaren Ausschnitt neu (ab Zoom 14, nur mit Gelände).
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner, ohneUmkehr } from "./drei.js";
-import { STRASSENFARBE, STRASSENBREITE, MARKE } from "./landschaft.js";
+import { STRASSENFARBE, STRASSENBREITE, MARKE, strassenBreite } from "./landschaft.js";
 import { deckSetzen } from "./decks.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
@@ -126,7 +126,7 @@ function bauwerkeBauen(map, g) {
   const gesehen = new Set(); const G = new Geo(), GF = new Geo(); let n = 0; const decks = [];   // G beleuchtet (Beton), GF unbeleuchtet (Belag, Markierung, Schienen)
   for (const [si, s] of stuecke.entries()) {
     const key = s.typ + s.art + s.xy.map(q => Math.round(q[0]) + ":" + Math.round(q[1])).join("|"); if (gesehen.has(key)) continue; gesehen.add(key);
-    const w = BREITE[s.art];
+    const w = strassenBreite(s.art, s.einweg, s.rampe);
     if (s.typ === "tunnel") {   // Portal an echten Enden: Rahmen quer zur Fahrrichtung, dunkle Öffnung
       if (!HOEHE_PORTAL[s.art] && !["motorway", "trunk", "primary"].includes(s.art)) continue;
       const hP = HOEHE_PORTAL[s.art] || 7;
@@ -181,7 +181,7 @@ function bauwerkeBauen(map, g) {
       if (s.art === "rail") { const q = sg * .7175;                                       // Schienen auf dem Schotter
         GF.streifen(P, N, q - .04, .1, q - .04, .27, STAHL, -sg); GF.streifen(P, N, q - .04, .27, q + .04, .27, STAHL, "auf"); GF.streifen(P, N, q + .04, .27, q + .04, .1, STAHL, sg); }
       else if (bahn) GF.streifen(P, N, sg * .5 - .05, .07, sg * .5 + .05, .07, RILLE, "auf");   // Tram: Rillenschienen bündig im Belag (Meterspur)
-      else if ((s.art === "motorway" || s.art === "trunk") && !s.rampe) GF.streifen(P, N, sg * (MARKE.rand - .1), .06, sg * (MARKE.rand + .1), .06, WEISS, "auf");   // Randlinien
+      else if (s.art === "motorway" || s.art === "trunk") { const r = s.rampe ? MARKE.rampe : MARKE.rand; GF.streifen(P, N, sg * (r - .1), .06, sg * (r + .1), .06, WEISS, "auf"); }   // Randlinien
     }
     // gestrichelte Mittellinie (wie auf der Strasse)
     const strich = (an, takt) => { for (let i = 1; i < M; i++) { const a = P[i - 1], b = P[i], l = D[i] - D[i - 1]; if (l < .01) continue; const nx = -(b[1] - a[1]) / l * .09, ny = (b[0] - a[0]) / l * .09;

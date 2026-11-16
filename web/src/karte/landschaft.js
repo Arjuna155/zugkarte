@@ -10,7 +10,12 @@ const meter = m => ["interpolate", ["exponential", 2], ["zoom"], 10, m * 1024 / 
 // ein Asphaltton für alle Klassen: verschiedene Töne gaben an Einmündungen und Rastplätzen sichtbare Flicken
 export const STRASSENFARBE = { klein: "#85888b", haupt: "#85888b", autobahn: "#85888b", schotter: "#988f84", rand: "#b9b6ae", bankett: "#a9a79f", linie: "#edebe5" };
 export const STRASSENBREITE = { rail: 4.5, transit: 4.5, minor: 5.5, primary: 8, secondary: 8, tertiary: 8, motorway: 12, trunk: 12 };
-export const MARKE = { rand: 3.9 };   // Autobahn: Randlinien ± 3,9 m von der Mitte der Fahrbahn
+export const MARKE = { rand: 3.9, rampe: 2.5 };
+// Rampen (Ein-/Ausfahrten) haben einen Fahrstreifen, getrennte Richtungsfahrbahnen und Abbiegespuren von Hauptstrassen
+// ebenfalls: schmaler als die volle Strasse – sonst wird ein Anschluss zu einem Knäuel aus überbreiten Bändern
+export const RAMPE_BREITE = 6.5, EINBAHN_BREITE = 5;
+export const strassenBreite = (art, einweg, rampe) => (art === "motorway" || art === "trunk") ? (rampe ? RAMPE_BREITE : STRASSENBREITE[art]) : (["primary", "secondary", "tertiary"].includes(art) && einweg ? EINBAHN_BREITE : STRASSENBREITE[art]);
+const meterX = (ausdruck, plus = 0) => ["interpolate", ["exponential", 2], ["zoom"], 10, ["*", ["+", ausdruck, plus], 1024 / 106000], 22, ["*", ["+", ausdruck, plus], 4194304 / 106000]];   // Autobahn: Randlinien ± 3,9 m von der Mitte der Fahrbahn
 const FARBE = {
   wiese: "#a3bd7c", wald: "#5b7a43", waldLicht: "#6f8c52", gebuesch: "#83a05f", park: "#9ec47a", rebe: "#a8b36c",
   sumpf: "#8ea88a", fels: "#aba497", geroell: "#bdb6a9", eis: "#eef3f6", wasser: "#4f86a8", fluss: "#5a8fb0",
@@ -79,17 +84,21 @@ export function landschaftStil(stil) {
     }
     // Rand (Randstein, Trottoir, Bankett): etwas breiteres helles Band unter dem Asphalt
     linie("ls-rand-klein", ["minor"], false, 15, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.minor + 2.2), "line-opacity": ein(15, .9) });
-    linie("ls-rand", HS, false, 14.5, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.primary + 2.6), "line-opacity": ein(14.5, .9) });
-    linie("ls-rand-autobahn", AB, false, 14, { "line-color": STRASSENFARBE.bankett, "line-width": meter(STRASSENBREITE.motorway + 1.6), "line-opacity": ein(14, .9) });
+    const B_HS = ["case", ["==", ["get", "oneway"], 1], EINBAHN_BREITE, STRASSENBREITE.primary], B_AB = ["case", ["==", ["get", "ramp"], 1], RAMPE_BREITE, STRASSENBREITE.motorway];
+    linie("ls-rand", HS, false, 14.5, { "line-color": STRASSENFARBE.rand, "line-width": meterX(B_HS, 2.4), "line-opacity": ein(14.5, .9) });
+    linie("ls-rand-autobahn", AB, false, 14, { "line-color": STRASSENFARBE.bankett, "line-width": meterX(B_AB, 1.6), "line-opacity": ein(14, .9) });
     // Zufahrten, Parkplatzgassen (service): schmal und ohne Rand, sonst wird ein Rastplatz zu einem Fleck aus dicken Bändern
     for (const br of [false, true]) linie("ls-zufahrt" + (br ? "-b" : ""), ["service"], br, 14.5, { "line-color": STRASSENFARBE.klein, "line-width": meter(3.6), "line-opacity": ein(14.5) });   // Brücken hier nicht in 3D → Band bleibt
     band("ls-strasse-klein", ["minor"], STRASSENFARBE.klein, STRASSENBREITE.minor, 14);
-    band("ls-strasse", HS, STRASSENFARBE.haupt, STRASSENBREITE.primary, 13.5);
-    band("ls-autobahn", AB, STRASSENFARBE.autobahn, STRASSENBREITE.motorway, 12.5);
+    for (const br of [false, true]) {
+      linie("ls-strasse" + (br ? "-bruecke" : ""), HS, br, 13.5, { "line-color": STRASSENFARBE.haupt, "line-width": meterX(B_HS), "line-opacity": ein(13.5) });
+      linie("ls-autobahn" + (br ? "-bruecke" : ""), AB, br, 12.5, { "line-color": STRASSENFARBE.autobahn, "line-width": meterX(B_AB), "line-opacity": ein(12.5) });
+    }
     // Markierungen (nah): Mittellinie gestrichelt, Autobahn mit Randlinien und Leitlinie
     const stumpf = { "line-cap": "butt", "line-join": "round" }, weiss = STRASSENFARBE.linie;
     linie("ls-mitte", HS, false, 15.5, { "line-color": weiss, "line-width": meter(.18), "line-dasharray": [17, 33], "line-opacity": ein(15.5, .85) }, [["!=", ["get", "oneway"], 1]], stumpf);
     linie("ls-autobahn-rand", AB, false, 15, { "line-color": weiss, "line-width": meter(.2), "line-gap-width": meter(MARKE.rand * 2), "line-opacity": ein(15, .85) }, [["!=", ["get", "ramp"], 1]], stumpf);
+    linie("ls-rampe-rand", AB, false, 15.5, { "line-color": weiss, "line-width": meter(.18), "line-gap-width": meter(MARKE.rampe * 2), "line-opacity": ein(15.5, .8) }, [["==", ["get", "ramp"], 1]], stumpf);
     linie("ls-autobahn-mitte", AB, false, 15.5, { "line-color": weiss, "line-width": meter(.18), "line-dasharray": [33, 67], "line-opacity": ein(15.5, .85) }, [["!=", ["get", "ramp"], 1]], stumpf);
     // Dächer flach, bis die 3D-Gebäude übernehmen (die Gebäude-Ebene sucht diese Quelle im Stil)
     L.push({ id: "ls-dach", type: "fill", source: basis, "source-layer": "building", minzoom: 13, paint: { "fill-color": FARBE.dach, "fill-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 13.6, .9] } });
