@@ -7,6 +7,7 @@ import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { istHandy, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
+import { DECK, deckHoehe } from "./decks.js";
 
 export const ZB = 14;
 const RASTER = 7, N_MAX = istHandy() ? 12000 : 40000;
@@ -111,12 +112,14 @@ function schicht() {
       const map = K.map;
       if (!BA.an || !BA.liste || map.getZoom() < ZB - .3) return;
       const neu = hoehen();
-      if (neu || this.v !== version || this.f !== BA.fertig) {
-        this.v = version; this.f = BA.fertig; const n = [0, 0, 0, 0];
+      if (neu || this.v !== version || this.f !== BA.fertig || this.dv !== DECK.v) {
+        this.v = version; this.f = BA.fertig; this.dv = DECK.v; const n = [0, 0, 0, 0];
         for (let i = 0; i < BA.fertig; i++) {
           const b = BA.liste[i]; if (isNaN(b.z)) continue;
           const busch = b.typ === "busch", obst = b.typ === "obst";
           const H = busch ? 2.5 + 2.5 * b.r : obst ? 6 + 3 * b.r : b.nadel ? 18 + 14 * b.r : 14 + 10 * b.r, W = busch ? H * 1.3 : obst ? H * 1.1 : b.nadel ? H * .55 : H * .8;
+          // nicht durch eine Brücke wachsen: Baum weg, wenn die Krone in die Fahrbahn ragen würde (Bäume tief unter einem Viadukt bleiben)
+          if (DECK.n) { const d = deckHoehe(b.mx, b.my, null, .4 * W + .5); if (d != null && b.z + H > d - 1.5) continue; }
           const w = (b.nadel ? 0 : 1) + (b.d > NAH ? 2 : 0), ziel = this.alle[w], k = n[w]++;
           this.Q.setFromAxisAngle(this.Z, b.g * 6.283); this.V.set(b.x, b.y, b.z - .3); this.S.set(W, W, H); this.M.compose(this.V, this.Q, this.S); ziel.setMatrixAt(k, this.M);
           const t = .82 + .3 * ((b.r * 7.3) % 1); this.C.setRGB(t * (obst ? 1.05 : 1), t * (busch ? 1.05 : 1), t * .95); ziel.setColorAt(k, this.C);

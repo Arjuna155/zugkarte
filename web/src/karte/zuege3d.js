@@ -9,6 +9,7 @@ import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden, fahrzeugLichtMaterial } from "./lichter.js";
 import { einrasten, gleisFolgen } from "./gleise.js";
+import { DECK, deckHoehe } from "./decks.js";
 import { busAufBruecke } from "./strassen.js";
 import { ebene } from "../ui/ebenen.js";
 import { B, stOf } from "../kern/basis.js";
@@ -264,6 +265,9 @@ export function z3Zug(tr, o, p, isSel, rt) {
     if (gp && !schiff && (!bb || fun)) { const T = K.map.getTerrain();
       if (T) { const auf = (q, z) => { if (q.tun !== 0) return z; const e = K.map.queryTerrainElevation(new maplibregl.MercatorCoordinate(q.x, q.y).toLngLat()); return e === null || e === undefined ? z : Math.max(z, e); };
         zv = auf(mv, zv); zh_ = auf(mh, zh_); } }
+    // auf einer gebauten 3D-Brücke: Höhe der Fahrbahn (sonst fuhr der Zug auf seinem eigenen Profil unter der Brücke durch)
+    if (!schiff && (!bb || fun) && DECK.n) { const ri = [mv.x - mh.x, mv.y - mh.y], dv = mv.tun === 1 ? null : deckHoehe(mv.x, mv.y, !bus, 1.5, ri), dh = mh.tun === 1 ? null : deckHoehe(mh.x, mh.y, !bus, 1.5, ri), auf = bus || tram ? .05 : .27;
+      if (dv != null) zv = dv + auf; if (dh != null) zh_ = dh + auf; }
     const dx = (mv.x - mh.x) / ms, dy = (mv.y - mh.y) / ms, len = Math.hypot(dx, dy) || 1;
     aus.push({ g: ZM.schluessel(t.W), geo: ZM.bauWagen(t.W), x: (mm.x - os.x) / ms, y: (mm.y - os.y) / ms, z: schiff ? Math.min(zv, zh_) : (zv + zh_) / 2, dreh: Math.atan2(dy, dx), neig: schiff ? 0 : Math.atan2(zv - zh_, len), scher: bb, sel: isSel, ll: llm, tr, o });
   }

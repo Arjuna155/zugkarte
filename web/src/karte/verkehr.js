@@ -9,7 +9,8 @@ import { VOR_3D, TZ } from "./tageszeit.js";
 import { lichtAnmelden } from "./lichter.js";
 import { ebene } from "../ui/ebenen.js";
 import { S } from "../zustand.js";
-import { fc, istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe, melde } from "../util.js";
+import { fc, istHandy, bildIn, nachLaden, quellMerkmale, beiRuhe, melde, an } from "../util.js";
+import { deckHoehe } from "./decks.js";
 
 export const VK = { stellen: [], an: true, ketten: [], zeit: 0, fz: [], lage: f => lage(f) };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
@@ -86,7 +87,7 @@ function bauen() {
     for (let i = n - 2; i >= 0; i--) if (isNaN(z[i])) z[i] = z[i + 1];
     for (let i = 0; i < n;) { if (!pts[i][3]) { i++; continue; } let j = i; while (j + 1 < n && pts[j + 1][3]) j++; const a = z[Math.max(0, i - 1)], b = z[Math.min(n - 1, j + 1)];
       for (let q = i; q <= j; q++) z[q] = Math.max(z[q], a + (b - a) * (q - i + 1) / (j - i + 2)); i = j + 1; }
-    const k = { id: ++KID, pts, x, y, cum, z, tun, len: cum[n - 1], einweg: st.einweg, rampe: st.rampe, art: st.art, mitte: pts[n >> 1], erst: kette[0], letzt: kette[n - 1] };
+    const k = { id: ++KID, pts, x, y, cum, z, zOhne: Float32Array.from(z), tun, len: cum[n - 1], einweg: st.einweg, rampe: st.rampe, art: st.art, mitte: pts[n >> 1], erst: kette[0], letzt: kette[n - 1] };
     for (const o of kette) o.k = k;
     ketten.push(k);
   }
@@ -98,7 +99,13 @@ function bauen() {
     const dAx = (k.x[0] - k.x[1]), dAy = (k.y[0] - k.y[1]);
     const qr = !k.einweg ? ende(k.erst, dAx, dAy) : null; k.rueck = qr ? qr.k : null; k.rueckR = qr && qr === qr.k.letzt ? -1 : qr && qr === qr.k.erst ? 1 : 0; if (!k.rueckR) k.rueck = null;
   }
-  VK.ketten = ketten; for (const k of ketten) zuordnen(k); lageZeichnen(); fahrzeugeVerteilen(); melde("verkehrKetten");
+  VK.ketten = ketten; for (const k of ketten) zuordnen(k); deckHoehen(); lageZeichnen(); fahrzeugeVerteilen(); melde("verkehrKetten");
+}
+// Auf gebauten 3D-Brücken die Höhe der Fahrbahn übernehmen (vorher gerade von Ende zu Ende gerechnet → Autos fuhren neben
+// der Brückenhöhe). Läuft nach jedem Aufbau der Ketten und der Brücken (Ereignis «decks»).
+function deckHoehen() {
+  for (const k of VK.ketten || []) { const n = k.pts.length; for (let i = 0; i < n; i++) { if (!k.pts[i][3]) continue; const j = Math.min(n - 1, i + 1), h = Math.max(0, j - 1);
+    const d = deckHoehe(k.x[i], k.y[i], false, 2, [k.x[j] - k.x[h], k.y[j] - k.y[h]]); k.z[i] = d != null ? d + .05 : k.zOhne[i]; } }
 }
 // je Punkt der Kette die nächste Messstelle (bis 15 km; Verkehrslage nur bis 6 km) – hängt nur vom Ort ab, nicht davon,
 // wie die Kette gerade zusammengesetzt ist (sonst ändern sich Dichte und Tempo beim Verschieben)
@@ -263,6 +270,7 @@ function ebene3d() {
 }
 
 export function verkehrStarten() {
+  an("decks", () => { deckHoehen(); if (K.map) K.map.triggerRepaint(); });
   const map = K.map;
   map.addSource("verkehr-lage", { type: "geojson", data: fc([]) });
   const vor = map.getLayer("bahn-hl") ? "bahn-hl" : undefined;

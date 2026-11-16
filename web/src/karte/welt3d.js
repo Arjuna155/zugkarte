@@ -4,6 +4,7 @@
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner, ohneUmkehr } from "./drei.js";
 import { STRASSENFARBE, STRASSENBREITE, MARKE } from "./landschaft.js";
+import { deckSetzen } from "./decks.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
@@ -122,7 +123,7 @@ function bauwerkeBauen(map, g) {
   const gleichesStueck = (a, b) => a.xy.length === b.xy.length && Math.hypot(a.xy[0][0] - b.xy[0][0], a.xy[0][1] - b.xy[0][1]) < .5 && Math.hypot(a.xy[a.xy.length - 1][0] - b.xy[b.xy.length - 1][0], a.xy[a.xy.length - 1][1] - b.xy[b.xy.length - 1][1]) < .5;
   const fortsetzung = (q, art) => { for (let dx = -1; dx <= 1; dx++)for (let dy = -1; dy <= 1; dy++) { const a = raster.get((Math.floor(q[0] / R) + dx) + "," + (Math.floor(q[1] / R) + dy)); if (a && a.includes(art)) return true; } return false; };
   // doppelte Stücke (Überlappung an Kachelgrenzen) nur einmal
-  const gesehen = new Set(); const G = new Geo(), GF = new Geo(); let n = 0;   // G beleuchtet (Beton), GF unbeleuchtet (Belag, Markierung, Schienen)
+  const gesehen = new Set(); const G = new Geo(), GF = new Geo(); let n = 0; const decks = [];   // G beleuchtet (Beton), GF unbeleuchtet (Belag, Markierung, Schienen)
   for (const [si, s] of stuecke.entries()) {
     const key = s.typ + s.art + s.xy.map(q => Math.round(q[0]) + ":" + Math.round(q[1])).join("|"); if (gesehen.has(key)) continue; gesehen.add(key);
     const w = BREITE[s.art];
@@ -143,8 +144,13 @@ function bauwerkeBauen(map, g) {
       continue;
     }
     // Brücke: Gelände entlang des Stücks (± 150 m Verlängerung), Fahrbahn auf «Wasserstand» zwischen den Talseiten
-    const pts = s.xy, m = pts.length;
-    const ter = s.ll.map(hoehe); if (ter.some(z => z == null)) continue;
+    // Linie verdichten (Punkt alle ≤ 8 m): zwischen weit auseinanderliegenden Stützpunkten ragte sonst das Gelände durch die
+    // Fahrbahn. Höhe je Punkt = Gelände in der Mitte, an den Rändern der Platte höchstens 1,5 m mehr (Böschung quer).
+    const roh = s.xy, pts = [roh[0]]; for (let i = 1; i < roh.length; i++) { const a = roh[i - 1], b = roh[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 8)); for (let k = 1; k <= n; k++) pts.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); }
+    const m = pts.length; if (m < 2) continue; s.ll = pts.map(q => { const l = new maplibregl.MercatorCoordinate(o.x + q[0] * ms, o.y + q[1] * ms).toLngLat(); return [l.lng, l.lat]; });
+    const ter = pts.map((q, i) => { const z = hoeheXY(q); if (z == null) return null; const a = pts[Math.max(0, i - 1)], b = pts[Math.min(m - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / l * w / 2, ny = (b[0] - a[0]) / l * w / 2;
+      const zl = hoeheXY([q[0] + nx, q[1] + ny]), zr = hoeheXY([q[0] - nx, q[1] - ny]); return Math.max(z, Math.min(z + 1.5, Math.max(zl == null ? z : zl, zr == null ? z : zr))); });
+    if (ter.some(z => z == null)) continue;
     const ext = (i0, i1, dist) => { const a = s.ll[i0], b = s.ll[i1], z = []; for (let t = 25; t <= dist; t += 25) { const f = t / (Math.hypot(pts[i0][0] - pts[i1][0], pts[i0][1] - pts[i1][1]) || 1); const e = hoehe([a[0] + (a[0] - b[0]) * f, a[1] + (a[1] - b[1]) * f]); if (e != null) z.push(e); } return z; };
     const anfangEcht = fortsetzung(pts[0], s.art), endeEcht = fortsetzung(pts[m - 1], s.art);
     const links = anfangEcht ? ter[0] : Math.max(ter[0], ...ext(0, 1, 150)), rechts = endeEcht ? ter[m - 1] : Math.max(ter[m - 1], ...ext(m - 1, m - 2, 150));
@@ -197,8 +203,10 @@ function bauwerkeBauen(map, g) {
       G.balken([a[0] - ux * 1.2, a[1] - uy * 1.2], [a[0] + ux * 1.3, a[1] + uy * 1.3], ws + .8, z - 7, z - 1.2, z - 7, z - 1.2, FARBE.pfeiler, FARBE.pfeiler);
       for (const sg of [1, -1]) { const c = [a[0] + nx * sg * (ws / 2 + .15), a[1] + ny * sg * (ws / 2 + .15)], e = [c[0] - ux * 3.2 + nx * sg * 1.3, c[1] - uy * 3.2 + ny * sg * 1.3]; G.balken(c, e, .45, z - 7, z + .14, z - 7, z - 1.6, FARBE.pfeiler, FARBE.pfeiler); } };
     if (e0) lager(1, 2); if (e1) lager(M - 2, M - 3);
+    decks.push({ bahn, w: ws, P: P.slice(e0 ? 1 : 0, e1 ? M - 1 : M).map(q => [o.x + q[0] * ms, o.y + q[1] * ms, q[2]]) });   // ohne die Verlängerung ins Land
     n++;
   }
+  deckSetzen(decks, ms);
   return { G, GF, o, n };
 }
 
@@ -247,7 +255,7 @@ export function welt3dStarten() {
     }, 250, 6);
   };
   beiRuhe(map, neu); map.on("terrain", neu);
-  ebene({ id: "bauwerke", name: "Brücken & Tunnelportale", an: true, setze: an => { W3.an = an; brueckenLinien(map); if (schicht) { if (!an) schicht.setze({ p: [] }, null); else neu(); map.triggerRepaint(); } } });
+  ebene({ id: "bauwerke", name: "Brücken & Tunnelportale", an: true, setze: an => { W3.an = an; brueckenLinien(map); if (schicht) { if (!an) { schicht.setze({ p: [] }, null); deckSetzen([], 1); } else neu(); map.triggerRepaint(); } } });
   map.on("sourcedata", e => { if (e.sourceId === g.quelle && e.isSourceLoaded) neu(); });
   neu();
 }

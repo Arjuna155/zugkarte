@@ -7,7 +7,8 @@ export const DEM_URL = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp";
 // Breite in Metern → Pixel je Zoomstufe (Schweiz, ~47° N)
 const meter = m => ["interpolate", ["exponential", 2], ["zoom"], 10, m * 1024 / 106000, 22, m * 4194304 / 106000];
 // Strassen: Farben, Breiten (m) und Markierungen – auch für die Brücken in welt3d.js (gleicher Belag, gleiche Breite)
-export const STRASSENFARBE = { klein: "#8e9092", haupt: "#85888b", autobahn: "#7b7e82", schotter: "#988f84", rand: "#b9b6ae", bankett: "#a9a79f", linie: "#edebe5" };
+// ein Asphaltton für alle Klassen: verschiedene Töne gaben an Einmündungen und Rastplätzen sichtbare Flicken
+export const STRASSENFARBE = { klein: "#85888b", haupt: "#85888b", autobahn: "#85888b", schotter: "#988f84", rand: "#b9b6ae", bankett: "#a9a79f", linie: "#edebe5" };
 export const STRASSENBREITE = { rail: 4.5, transit: 4.5, minor: 5.5, primary: 8, secondary: 8, tertiary: 8, motorway: 12, trunk: 12 };
 export const MARKE = { rand: 3.9 };   // Autobahn: Randlinien ± 3,9 m von der Mitte der Fahrbahn
 const FARBE = {
@@ -77,10 +78,12 @@ export function landschaftStil(stil) {
       linie("ls-tram" + (br ? "-bruecke" : ""), ["transit"], br, 14, { "line-color": STRASSENFARBE.haupt, "line-width": meter(3.4), "line-opacity": ein(14) }, [TRAM]);
     }
     // Rand (Randstein, Trottoir, Bankett): etwas breiteres helles Band unter dem Asphalt
-    linie("ls-rand-klein", KL, false, 15, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.minor + 2.2), "line-opacity": ein(15, .9) });
+    linie("ls-rand-klein", ["minor"], false, 15, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.minor + 2.2), "line-opacity": ein(15, .9) });
     linie("ls-rand", HS, false, 14.5, { "line-color": STRASSENFARBE.rand, "line-width": meter(STRASSENBREITE.primary + 2.6), "line-opacity": ein(14.5, .9) });
     linie("ls-rand-autobahn", AB, false, 14, { "line-color": STRASSENFARBE.bankett, "line-width": meter(STRASSENBREITE.motorway + 1.6), "line-opacity": ein(14, .9) });
-    band("ls-strasse-klein", KL, STRASSENFARBE.klein, STRASSENBREITE.minor, 14);
+    // Zufahrten, Parkplatzgassen (service): schmal und ohne Rand, sonst wird ein Rastplatz zu einem Fleck aus dicken Bändern
+    for (const br of [false, true]) linie("ls-zufahrt" + (br ? "-b" : ""), ["service"], br, 14.5, { "line-color": STRASSENFARBE.klein, "line-width": meter(3.6), "line-opacity": ein(14.5) });   // Brücken hier nicht in 3D → Band bleibt
+    band("ls-strasse-klein", ["minor"], STRASSENFARBE.klein, STRASSENBREITE.minor, 14);
     band("ls-strasse", HS, STRASSENFARBE.haupt, STRASSENBREITE.primary, 13.5);
     band("ls-autobahn", AB, STRASSENFARBE.autobahn, STRASSENBREITE.motorway, 12.5);
     // Markierungen (nah): Mittellinie gestrichelt, Autobahn mit Randlinien und Leitlinie
