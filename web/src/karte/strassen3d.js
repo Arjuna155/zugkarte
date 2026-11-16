@@ -28,7 +28,8 @@ function bauen(map, quelle) {
   const G = new Geo(), gesehen = new Set(), stuecke = [], enden = new Map(); let n = 0;
   const ek = q => Math.round(q[0]) + "," + Math.round(q[1]);
   for (const f of F) {
-    const p = f.properties, art = p.class, w = BREIT[art] || strassenBreite(art, p.oneway === 1, p.ramp === 1); if (!w || p.brunnel === "tunnel" || p.brunnel === "bridge") continue;
+    const p = f.properties, art = p.class; if (art === "rail" || art === "transit") continue;   // Gleise nicht als Asphalt
+    const w = BREIT[art] || strassenBreite(art, p.oneway === 1, p.ramp === 1); if (!w || p.brunnel === "tunnel" || p.brunnel === "bridge") continue;
     if (f.tile && f.tile.z !== zmax) continue;   // gröbere Kacheln (weiter weg geladen) haben dieselben Strassen nochmals, vereinfacht
     const g = f.geometry, linien = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
     for (const ll of linien) {
@@ -81,10 +82,11 @@ function bauen(map, quelle) {
   return { G, o };
 }
 
+// polygonOffset: vor das Gelände gezogen – das gezeichnete Geländenetz ist gröber als queryTerrainElevation, sonst sägezahnartige Ränder
 function ebene3d() {
   return {
     id: "strassen3d", type: "custom", renderingMode: "3d",
-    onAdd(m, gl) { this.cam = new THREE.Camera(); this.szene = new THREE.Scene(); this.r = gemeinsamerZeichner(m, gl); this.mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }); this.netz = null; this.o = null; },
+    onAdd(m, gl) { this.cam = new THREE.Camera(); this.szene = new THREE.Scene(); this.r = gemeinsamerZeichner(m, gl); this.mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -40 }); this.netz = null; this.o = null; },
     setze(e) {
       if (this.netz) { this.szene.remove(this.netz); this.netz.geometry.dispose(); this.netz = null; }
       if (!e || !e.G.p.length) { this.o = null; return; } this.o = e.o;

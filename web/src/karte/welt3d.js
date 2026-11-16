@@ -82,7 +82,7 @@ Geo.prototype.balken = function (a, b, w, za0, za1, zb0, zb1, colOben, colSeite)
 // Band entlang einer Linie: P = [[x, y, z], …], N = Normale je Punkt (auf Gehrung, damit Knicke geschlossen sind).
 // Von (qa quer, za über der Fahrbahn) nach (qb, zb); za/zb als Zahl oder Funktion des Punktes. nach: "auf", "ab", +1/−1 (quer)
 Geo.prototype.streifen = function (P, N, qa, za, qb, zb, col, nach, von = 0, bis = P.length - 1) {
-  const h = (z, i) => typeof z === "function" ? z(i) : z, pt = (i, q, z) => [P[i][0] + N[i][0] * q, P[i][1] + N[i][1] * q, P[i][2] + h(z, i)];
+  const h = (z, i) => typeof z === "function" ? z(i) : z, pt = (i, q, z) => { const v = h(q, i); return [P[i][0] + N[i][0] * v, P[i][1] + N[i][1] * v, P[i][2] + h(z, i)]; };
   for (let i = von + 1; i <= bis; i++) this.quad(pt(i - 1, qa, za), pt(i, qa, za), pt(i, qb, zb), pt(i - 1, qb, zb), col,
     nach === "auf" ? [0, 0, 1] : nach === "ab" ? [0, 0, -1] : [N[i][0] * nach, N[i][1] * nach, 0]);
 };
@@ -123,7 +123,7 @@ function bauwerkeBauen(map, g) {
   const gleichesStueck = (a, b) => a.xy.length === b.xy.length && Math.hypot(a.xy[0][0] - b.xy[0][0], a.xy[0][1] - b.xy[0][1]) < .5 && Math.hypot(a.xy[a.xy.length - 1][0] - b.xy[b.xy.length - 1][0], a.xy[a.xy.length - 1][1] - b.xy[b.xy.length - 1][1]) < .5;
   const fortsetzung = (q, art) => { for (let dx = -1; dx <= 1; dx++)for (let dy = -1; dy <= 1; dy++) { const a = raster.get((Math.floor(q[0] / R) + dx) + "," + (Math.floor(q[1] / R) + dy)); if (a && a.includes(art)) return true; } return false; };
   // doppelte Stücke (Überlappung an Kachelgrenzen) nur einmal
-  const gesehen = new Set(); const G = new Geo(), GF = new Geo(); let n = 0; const decks = [];   // G beleuchtet (Beton), GF unbeleuchtet (Belag, Markierung, Schienen)
+  const gesehen = new Set(); const G = new Geo(), GF = new Geo(); let n = 0; const decks = [], brl = [];   // G beleuchtet (Beton), GF unbeleuchtet (Belag, Markierung, Schienen)
   for (const [si, s] of stuecke.entries()) {
     const key = s.typ + s.art + s.xy.map(q => Math.round(q[0]) + ":" + Math.round(q[1])).join("|"); if (gesehen.has(key)) continue; gesehen.add(key);
     const w = strassenBreite(s.art, s.einweg, s.rampe);
@@ -162,6 +162,24 @@ function bauwerkeBauen(map, g) {
     const e0 = bruEcht(pts[0], s.art, si), e1 = bruEcht(pts[m - 1], s.art, si);
     const verl = (i, j) => { const a = pts[i], b = pts[j], l = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, q = [a[0] + (a[0] - b[0]) / l * 6, a[1] + (a[1] - b[1]) / l * 6], z = hoeheXY(q); return [q[0], q[1], (z == null ? zf[i] : Math.min(z, zf[i] + 1)) - .35]; };
     if (e0) { P.unshift(verl(0, 1)); HB.unshift(0); } if (e1) { P.push(verl(m - 1, m - 2)); HB.push(0); }
+    brl.push({ s, si, P, HB, e0, e1, wa, ws });
+  }
+  // Parallele Bahnbrücken (mehrspurige Strecke, jedes Gleis ein eigenes Stück) als EINE Brücke: gleiche Höhe, keine
+  // Brüstungen/Stirnflächen dazwischen, der Spalt mit Schotter gefüllt – sonst sah es aus wie ein Stapel einzelner Platten.
+  const nbR = new Map(), NBZ = 15;
+  brl.forEach((b, k) => { b.nb = { 1: b.P.map(() => 0), "-1": b.P.map(() => 0) }; b.bahn = b.s.art === "rail" || b.s.art === "transit"; if (b.bahn) b.P.forEach((q, i) => { const key = Math.floor(q[0] / NBZ) + "," + Math.floor(q[1] / NBZ); if (!nbR.has(key)) nbR.set(key, []); nbR.get(key).push([k, i]); }); });
+  const richt = (P, i) => { const a = P[Math.max(0, i - 1)], c = P[Math.min(P.length - 1, i + 1)], l = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1; return [(c[0] - a[0]) / l, (c[1] - a[1]) / l]; };
+  for (let runde = 0; runde < 3; runde++) for (const [k, b] of brl.entries()) { if (!b.bahn) continue;
+    b.P.forEach((q, i) => { const u = richt(b.P, i), nx = -u[1], ny = u[0]; let bestL = 99, bestR = 99, zMax = q[2];
+      const gx = Math.floor(q[0] / NBZ), gy = Math.floor(q[1] / NBZ);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const [k2, i2] of nbR.get((gx + dx) + "," + (gy + dy)) || []) {
+        if (k2 === k) continue; const c = brl[k2], r = c.P[i2], ex = r[0] - q[0], ey = r[1] - q[1], laengs = ex * u[0] + ey * u[1]; if (Math.abs(laengs) > 6) continue;
+        const v = richt(c.P, i2); if (Math.abs(u[0] * v[0] + u[1] * v[1]) < .9) continue;
+        const quer = ex * nx + ey * ny, frei = Math.abs(quer) - (b.ws + c.ws) / 2; if (frei > 2.5 || Math.abs(quer) < 1) continue;
+        if (Math.abs(r[2] - q[2]) > 3) continue;   // andere Ebene (Brücke über Brücke)
+        if (quer > 0) bestL = Math.min(bestL, Math.abs(quer)); else bestR = Math.min(bestR, Math.abs(quer)); zMax = Math.max(zMax, r[2]); }
+      b.nb[1][i] = bestL < 99 ? Math.max(b.wa / 2, bestL / 2 + .05) : 0; b.nb[-1][i] = bestR < 99 ? Math.max(b.wa / 2, bestR / 2 + .05) : 0; if (runde < 2 && b.HB[i]) q[2] = zMax; }); }
+  for (const { s, P, HB, e0, e1, wa, ws, nb } of brl) {
     const M = P.length, N = [], D = [0];
     for (let i = 0; i < M; i++) {   // Normale je Punkt auf Gehrung
       const a = P[Math.max(0, i - 1)], b = P[i], c = P[Math.min(M - 1, i + 1)]; let u1 = [b[0] - a[0], b[1] - a[1]], u2 = [c[0] - b[0], c[1] - b[1]]; const l1 = Math.hypot(u1[0], u1[1]);
@@ -170,14 +188,17 @@ function bauwerkeBauen(map, g) {
       let mx = n1[0] + n2[0], my = n1[1] + n2[1]; const l = Math.hypot(mx, my) || 1; mx /= l; my /= l; const k = 1 / Math.max(.5, mx * n1[0] + my * n1[1]); N.push([mx * k, my * k]);
     }
     const bahn = s.art === "rail" || s.art === "transit", hb = i => .14 + HB[i] * (bahn ? .9 : 1.05);
-    GF.streifen(P, N, -wa / 2, s.art === "transit" ? .03 : 0, wa / 2, s.art === "transit" ? .03 : 0, BELAG[s.art], "auf");                       // Belag wie die Strasse / Schotter
-    G.streifen(P, N, -ws / 2, -1.2, ws / 2, -1.2, FARBE.seite, "ab");                    // Unterseite
+    // nb[sg][i] > 0: auf dieser Seite schliesst eine parallele Bahnbrücke an (halber Abstand) → Schotter bis zur Mitte, ohne Rand
+    const X = sg => i => nb[sg][i] || ws / 2, frei = sg => i => !nb[sg][i];
+    GF.streifen(P, N, i => -(nb[-1][i] || wa / 2), s.art === "transit" ? .03 : 0, i => nb[1][i] || wa / 2, s.art === "transit" ? .03 : 0, BELAG[s.art], "auf");   // Belag wie die Strasse / Schotter
+    G.streifen(P, N, i => -X(-1)(i), -1.2, X(1), -1.2, FARBE.seite, "ab");                    // Unterseite
     for (const sg of [1, -1]) {
-      G.streifen(P, N, sg * wa / 2, 0, sg * wa / 2, .14, FARBE.rand, -sg);              // Randstein
-      G.streifen(P, N, sg * wa / 2, .14, sg * ws / 2, .14, FARBE.rand, "auf");
-      G.streifen(P, N, sg * ws / 2, .14, sg * ws / 2, -1.2, FARBE.seite, sg);           // Stirn der Platte
-      const q1 = sg * (ws / 2 - .3), q2 = sg * (ws / 2 - .04);                           // Brüstung
-      G.streifen(P, N, q1, .14, q1, hb, FARBE.bruestung, -sg); G.streifen(P, N, q1, hb, q2, hb, FARBE.bruestung, "auf"); G.streifen(P, N, q2, hb, q2, .14, FARBE.bruestung, sg);
+      const f = frei(sg), oben = i => f(i) ? .14 : 0;
+      G.streifen(P, N, sg * wa / 2, 0, sg * wa / 2, oben, FARBE.rand, -sg);              // Randstein
+      G.streifen(P, N, sg * wa / 2, oben, i => sg * (f(i) ? ws / 2 : wa / 2), oben, FARBE.rand, "auf");
+      G.streifen(P, N, i => sg * X(sg)(i), i => f(i) ? .14 : -1.2, i => sg * X(sg)(i), -1.2, FARBE.seite, sg);   // Stirn der Platte
+      const q1 = sg * (ws / 2 - .3), q2 = sg * (ws / 2 - .04), hbs = i => f(i) ? hb(i) : -1.3, fuss = i => f(i) ? .14 : -1.3;   // Brüstung
+      G.streifen(P, N, q1, fuss, q1, hbs, FARBE.bruestung, -sg); G.streifen(P, N, q1, hbs, q2, hbs, FARBE.bruestung, "auf"); G.streifen(P, N, q2, hbs, q2, fuss, FARBE.bruestung, sg);
       if (s.art === "rail") { const q = sg * .7175;                                       // Schienen auf dem Schotter
         GF.streifen(P, N, q - .04, .1, q - .04, .27, STAHL, -sg); GF.streifen(P, N, q - .04, .27, q + .04, .27, STAHL, "auf"); GF.streifen(P, N, q + .04, .27, q + .04, .1, STAHL, sg); }
       else if (bahn) GF.streifen(P, N, sg * .5 - .05, .07, sg * .5 + .05, .07, RILLE, "auf");   // Tram: Rillenschienen bündig im Belag (Meterspur)
@@ -201,7 +222,7 @@ function bauwerkeBauen(map, g) {
     // Widerlager an wirklichen Enden: Block unter dem Plattenende und zwei Flügelmauern schräg ins Land
     const lager = (i, j) => { const a = P[i], b = P[j], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / l, uy = (b[1] - a[1]) / l, nx = -uy, ny = ux, z = a[2];   // u zeigt zur Brückenmitte
       G.balken([a[0] - ux * 1.2, a[1] - uy * 1.2], [a[0] + ux * 1.3, a[1] + uy * 1.3], ws + .8, z - 7, z - 1.2, z - 7, z - 1.2, FARBE.pfeiler, FARBE.pfeiler);
-      for (const sg of [1, -1]) { const c = [a[0] + nx * sg * (ws / 2 + .15), a[1] + ny * sg * (ws / 2 + .15)], e = [c[0] - ux * 3.2 + nx * sg * 1.3, c[1] - uy * 3.2 + ny * sg * 1.3]; G.balken(c, e, .45, z - 7, z + .14, z - 7, z - 1.6, FARBE.pfeiler, FARBE.pfeiler); } };
+      for (const sg of [1, -1]) { if (nb[sg][i]) continue; const c = [a[0] + nx * sg * (ws / 2 + .15), a[1] + ny * sg * (ws / 2 + .15)], e = [c[0] - ux * 3.2 + nx * sg * 1.3, c[1] - uy * 3.2 + ny * sg * 1.3]; G.balken(c, e, .45, z - 7, z + .14, z - 7, z - 1.6, FARBE.pfeiler, FARBE.pfeiler); } };
     if (e0) lager(1, 2); if (e1) lager(M - 2, M - 3);
     decks.push({ bahn, w: ws, P: P.slice(e0 ? 1 : 0, e1 ? M - 1 : M).map(q => [o.x + q[0] * ms, o.y + q[1] * ms, q[2]]) });   // ohne die Verlängerung ins Land
     n++;
