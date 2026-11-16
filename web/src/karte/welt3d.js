@@ -56,7 +56,7 @@ for (const k in FARBE) FARBE[k] = lin(FARBE[k]);
 const BELAG = { rail: hex(STRASSENFARBE.schotter), transit: hex(STRASSENFARBE.haupt), minor: hex(STRASSENFARBE.klein), primary: hex(STRASSENFARBE.haupt), secondary: hex(STRASSENFARBE.haupt), tertiary: hex(STRASSENFARBE.haupt), motorway: hex(STRASSENFARBE.autobahn), trunk: hex(STRASSENFARBE.autobahn) };
 const WEISS = hex(STRASSENFARBE.linie), STAHL = lin([.36, .34, .33]), RILLE = lin([.45, .45, .46]);
 
-function Geo() { this.p = []; this.n = []; this.c = []; }
+export function Geo() { this.p = []; this.n = []; this.c = []; }
 // Viereck; «nach» = Richtung, in die die Fläche zeigen soll (Normale wird danach gedreht)
 Geo.prototype.quad = function (a, b, c, d, col, nach) {
   const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [d[0] - a[0], d[1] - a[1], d[2] - a[2]];
