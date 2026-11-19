@@ -6,6 +6,7 @@ import { BB } from "../kern/bergbahnen.js";
 import { BUS } from "../kern/busse.js";
 import { ebene } from "../ui/ebenen.js";
 import { landschaftStil, DEM_URL } from "./landschaft.js";
+import { bodenProtokoll } from "./boden.js";
 import { S } from "../zustand.js";
 import { $, X, Y, wgs, fc, dekodiere, glatt, melde, an, istHandy } from "../util.js";
 
@@ -35,6 +36,7 @@ export function hideTip() { $("tip").hidden = true; }
 export function karteStarten() {
   let alt = false; try { alt = new URLSearchParams(location.search).get("grundkarte") === "karte"; } catch (e) { }
   if (alt) return karteBauen(STIL_URL);
+  try { if (!/boden=aus/.test(location.search)) bodenProtokoll(); } catch (e) { console.error(e); }
   fetch(STIL_URL).then(r => r.ok ? r.json() : Promise.reject()).then(s => karteBauen(landschaftStil(s))).catch(() => karteBauen(STIL_URL));
 }
 function karteBauen(stil) {

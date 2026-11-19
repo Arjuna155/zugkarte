@@ -3,12 +3,13 @@
 // seines Grundrisses, Dach flach auf render_height) – das Dach sitzt genau darauf: über dem kleinsten umschliessenden
 // Rechteck des Grundrisses, mit Vorsprung. Nur kleine, kompakte Gebäude (Wohnhäuser); Hallen, Blöcke und Hochhäuser
 // behalten ihr Flachdach. Farbe nach festem Zufall je Gebäude, in den Bergen eher grau.
+import { schneeAnteil } from "./schnee.js";
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden, fensterAnteil } from "./lichter.js";
 import { W3 } from "./welt3d.js";
-import { istHandy, nachLaden, beiRuhe } from "../util.js";
+import { istHandy, nachLaden, beiRuhe, an } from "../util.js";
 
 export const ZD = 15;
 // Dachhöhe aus der Gesamthöhe (render_height = bis zum First): Mauern ab Zoom ZD nur bis zur Traufe (welt3d.js nutzt
@@ -91,7 +92,7 @@ function dach(b, pos, nor, col) {
   const cx = b.x + r.cx, cy = b.y + r.cy, [ux, uy] = r.ax, [vx, vy] = r.bx;
   const P = (s, t, z) => [cx + ux * s + vx * t, cy + uy * s + vy * t, z];
   const berg = b.meer > 1100, farbe = berg ? (b.h < .75 ? GRAU[Math.floor(b.h * 40) % GRAU.length] : ZIEGEL[Math.floor(b.h * 50) % ZIEGEL.length]) : (b.h < .18 ? GRAU[Math.floor(b.h * 40) % GRAU.length] : ZIEGEL[Math.floor(b.h * 50) % ZIEGEL.length]);
-  const C = new THREE.Color(farbe), CW = new THREE.Color(FASSADE[b.id % FASSADE.length]);
+  const C = verschneit(new THREE.Color(farbe), b), CW = new THREE.Color(FASSADE[b.id % FASSADE.length]);
   const tri = (A, B, Cc, c, aus) => { const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [Cc[0] - A[0], Cc[1] - A[1], Cc[2] - A[2]]; let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]; const l = Math.hypot(...n) || 1; n = n.map(q => q / l); if (aus ? n[0] * aus[0] + n[1] * aus[1] < 0 : n[2] < 0) n = n.map(q => -q);
     for (const q of [A, B, Cc]) { pos.push(q[0], q[1], q[2]); nor.push(n[0], n[1], n[2]); col.push(c.r, c.g, c.b); } };
   const quad = (A, B, Cc, D, c) => { tri(A, B, Cc, c); tri(A, Cc, D, c); };
@@ -125,7 +126,9 @@ function einrueckenOk(P, Q) {
 }
 const dreieck = (pos, nor, col, A, B, Cc, c, hoch = true) => { const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [Cc[0] - A[0], Cc[1] - A[1], Cc[2] - A[2]]; let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]; const l = Math.hypot(...n) || 1; n = n.map(q => q / l); if (hoch && n[2] < 0) n = n.map(q => -q);
   for (const q of [A, B, Cc]) { pos.push(q[0], q[1], q[2]); nor.push(n[0], n[1], n[2]); col.push(c.r, c.g, c.b); } };
-const dachFarbe = b => { const berg = b.meer > 1100, grau = berg ? b.h < .75 : b.h < .18; return new THREE.Color(grau ? GRAU[Math.floor(b.h * 40) % GRAU.length] : ZIEGEL[Math.floor(b.h * 50) % ZIEGEL.length]); };
+const dachFarbe = b => { const berg = b.meer > 1100, grau = berg ? b.h < .75 : b.h < .18; return verschneit(new THREE.Color(grau ? GRAU[Math.floor(b.h * 40) % GRAU.length] : ZIEGEL[Math.floor(b.h * 50) % ZIEGEL.length]), b); };
+// Schnee auf dem Dach über der Schneegrenze (schnee.js), fester Zufall je Haus für die Übergangszone
+let WEISS = null; const verschneit = (c, b) => { const a = schneeAnteil(b.meer, (b.h * 17.3) % 1); if (a) c.lerp(WEISS || (WEISS = new THREE.Color("#eef1f4")), a * .92); return c; };
 // Kasten (Kamin, Lüftung): Seiten und Deckel, Normalen nach aussen
 function kasten(pos, nor, col, cx, cy, ux, uy, la, lb, z0, z1, c, cd) {
   const vx = -uy, vy = ux, E = [[-la, -lb], [la, -lb], [la, lb], [-la, lb]].map(([s, t]) => [cx + ux * s + vx * t, cy + uy * s + vy * t]);
@@ -154,7 +157,7 @@ const KAMIN = { r: .55, g: .5, b: .47 }, KAMIN_D = { r: .2, g: .2, b: .21 };
 // Übrige Häuser (verwinkelt, gross): flaches Stück von der Traufe bis zur Gesamthöhe (die Mauern enden ab ZD an der Traufe)
 function aufstock(b, pos, nor, col) {
   if (b.walm && walmUmriss(b, pos, nor, col)) return;
-  const z0 = b.z + b.H - dachH(b.H) - .05, z1 = b.z + b.H, P = b.P, CW = new THREE.Color(FASSADE[b.id % FASSADE.length]), CT = new THREE.Color(KIES[Math.floor(b.h * 30) % KIES.length]);
+  const z0 = b.z + b.H - dachH(b.H) - .05, z1 = b.z + b.H, P = b.P, CW = new THREE.Color(FASSADE[b.id % FASSADE.length]), CT = verschneit(new THREE.Color(KIES[Math.floor(b.h * 30) % KIES.length]), b);
   mauer(b, pos, nor, col, z0, z1 + .45);   // Mauer mit Brüstung (Attika) 45 cm über dem Dach
   const m = [P.reduce((s, q) => s + q[0], 0) / P.length, P.reduce((s, q) => s + q[1], 0) / P.length];
   if (b.A > 60 && drin(m, P) && hash(b.fest + 21) < .6) kasten(pos, nor, col, b.x + m[0], b.y + m[1], b.r.ax[0], b.r.ax[1], Math.min(2.2, b.r.a * .25), Math.min(1.4, b.r.b * .3), z1, z1 + 1.2, LUEFT, LUEFT);
@@ -265,6 +268,7 @@ function schicht() {
 export function daecherStarten() {
   const map = K.map; let geladen = false, t = 0;
   const neu = () => nachLaden(map, "daecher", () => { bauen(); map.triggerRepaint(); }, 400, 5);
+  an("schnee", () => { version++; map.triggerRepaint(); });   // Dachfarben neu (Geometrie bleibt)
   const laden = () => { if (geladen || map.getZoom() < ZD - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
   beiRuhe(map, () => { laden(); neu(); });
   map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZD) neu(); });

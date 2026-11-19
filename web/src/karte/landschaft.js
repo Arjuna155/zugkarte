@@ -2,6 +2,7 @@
 // Fels → Schnee), Wald, Gebüsch, Fels, Geröll, Gletscher und Seen in Naturfarben, Schattierung mit Licht von
 // Nordwesten. Keine Namen, Grenzen, Höhenlinien oder Kartenzeichen. Strassen und Bahntrassen erst nah (ab Zoom 14) als
 // Asphalt- bzw. Schotterband in echter Breite. Die Quellen kommen aus dem swisstopo-Stil (ändern mit dessen Version).
+import { BODEN, BODEN_QUELLE } from "./boden.js";
 export const DEM_URL = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp";
 
 // Breite in Metern → Pixel je Zoomstufe (Schweiz, ~47° N)
@@ -31,6 +32,8 @@ export function landschaftStil(stil) {
   // Höhenfarben (eigene DEM-Quelle; das Gelände für 3D nutzt «dem»)
   L.push({ id: "ls-hoehe", type: "color-relief", source: "dem-farbe", paint: { "color-relief-opacity": .9, "color-relief-color": ["interpolate", ["linear"], ["elevation"],
     0, "#7fa8c4", 150, "#9cbd78", 500, "#a3bd7c", 900, "#9fb877", 1400, "#98ae72", 1900, "#a2a978", 2300, "#aaa48d", 2700, "#aca69c", 3100, "#c6c7c8", 3500, "#e9eef2", 4500, "#f6f9fb"] } });
+  // lebendiger Boden: Parzellen und Flecken (boden.js), unter Wald, Siedlung und Wasser
+  if (BODEN.an) L.push({ id: "ls-boden", type: "raster", source: "boden", paint: { "raster-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12.5, 1], "raster-resampling": "linear", "raster-fade-duration": 0 } });
   if (basis) {
     const lc = (id, filt, farbe, o = {}) => L.push({ id, type: "fill", source: basis, "source-layer": "landcover", filter: filt, paint: { "fill-color": farbe, "fill-antialias": false, ...o } });
     lc("ls-park", ["match", ["get", "subclass"], ["park", "recreation_ground", "golf_course", "allotments", "plant_nursery"], true, false], FARBE.park, { "fill-opacity": .7 });
@@ -53,6 +56,12 @@ export function landschaftStil(stil) {
     L.push({ id: "ls-siedlung", type: "fill", source: basis, "source-layer": "landuse", filter: ["match", ["get", "class"], ["residential", "suburb", "neighbourhood", "village", "town", "city"], true, false], paint: { "fill-color": FARBE.siedlung, "fill-opacity": ["interpolate", ["linear"], ["zoom"], 9, .35, 14, .55], "fill-antialias": false } });
     L.push({ id: "ls-gewerbe", type: "fill", source: basis, "source-layer": "landuse", filter: ["match", ["get", "class"], ["industrial", "commercial", "retail", "railway", "parking", "quarry", "landfill"], true, false], paint: { "fill-color": FARBE.gewerbe, "fill-opacity": .6, "fill-antialias": false } });
   }
+  // weicher Schatten am Fuss der Häuser (Umriss weich, die innere Hälfte liegt unter dem Haus)
+  if (basis) L.push({ id: "ls-hausschatten", type: "line", source: basis, "source-layer": "building", minzoom: 14.5, layout: { "line-join": "round" }, paint: { "line-color": "#2b3526", "line-width": meter(5), "line-blur": meter(4), "line-opacity": ["interpolate", ["linear"], ["zoom"], 14.5, 0, 15.5, .32] } });
+  // Schneedecke (schnee.js setzt Grenze und Sichtbarkeit nach den Messstationen); Wald und Felswände schimmern durch
+  L.push({ id: "ls-schnee", type: "color-relief", source: "dem-farbe", layout: { visibility: "none" }, paint: { "color-relief-opacity": 1, "color-relief-color": ["interpolate", ["linear"], ["elevation"], 0, "rgba(248,250,253,0)", 9000, "rgba(248,250,253,0)"] } });
+  if (basis) L.push({ id: "ls-schnee-wald", type: "fill", source: basis, "source-layer": "landcover", layout: { visibility: "none" }, filter: ["any", ["match", ["get", "subclass"], ["forest", "wood", "loose_forest"], true, false], ["==", ["get", "class"], "wood"]], paint: { "fill-color": FARBE.wald, "fill-opacity": .5, "fill-antialias": false } });
+  if (relief) L.push({ id: "ls-schnee-fels", type: "fill", source: relief, "source-layer": "hillshade", layout: { visibility: "none" }, filter: ["==", ["get", "mask"], "rock"], paint: { "fill-color": FARBE.fels, "fill-opacity": .5, "fill-antialias": false } });
   // Schattierung (Licht von Nordwesten, weich von mehreren Seiten)
   L.push({ id: "ls-schatten", type: "hillshade", source: "dem-farbe", paint: { "hillshade-method": "multidirectional", "hillshade-exaggeration": .45, "hillshade-highlight-color": "rgba(255,250,230,0.5)", "hillshade-shadow-color": "rgba(45,58,80,0.42)", "hillshade-accent-color": "rgba(40,50,60,0.25)" } });
   if (basis) {
@@ -105,7 +114,7 @@ export function landschaftStil(stil) {
   }
   return {
     ...stil, layers: L, terrain: undefined,
-    sources: { ...quellen, "dem-farbe": { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 12, bounds: [2.5, 41.5, 14.5, 52.0] } },   // wie GEBIET in karte.js
+    sources: { ...quellen, ...(BODEN.an ? { boden: BODEN_QUELLE } : {}), "dem-farbe": { type: "raster-dem", tiles: [DEM_URL], encoding: "terrarium", tileSize: 512, maxzoom: 12, bounds: [2.5, 41.5, 14.5, 52.0] } },   // wie GEBIET in karte.js
     sky: { "sky-color": "#9cc3e2", "horizon-color": "#e6eef3", "fog-color": "#e1e9ee", "sky-horizon-blend": 0.55, "horizon-fog-blend": 0.45, "fog-ground-blend": 0.55, "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 12, 0.6, 14, 0] },
     light: { anchor: "map", position: [1.4, 300, 40], color: "#fffaf0", intensity: 0.35 },
   };

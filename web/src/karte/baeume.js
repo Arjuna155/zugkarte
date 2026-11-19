@@ -2,6 +2,7 @@
 // Hineinzoomen (ab Zoom ZB) mit einzelnen Bäumen bepflanzt. Raster fest im Raum (7 m, je Zelle ein Baum an zufälliger,
 // aber fester Stelle) – weiter weg / weiter draussen eine feste Teilmenge davon, so springen beim Zoomen keine Bäume.
 // Nadel- oder Laubbaum nach Höhe über Meer. Gezeichnet mit two InstancedMesh (three.js), Höhen in Portionen pro Bild.
+import { SCHNEE, schneeAnteil } from "./schnee.js";
 import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
@@ -102,18 +103,30 @@ function schicht() {
       this.cam = new THREE.Camera(); this.szene = szeneMitLicht();
       this.r = gemeinsamerZeichner(m, gl);
       const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+      // Schnee auf den Ästen: je Baum ein Anteil (Attribut «schnee»), weiss nur auf nach oben gerichteten Flächen
+      mat.onBeforeCompile = sh => {
+        sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute float schnee; varying float vSchnee; varying float vOben;")
+          .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\nvSchnee = schnee; vOben = objectNormal.z;");
+        sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vSchnee; varying float vOben;")
+          .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(.92, .94, .97), vSchnee * smoothstep(-.25, .45, vOben));");
+      };
       this.nadel = new THREE.InstancedMesh(nadelGeo(), mat, N_MAX); this.laub = new THREE.InstancedMesh(laubGeo(), mat, N_MAX);
       this.nadelF = new THREE.InstancedMesh(nadelGeoF(), mat, N_MAX); this.laubF = new THREE.InstancedMesh(laubGeoF(), mat, N_MAX);
       this.alle = [this.nadel, this.laub, this.nadelF, this.laubF];
-      for (const x of this.alle) { x.frustumCulled = false; x.count = 0; x.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N_MAX * 3).fill(1), 3); this.szene.add(x); }
-      this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(); this.Z = new THREE.Vector3(0, 0, 1); this.C = new THREE.Color(); this.v = -1; this.f = -1;
+      // weicher Schatten unter jedem Baum (Scheibe mit Verlauf, etwas nach Nordosten – Sonne meist im Süden/Westen)
+      const cv = document.createElement("canvas"); cv.width = cv.height = 64; const g2 = cv.getContext("2d"), gr = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(.55, "rgba(0,0,0,.7)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g2.fillStyle = gr; g2.fillRect(0, 0, 64, 64);
+      const smat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), color: 0x1d2a16, transparent: true, opacity: .42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -20 });
+      this.schatten = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), smat, N_MAX); this.schatten.frustumCulled = false; this.schatten.count = 0; this.schatten.renderOrder = -1; this.szene.add(this.schatten);
+      for (const x of this.alle) { x.frustumCulled = false; x.count = 0; x.geometry.setAttribute("schnee", new THREE.InstancedBufferAttribute(new Float32Array(N_MAX), 1)); x.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N_MAX * 3).fill(1), 3); this.szene.add(x); }
+      this.M = new THREE.Matrix4(); this.Q = new THREE.Quaternion(); this.V = new THREE.Vector3(); this.S = new THREE.Vector3(); this.Z = new THREE.Vector3(0, 0, 1); this.C = new THREE.Color(); this.Q0 = new THREE.Quaternion(); this.v = -1; this.f = -1;
     },
     render(gl, args) {
       const map = K.map;
       if (!BA.an || !BA.liste || map.getZoom() < ZB - .3) return;
       const neu = hoehen();
-      if (neu || this.v !== version || this.f !== BA.fertig || this.dv !== DECK.v) {
-        this.v = version; this.f = BA.fertig; this.dv = DECK.v; const n = [0, 0, 0, 0];
+      if (neu || this.v !== version || this.f !== BA.fertig || this.dv !== DECK.v || this.sv !== SCHNEE.v) {
+        this.v = version; this.f = BA.fertig; this.dv = DECK.v; this.sv = SCHNEE.v; const exS = hEx || 1; const n = [0, 0, 0, 0]; let ns = 0;
         for (let i = 0; i < BA.fertig; i++) {
           const b = BA.liste[i]; if (isNaN(b.z)) continue;
           const busch = b.typ === "busch", obst = b.typ === "obst";
@@ -121,10 +134,12 @@ function schicht() {
           // nicht durch eine Brücke wachsen: Baum weg, wenn die Krone in die Fahrbahn ragen würde (Bäume tief unter einem Viadukt bleiben)
           if (DECK.n) { const d = deckHoehe(b.mx, b.my, null, .4 * W + .5); if (d != null && b.z + H > d - 1.5) continue; }
           const w = (b.nadel ? 0 : 1) + (b.d > NAH ? 2 : 0), ziel = this.alle[w], k = n[w]++;
+          if (ns < N_MAX) { const sw = W * 1.5; this.V.set(b.x + .18 * W, b.y - .18 * W, b.z + .25); this.S.set(sw, sw, 1); this.M.compose(this.V, this.Q0, this.S); this.schatten.setMatrixAt(ns++, this.M); }
           this.Q.setFromAxisAngle(this.Z, b.g * 6.283); this.V.set(b.x, b.y, b.z - .3); this.S.set(W, W, H); this.M.compose(this.V, this.Q, this.S); ziel.setMatrixAt(k, this.M);
-          const t = .82 + .3 * ((b.r * 7.3) % 1); this.C.setRGB(t * (obst ? 1.05 : 1), t * (busch ? 1.05 : 1), t * .95); ziel.setColorAt(k, this.C);
+          const t = .82 + .3 * ((b.r * 7.3) % 1); this.C.setRGB(t * (obst ? 1.05 : 1), t * (busch ? 1.05 : 1), t * .95);
+          ziel.setColorAt(k, this.C); ziel.geometry.attributes.schnee.array[k] = schneeAnteil(b.z / exS, (b.r * 13.7) % 1) * (b.nadel ? .8 : .9);   // verschneit (Nadelbäume bleiben dunkler)
         }
-        this.alle.forEach((x, i) => x.count = n[i]); for (const x of this.alle) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; }
+        this.alle.forEach((x, i) => x.count = n[i]); this.schatten.count = ns; this.schatten.instanceMatrix.needsUpdate = true; for (const x of this.alle) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; x.geometry.attributes.schnee.needsUpdate = true; }
       }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(anker.x, anker.y, 0).scale(new THREE.Vector3(ams, ams, ams));
       this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
