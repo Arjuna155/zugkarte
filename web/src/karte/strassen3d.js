@@ -99,11 +99,11 @@ function bauen(map, quelle) {
     const pts = [roh[0]], D = [0]; for (let i = 1; i < roh.length; i++) { const a = roh[i - 1], b = roh[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(l / SCHRITT)); for (let j = 1; j <= k; j++) { pts.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); D.push(D[D.length - 1] + l / k); } }
     for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < .1 || Math.hypot(a[0], a[1]) > R + 40) continue; const k = sk((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); if (!SP.has(k)) SP.set(k, []); SP.get(k).push({ a, l, ux: (b[0] - a[0]) / l, uy: (b[1] - a[1]) / l, w }); }
     const L = D[D.length - 1], t0 = enden.get(ek(roh[0])) === 2 ? 0 : KUERZ, t1 = enden.get(ek(roh[roh.length - 1])) === 2 ? L : L - KUERZ;
-    let lauf = [], ls = []; const fertig = () => { if (lauf.length > 1) { band(lauf, ls, t0, t1, w, art, s.einweg, s.rampe); n++; } lauf = []; ls = []; };
+    let lauf = [], ls = []; const fertig = () => { if (lauf.length > 1) { band(lauf, ls, t0, t1, w, art, s.einweg, s.rampe, L); n++; } lauf = []; ls = []; };
     for (let i = 0; i < pts.length; i++) { const q = pts[i]; if (Math.hypot(q[0], q[1]) > R) { fertig(); continue; } const zc = hoehe(q); if (zc == null) { fertig(); continue; } lauf.push([q[0], q[1], zc]); ls.push(D[i]); }
     fertig();
   }
-  function band(P, S, t0, t1, w, art, einweg, rampe) {
+  function band(P, S, t0, t1, w, art, einweg, rampe, lang) {
     const M = P.length, N = [], D = [0], ZL = [], ZR = [], rb = RAND[art] || 0, auto = art === "motorway" || art === "trunk";
     for (let i = 0; i < M; i++) {
       const a = P[Math.max(0, i - 1)], b = P[i], c = P[Math.min(M - 1, i + 1)]; let u1 = [b[0] - a[0], b[1] - a[1]], u2 = [c[0] - b[0], c[1] - b[1]]; const l1 = Math.hypot(u1[0], u1[1]);
@@ -122,7 +122,10 @@ function bauen(map, quelle) {
     G.streifen(P, N, -w / 2, zq(-w / 2, ZA), 0, ZA, ASPHALT, "auf"); G.streifen(P, N, 0, ZA, w / 2, zq(w / 2, ZA), ASPHALT, "auf");
     // runde Enden (wie line-cap round der gemalten Bänder): an Kreuzungen, Einmündungen und Kachelrändern stehen sonst
     // die gerade abgeschnittenen Enden als Ecken über bzw. es bleiben Kerben, wo zwei Stücke im Winkel zusammenstossen
-    for (const [i, j] of [[0, 1], [M - 1, M - 2]]) { if (j < 0 || j >= M) continue;
+    // nicht an durchgehenden Stössen (genau zwei Stücke, z. B. Kreisel aus mehreren Stücken): dort stünde der Halbkreis
+    // in Kurven nach innen über
+    const durch0 = t0 === 0 && S[0] === 0, durch1 = t1 === lang && S[M - 1] === lang;
+    for (const [i, j] of [[0, 1], [M - 1, M - 2]]) { if (j < 0 || j >= M || (i === 0 ? durch0 : durch1)) continue;
       const c = P[i], ux0 = c[0] - P[j][0], uy0 = c[1] - P[j][1], ul = Math.hypot(ux0, uy0); if (ul < .01) continue;
       const ux = ux0 / ul, uy = uy0 / ul, nx = -uy, ny = ux;
       const scheibe = (G, rad, dz, col) => { const K_ = 10; let a = null;
