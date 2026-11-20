@@ -5,8 +5,10 @@
 import { BODEN, BODEN_QUELLE } from "./boden.js";
 export const DEM_URL = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp";
 
-// Breite in Metern → Pixel je Zoomstufe (Schweiz, ~47° N)
-const meter = m => ["interpolate", ["exponential", 2], ["zoom"], 10, m * 1024 / 106000, 22, m * 4194304 / 106000];
+// Breite in Metern → Pixel je Zoomstufe (Schweiz, 46.8° N): Kacheln 512 px → bei Zoom 10 sind es 40 075 017 · cos 46.8° / 512 / 1024
+// = 52,3 m je Pixel, also 1 m = 1024 / M_PX Pixel. (Bis 20.11. stand hier 106 000 → alle Bänder waren nur halb so breit.)
+const M_PX = 53560;
+const meter = m => ["interpolate", ["exponential", 2], ["zoom"], 10, m * 1024 / M_PX, 22, m * 4194304 / M_PX];
 // Strassen: Farben, Breiten (m) und Markierungen – auch für die Brücken in welt3d.js (gleicher Belag, gleiche Breite)
 // ein Asphaltton für alle Klassen: verschiedene Töne gaben an Einmündungen und Rastplätzen sichtbare Flicken
 export const STRASSENFARBE = { klein: "#85888b", haupt: "#85888b", autobahn: "#85888b", schotter: "#988f84", rand: "#b9b6ae", bankett: "#a9a79f", linie: "#edebe5" };
@@ -16,7 +18,7 @@ export const MARKE = { rand: 3.9, rampe: 2.5 };
 // ebenfalls: schmaler als die volle Strasse – sonst wird ein Anschluss zu einem Knäuel aus überbreiten Bändern
 export const RAMPE_BREITE = 6.5, EINBAHN_BREITE = 5;
 export const strassenBreite = (art, einweg, rampe) => (art === "motorway" || art === "trunk") ? (rampe ? RAMPE_BREITE : STRASSENBREITE[art]) : (["primary", "secondary", "tertiary"].includes(art) && einweg ? EINBAHN_BREITE : STRASSENBREITE[art]);
-const meterX = (ausdruck, plus = 0) => ["interpolate", ["exponential", 2], ["zoom"], 10, ["*", ["+", ausdruck, plus], 1024 / 106000], 22, ["*", ["+", ausdruck, plus], 4194304 / 106000]];   // Autobahn: Randlinien ± 3,9 m von der Mitte der Fahrbahn
+const meterX = (ausdruck, plus = 0) => ["interpolate", ["exponential", 2], ["zoom"], 10, ["*", ["+", ausdruck, plus], 1024 / M_PX], 22, ["*", ["+", ausdruck, plus], 4194304 / M_PX]];   // Autobahn: Randlinien ± 3,9 m von der Mitte der Fahrbahn
 const FARBE = {
   wiese: "#a3bd7c", wald: "#5b7a43", waldLicht: "#6f8c52", gebuesch: "#83a05f", park: "#9ec47a", rebe: "#a8b36c",
   sumpf: "#8ea88a", fels: "#aba497", geroell: "#bdb6a9", eis: "#eef3f6", wasser: "#4f86a8", fluss: "#5a8fb0",
@@ -57,7 +59,7 @@ export function landschaftStil(stil) {
     L.push({ id: "ls-gewerbe", type: "fill", source: basis, "source-layer": "landuse", filter: ["match", ["get", "class"], ["industrial", "commercial", "retail", "railway", "parking", "quarry", "landfill"], true, false], paint: { "fill-color": FARBE.gewerbe, "fill-opacity": .6, "fill-antialias": false } });
   }
   // weicher Schatten am Fuss der Häuser (Umriss weich, die innere Hälfte liegt unter dem Haus)
-  if (basis) L.push({ id: "ls-hausschatten", type: "line", source: basis, "source-layer": "building", minzoom: 14.5, layout: { "line-join": "round" }, paint: { "line-color": "#2b3526", "line-width": meter(5), "line-blur": meter(4), "line-opacity": ["interpolate", ["linear"], ["zoom"], 14.5, 0, 15.5, .32] } });
+  if (basis) L.push({ id: "ls-hausschatten", type: "line", source: basis, "source-layer": "building", minzoom: 14.5, layout: { "line-join": "round" }, paint: { "line-color": "#2b3526", "line-width": meter(2.5), "line-blur": meter(2), "line-opacity": ["interpolate", ["linear"], ["zoom"], 14.5, 0, 15.5, .32] } });
   // Schneedecke (schnee.js setzt Grenze und Sichtbarkeit nach den Messstationen); Wald und Felswände schimmern durch
   L.push({ id: "ls-schnee", type: "color-relief", source: "dem-farbe", layout: { visibility: "none" }, paint: { "color-relief-opacity": 1, "color-relief-color": ["interpolate", ["linear"], ["elevation"], 0, "rgba(248,250,253,0)", 9000, "rgba(248,250,253,0)"] } });
   if (basis) L.push({ id: "ls-schnee-wald", type: "fill", source: basis, "source-layer": "landcover", layout: { visibility: "none" }, filter: ["any", ["match", ["get", "subclass"], ["forest", "wood", "loose_forest"], true, false], ["==", ["get", "class"], "wood"]], paint: { "fill-color": FARBE.wald, "fill-opacity": .5, "fill-antialias": false } });
@@ -67,9 +69,9 @@ export function landschaftStil(stil) {
   if (basis) {
     L.push({ id: "ls-wasser", type: "fill", source: basis, "source-layer": "water", paint: { "fill-color": FARBE.wasser, "fill-antialias": true } });
     // Ufersaum: heller, weich auslaufender Rand (flaches Wasser, Kies)
-    L.push({ id: "ls-ufer", type: "line", source: basis, "source-layer": "water", minzoom: 11.5, layout: { "line-join": "round" }, paint: { "line-color": "#9cc6cc", "line-width": meter(9), "line-blur": meter(6), "line-opacity": ["interpolate", ["linear"], ["zoom"], 11.5, 0, 13, .6] } });
+    L.push({ id: "ls-ufer", type: "line", source: basis, "source-layer": "water", minzoom: 11.5, layout: { "line-join": "round" }, paint: { "line-color": "#9cc6cc", "line-width": meter(4.5), "line-blur": meter(3), "line-opacity": ["interpolate", ["linear"], ["zoom"], 11.5, 0, 13, .6] } });
     L.push({ id: "ls-fluss", type: "line", source: basis, "source-layer": "waterway", filter: ["!=", ["get", "intermittent"], 1], layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": FARBE.fluss, "line-width": ["interpolate", ["exponential", 2], ["zoom"], 8, ["match", ["get", "class"], "river", .8, .2], 22, ["match", ["get", "class"], "river", 30 * 4194304 / 106000, 3 * 4194304 / 106000]], "line-opacity": ["interpolate", ["linear"], ["zoom"], 8, .6, 12, .9] } });
+      paint: { "line-color": FARBE.fluss, "line-width": ["interpolate", ["exponential", 2], ["zoom"], 8, ["match", ["get", "class"], "river", .8, .2], 22, ["match", ["get", "class"], "river", 15 * 4194304 / M_PX, 1.5 * 4194304 / M_PX]], "line-opacity": ["interpolate", ["linear"], ["zoom"], 8, .6, 12, .9] } });
     // Wege, Strassen und Bahntrassen nah als Oberfläche in echter Breite (keine Tunnel); bleibt auch für die Suche der
     // Strassen und Gleise durch andere Ebenen im Stil (source-layer transportation)
     const tr = (id, klassen, farbe, m, minzoom) => L.push({ id, type: "line", source: basis, "source-layer": "transportation", minzoom,

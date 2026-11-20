@@ -28,6 +28,7 @@ export function ausstattungLaden(ks) {
   }).catch(() => { for (const k of fehlt) AU.set(k, { fehler: true, t: Date.now() }); });
 }
 const Z_AB = 16.2, SCHRITT = 5;
+const ZR_ = .03, ZA = .12, ZM = .17;   // Höhe über dem Gelände: Rand, Asphalt, Markierung
 const lin = c => c.map(v => v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4)), hex = h => lin([1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255));
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 // Rand neben dem Asphalt (m) je Klasse; Zufahrten ohne
@@ -42,7 +43,7 @@ function bauen(map, quelle) {
   const hoehe = q => { const e = map.queryTerrainElevation(new maplibregl.MercatorCoordinate(o.x + q[0] * ms, o.y + q[1] * ms).toLngLat()); return e == null ? null : e; };
   const ASPHALT = hex(STRASSENFARBE.haupt), KANTE = hex(STRASSENFARBE.rand), BANKETT = hex(STRASSENFARBE.bankett), WEISS = hex(STRASSENFARBE.linie);
   const F = quellMerkmale(map, quelle, "transportation"); let zmax = 0; for (const f of F) if (f.tile && f.tile.z > zmax) zmax = f.tile.z;
-  const G = new Geo(), gesehen = new Set(), stuecke = [], enden = new Map(); let n = 0;
+  const G = new Geo(), GR = new Geo(), gesehen = new Set(), stuecke = [], enden = new Map(); let n = 0;
   const ek = q => Math.round(q[0]) + "," + Math.round(q[1]);
   for (const f of F) {
     const p = f.properties, art = p.class; if (art === "rail" || art === "transit") continue;   // Gleise nicht als Asphalt
@@ -115,15 +116,27 @@ function bauen(map, quelle) {
     }
     // Höhe über der Mitte an der Querlage q (linear zwischen Mitte und Rand), plus Abstand über dem Gelände
     const Q = w / 2 + rb, zq = (q, plus) => i => (q >= 0 ? ZL[i] : ZR[i]) * Math.abs(q) / Q + plus;
-    if (rb) for (const sg of [1, -1]) G.streifen(P, N, sg * Q, zq(sg * Q, .07), sg * w / 2, zq(sg * w / 2, .07), auto ? BANKETT : KANTE, "auf");
-    G.streifen(P, N, -w / 2, zq(-w / 2, .1), 0, .1, ASPHALT, "auf"); G.streifen(P, N, 0, .1, w / 2, zq(w / 2, .1), ASPHALT, "auf");
+    // Rand in eigenem Netz (GR), gezeichnet vor dem Asphalt und ohne Tiefe zu schreiben: so deckt der Asphalt jeder Strasse
+    // den Rand der anderen an Kreuzungen, auch wenn die beiden auf leicht verschiedener Geländehöhe liegen
+    if (rb) for (const sg of [1, -1]) GR.streifen(P, N, sg * Q, zq(sg * Q, ZR_), sg * w / 2, zq(sg * w / 2, ZR_), auto ? BANKETT : KANTE, "auf");
+    G.streifen(P, N, -w / 2, zq(-w / 2, ZA), 0, ZA, ASPHALT, "auf"); G.streifen(P, N, 0, ZA, w / 2, zq(w / 2, ZA), ASPHALT, "auf");
+    // runde Enden (wie line-cap round der gemalten Bänder): an Kreuzungen, Einmündungen und Kachelrändern stehen sonst
+    // die gerade abgeschnittenen Enden als Ecken über bzw. es bleiben Kerben, wo zwei Stücke im Winkel zusammenstossen
+    for (const [i, j] of [[0, 1], [M - 1, M - 2]]) { if (j < 0 || j >= M) continue;
+      const c = P[i], ux0 = c[0] - P[j][0], uy0 = c[1] - P[j][1], ul = Math.hypot(ux0, uy0); if (ul < .01) continue;
+      const ux = ux0 / ul, uy = uy0 / ul, nx = -uy, ny = ux;
+      const scheibe = (G, rad, dz, col) => { const K_ = 10; let a = null;
+        for (let k = 0; k <= K_; k++) { const t = Math.PI * k / K_, cx = Math.cos(t), sx = Math.sin(t), seit = (cx >= 0) === (i === M - 1) ? ZL[i] : ZR[i],
+            b = [c[0] + (nx * cx + ux * sx) * rad, c[1] + (ny * cx + uy * sx) * rad, c[2] + dz + seit * Math.abs(cx) * rad / Q];
+          if (a) G.quad([c[0], c[1], c[2] + dz], a, b, [c[0], c[1], c[2] + dz], col, [0, 0, 1]); a = b; } };
+      if (rb) scheibe(GR, Q, ZR_, auto ? BANKETT : KANTE); scheibe(G, w / 2, ZA, ASPHALT); }
     // Markierungen nur im Bereich [t0, t1] des ganzen Stücks (mindestens 15 m lang)
     let i0 = 0, i1 = M - 1; while (i0 < M - 1 && S[i0] < t0) i0++; while (i1 > 0 && S[i1] > t1) i1--;
     const mark = t1 - t0 >= 15 && i1 > i0;
-    if (auto && mark) { const r = rampe ? MARKE.rampe : MARKE.rand; for (const sg of [1, -1]) G.streifen(P, N, sg * (r - .1), zq(sg * (r - .1), .15), sg * (r + .1), zq(sg * (r + .1), .15), WEISS, "auf", i0, i1); }
+    if (auto && mark) { const r = rampe ? MARKE.rampe : MARKE.rand; for (const sg of [1, -1]) G.streifen(P, N, sg * (r - .1), zq(sg * (r - .1), ZM), sg * (r + .1), zq(sg * (r + .1), ZM), WEISS, "auf", i0, i1); }
     const strich = (an, takt) => { if (!mark) return; for (let i = i0 + 1; i <= i1; i++) { const a = P[i - 1], b = P[i], l = D[i] - D[i - 1]; if (l < .01) continue; const o = S[i - 1] - D[i - 1]; const nx = -(b[1] - a[1]) / l * .09, ny = (b[0] - a[0]) / l * .09;
       for (let k = Math.floor((D[i - 1] + o) / takt); k * takt < D[i] + o; k++) { const s0 = Math.max(D[i - 1], k * takt - o), s1 = Math.min(D[i], k * takt + an - o); if (s1 <= s0) continue;
-        const at = s => { const u = (s - D[i - 1]) / l; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u + .15]; }, A = at(s0), B = at(s1);
+        const at = s => { const u = (s - D[i - 1]) / l; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u + ZM]; }, A = at(s0), B = at(s1);
         G.quad([A[0] + nx, A[1] + ny, A[2]], [B[0] + nx, B[1] + ny, B[2]], [B[0] - nx, B[1] - ny, B[2]], [A[0] - nx, A[1] - ny, A[2]], WEISS, [0, 0, 1]); } } };
     if (auto && !rampe) strich(6, 18); else if (["primary", "secondary", "tertiary"].includes(art) && !einweg) strich(3, 9);
     // Trottoir mit Randstein (12 cm) nur auf den Seiten, die in OSM ein Trottoir haben (sidewalk=both|left|right)
@@ -132,7 +145,7 @@ function bauen(map, quelle) {
       const TB = art === "minor" ? 1.6 : 2;
       for (const [si, sg] of [[0, 1], [1, -1]]) for (let a = 0; a < M; a++) { if (!T[a][si]) continue; let b = a; while (b + 1 < M && T[b + 1][si]) b++;
         if (b > a) { trottoir++; const q0 = sg * w / 2, q1 = sg * (w / 2 + TB);
-          G.streifen(P, N, q0, zq(q0, .1), q0, zq(q0, .22), STEIN_SEITE, sg, a, b);                 // Randstein (zur Fahrbahn)
+          G.streifen(P, N, q0, zq(q0, ZA), q0, zq(q0, .22), STEIN_SEITE, sg, a, b);                 // Randstein (zur Fahrbahn)
           G.streifen(P, N, q0, zq(q0, .22), sg * (w / 2 + .15), zq(q0, .22), STEIN, "auf", a, b);   // Randstein oben
           G.streifen(P, N, sg * (w / 2 + .15), zq(q0, .22), q1, zq(q1, .22), TROTTOIR, "auf", a, b);
           G.streifen(P, N, q1, zq(q1, .22), q1, zq(q1, 0), STEIN_SEITE, sg, a, b); }
@@ -160,7 +173,7 @@ function bauen(map, quelle) {
     const r = strasseNah(q[0], q[1], 6); if (!r) continue; streifen++;
     const ux = r.ux, uy = r.uy, nx = -uy, ny = ux, n = Math.max(2, Math.floor((r.w - .6) / 1)), start = -(n - 1) / 2;
     for (let k = 0; k < n; k++) { const o = (start + k) * 1, cx = r.x + nx * o, cy = r.y + ny * o, z = hz([cx, cy]); if (z == null) continue;
-      const A = (lx, qx) => [cx + ux * lx + nx * qx, cy + uy * lx + ny * qx, z + .14];
+      const A = (lx, qx) => [cx + ux * lx + nx * qx, cy + uy * lx + ny * qx, z + ZM - .01];
       G.quad(A(-2, -.25), A(2, -.25), A(2, .25), A(-2, .25), GELB, [0, 0, 1]); }
   }
   // Strassenlampen an ihrer OSM-Lage: Ausleger zur nächsten Strasse (≤ 15 m), sonst Mastleuchte
@@ -177,7 +190,7 @@ function bauen(map, quelle) {
   }
   S3.n = n; S3.ms = Math.round(performance.now() - t0); S3.lampen = lampen.length / 4; S3.trottoir = trottoir; S3.streifen = streifen; S3.leitplanken = leitplanken; S3.gehwege = gehwege;
   if (lampen.length) S3.lampe = new maplibregl.MercatorCoordinate(o.x + lampen[0] * ms, o.y + lampen[1] * ms).toLngLat();   // zum Prüfen
-  return { G, o, lampen };
+  return { G, GR, o, lampen };
 }
 
 // polygonOffset: vor das Gelände gezogen – das gezeichnete Geländenetz ist gröber als queryTerrainElevation, sonst sägezahnartige Ränder
@@ -187,6 +200,7 @@ function ebene3d() {
     onAdd(m, gl) {
       this.cam = new THREE.Camera(); this.szene = new THREE.Scene(); this.r = gemeinsamerZeichner(m, gl); this.netz = null; this.o = null;
       this.mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -40 });
+      this.netzR = null;
       // feine Struktur im Belag (Körnung ~1 m, Flecken ~8 m, Fahrspuren etwas dunkler wäre zu viel) – fest am Ort: Lage modulo 1024 m
       this.uOff = { value: new THREE.Vector2() };
       this.mat.onBeforeCompile = sh => {
@@ -210,6 +224,7 @@ float zr(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     },
     setze(e) {
       if (this.netz) { this.szene.remove(this.netz); this.netz.geometry.dispose(); this.netz = null; }
+      if (this.netzR) { this.szene.remove(this.netzR); this.netzR.geometry.dispose(); this.netzR = null; }
       if (this.lpunkte) { this.lszene.remove(this.lpunkte); this.lpunkte.geometry.dispose(); this.lpunkte = null; }
       if (!e || !e.G.p.length) { this.o = null; return; } this.o = e.o;
       const s = e.o.meterInMercatorCoordinateUnits(); this.uOff.value.set((e.o.x / s) % 1024, (e.o.y / s) % 1024);
@@ -225,6 +240,11 @@ float zr(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       }
       const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(e.G.p, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(e.G.c, 3));
       this.netz = new THREE.Mesh(g, this.mat); this.netz.frustumCulled = false; this.szene.add(this.netz);
+      if (e.GR.p.length) {
+        if (!this.matR) { this.matR = this.mat.clone(); this.matR.depthWrite = false; this.matR.onBeforeCompile = this.mat.onBeforeCompile; }
+        const gr = new THREE.BufferGeometry(); gr.setAttribute("position", new THREE.Float32BufferAttribute(e.GR.p, 3)); gr.setAttribute("color", new THREE.Float32BufferAttribute(e.GR.c, 3));
+        this.netzR = new THREE.Mesh(gr, this.matR); this.netzR.frustumCulled = false; this.netzR.renderOrder = -1; this.szene.add(this.netzR);
+      }
     },
     render(gl, args) {
       const map = K.map; if (!this.netz || !this.o || map.getZoom() < Z_AB - .2 || !map.getTerrain()) return;
