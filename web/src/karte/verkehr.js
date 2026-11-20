@@ -4,7 +4,7 @@
 // laut Messung unterwegs sind (Fahrzeuge pro Stunde ÷ Geschwindigkeit = Fahrzeuge pro km), so schnell wie gemessen.
 // Herausgezoomt Punkte und farbige Verkehrslage (grün flüssig, orange zähflüssig, rot Stau), nah 3D-Fahrzeuge.
 import { K } from "./karte.js";
-import { ladeThree, gemeinsamerZeichner, sonnenLicht, himmelLicht } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner, sonnenLicht, himmelLicht, schattenWerfer } from "./drei.js";
 import { VOR_3D, TZ } from "./tageszeit.js";
 import { lichtAnmelden } from "./lichter.js";
 import { ebene } from "../ui/ebenen.js";
@@ -261,7 +261,7 @@ function ebene3d() {
       this.nl = nlicht; if (nlicht) { this.lg.setDrawRange(0, nlicht * 2); this.lg.attributes.position.needsUpdate = true; this.lg.attributes.color.needsUpdate = true;
         const lm_ = this.lichtPkt.material; lm_.size = nah ? 2.2 : 3; if (lm_.sizeAttenuation !== nah) { lm_.sizeAttenuation = nah; lm_.needsUpdate = true; } }
       this.lichtM.copy(lm);
-      this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
+      schattenWerfer(this.szene, lm); this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
       // nächstes Bild erst, wenn sich ein Fahrzeug um ~½ Bildpunkt bewegt haben kann (herausgezoomt selten, nah bis 30/s)
       if (dt || S.speed > 0) { const mpp = 78271.5 * Math.cos(map.getCenter().lat * Math.PI / 180) / 2 ** map.getZoom(), pxs = 36 / mpp * (1 + map.getPitch() / 30);
         bildIn(map, Math.max(istHandy() ? 50 : 33, Math.min(1000, 500 / pxs))); }

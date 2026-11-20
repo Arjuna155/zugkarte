@@ -2,7 +2,7 @@
 // Alles kommt aus den Kacheln, die die Grundkarte ohnehin lädt – keine zusätzlichen Daten. Brücken und Portale baut
 // three.js nach jedem Verschieben für den sichtbaren Ausschnitt neu (ab Zoom 14, nur mit Gelände).
 import { K } from "./karte.js";
-import { ladeThree, szeneMitLicht, gemeinsamerZeichner, ohneUmkehr } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner, ohneUmkehr, schattenWerfer } from "./drei.js";
 import { STRASSENFARBE, STRASSENBREITE, MARKE, strassenBreite } from "./landschaft.js";
 import { deckSetzen } from "./decks.js";
 import { VOR_3D } from "./tageszeit.js";
@@ -250,7 +250,7 @@ function bauwerkEbene() {
       const map = K.map; if (!W3.an || !this.mesh || !this.o || map.getZoom() < ZOOM_BAUWERKE || !map.getTerrain()) return;
       const s = this.o.meterInMercatorCoordinateUnits();
       const m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), l = new THREE.Matrix4().makeTranslation(this.o.x, this.o.y, this.o.z).scale(new THREE.Vector3(s, s, s));
-      this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
+      schattenWerfer(this.szene, l); this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
     }
   };
 }

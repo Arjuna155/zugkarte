@@ -5,7 +5,7 @@ import { wagenVon, wagenJetzt } from "../kern/formation.js";
 import { ZM } from "./modelle.js";
 import { K } from "./karte.js";
 import { wgs, X, Y } from "../util.js";
-import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner, schattenWerfer } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden, fahrzeugLichtMaterial } from "./lichter.js";
 import { einrasten, gleisFolgen } from "./gleise.js";
@@ -328,7 +328,7 @@ function z3Ebene() {
       for (const [g, n] of this.netze) if (zahl.has(g)) { n.count = zahl.get(g); n.instanceMatrix.needsUpdate = true; n.instanceColor.needsUpdate = true; }
       const s = o.meterInMercatorCoordinateUnits();
       const m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), l = new THREE.Matrix4().makeTranslation(o.x, o.y, o.z).scale(new THREE.Vector3(s, s, s));   // lokal: x Ost, y Süd, z hoch (Meter)
-      this.lichtM.copy(l); this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
+      this.lichtM.copy(l); schattenWerfer(this.szene, l); this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
     }
   };
 }

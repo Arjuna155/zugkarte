@@ -28,3 +28,7 @@ export function gemeinsamerZeichner(m, gl) {
   if (!zeichner || zeichner.getContext() !== gl) { zeichner = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true }); zeichner.autoClear = false; zeichner.outputColorSpace = THREE.SRGBColorSpace; }
   return zeichner;
 }
+// Schattenwerfer für schatten.js: jede 3D-Ebene meldet beim Zeichnen ihre Szene und die Matrix lokal → Mercator.
+// schatten.js zeichnet daraus die Schattenkarte (aus Sicht der Sonne); Einträge älter als 1 s gelten als verschwunden.
+export const SCHATTEN = { werfer: new Map(), an: false };
+export function schattenWerfer(szene, l) { if (!SCHATTEN.an) return; let e = SCHATTEN.werfer.get(szene); if (!e) SCHATTEN.werfer.set(szene, e = { l: new THREE.Matrix4(), t: 0 }); e.l.copy(l); e.t = performance.now(); }

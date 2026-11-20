@@ -7,7 +7,7 @@
 // Schiene mit Zickzack (±20 cm), Tragseil 6,8 m. Tram: Masten am Strassenrand alle ~35 m, Querdraht, Fahrdraht 5,8 m.
 // Ab Zoom 15, Umkreis 1,2 km (Computer 1,8 km). Ebene «fahrleitung».
 import { K } from "./karte.js";
-import { ladeThree, gemeinsamerZeichner, szeneMitLicht, ohneUmkehr } from "./drei.js";
+import { ladeThree, gemeinsamerZeichner, szeneMitLicht, ohneUmkehr, schattenWerfer } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { Geo, W3 } from "./welt3d.js";
 import { deckHoehe, DECK } from "./decks.js";
@@ -143,7 +143,7 @@ function ebene3d() {
     render(gl, args) {
       const map = K.map; if (!this.o || map.getZoom() < Z_AB - .2 || !map.getTerrain()) return;
       const s = this.o.meterInMercatorCoordinateUnits(), m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), l = new THREE.Matrix4().makeTranslation(this.o.x, this.o.y, 0).scale(new THREE.Vector3(s, s, s));
-      this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
+      schattenWerfer(this.szene, l); this.cam.projectionMatrix = m.multiply(l); this.r.resetState(); this.r.render(this.szene, this.cam);
     },
   };
 }

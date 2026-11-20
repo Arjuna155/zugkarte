@@ -275,3 +275,4 @@ export function daecherStarten() {
   map.on("terrain", neu);
   laden();
 }
+export const hausDaten = () => ({ liste: DA.liste, anker, ams, v: version, fertig: !!DA.liste && DA.fertig >= DA.n });

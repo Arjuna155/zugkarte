@@ -4,7 +4,7 @@
 // Nadel- oder Laubbaum nach Höhe über Meer. Gezeichnet mit two InstancedMesh (three.js), Höhen in Portionen pro Bild.
 import { SCHNEE, schneeAnteil } from "./schnee.js";
 import { K } from "./karte.js";
-import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
+import { ladeThree, szeneMitLicht, gemeinsamerZeichner, schattenWerfer } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { istHandy, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
@@ -142,7 +142,7 @@ function schicht() {
         this.alle.forEach((x, i) => x.count = n[i]); this.schatten.count = ns; this.schatten.instanceMatrix.needsUpdate = true; for (const x of this.alle) { x.instanceMatrix.needsUpdate = true; x.instanceColor.needsUpdate = true; x.geometry.attributes.schnee.needsUpdate = true; }
       }
       const mm = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix), lm = new THREE.Matrix4().makeTranslation(anker.x, anker.y, 0).scale(new THREE.Vector3(ams, ams, ams));
-      this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
+      schattenWerfer(this.szene, lm); this.cam.projectionMatrix = mm.multiply(lm); this.r.resetState(); this.r.render(this.szene, this.cam);
       if (neu) map.triggerRepaint();
     },
   };
