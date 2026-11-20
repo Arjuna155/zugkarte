@@ -4,6 +4,7 @@
 //   t  Strassen mit Trottoir als Merkmal (sidewalk=both|left|right|yes, sidewalk:both|left|right=yes) → Seite 1 links, 2 rechts, 3 beide
 //   g  eigene Trottoir-Linien (footway=sidewalk)
 //   b  Leitplanken (barrier=guard_rail → 1) und Betonelemente (barrier=jersey_barrier → 2)
+//   e  elektrifizierte Gleise (railway=rail|light_rail|narrow_gauge|tram|subway mit electrified=contact_line|yes) für die Fahrleitungen
 // Einmal pro Monat über die Overpass-API (ganze Schweiz, je Art eine Abfrage, nacheinander), gespeichert in
 // DATA_DIR/ausstattung.json, ausgeliefert je 10-km-Kachel wie die Perrons (/api/ausstattung?k=x_y,…).
 // Koordinaten LV95 in dm; Linien als [Art, E0, N0, dE, dN, …]. OSM-Daten © OpenStreetMap-Mitwirkende (ODbL).
@@ -19,6 +20,7 @@ const ABFRAGEN = {
   t: b => `(way["highway"]["sidewalk"~"^(both|left|right|yes)$"](${b});way["highway"]["sidewalk:both"="yes"](${b});way["highway"]["sidewalk:left"="yes"](${b});way["highway"]["sidewalk:right"="yes"](${b}););out geom qt;`,
   g: b => `way["footway"="sidewalk"](${b});out skel geom qt;`,
   b: b => `way["barrier"~"^(guard_rail|jersey_barrier)$"](${b});out geom qt;`,
+  e: b => `way["railway"~"^(rail|light_rail|narrow_gauge|tram|subway)$"]["electrified"~"contact_line|yes"](${b});out skel geom qt;`,
 };
 const GEBIETE = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 5; i++) { const w = 5.9 + i * .93, s = 45.8 + j * .52; GEBIETE.push([s, w, s + .52, w + .93].map(v => +v.toFixed(3)).join(",")); }
 const ALTER = 30 * 86400e3, PAUSE = +(process.env.ZK_AUSSTATTUNG_PAUSE_MS || 8000);
@@ -47,7 +49,7 @@ function seite(t) {
 
 // eine Overpass-Antwort einer Art → in die Kacheln K einsortieren; gibt die Anzahl zurück
 function einsortieren(art, j, K, ids) {
-  const neu = k => K[k] || (K[k] = { l: [], s: [], t: [], g: [], b: [] }); let n = 0;
+  const neu = k => { const v = K[k] || (K[k] = { l: [], s: [], t: [], g: [], b: [], e: [] }); if (!v.e) v.e = []; return v; }; let n = 0;
   for (const el of j.elements || []) {
     if (ids) { const id = el.type + el.id; if (el.id != null && ids.has(id)) continue; ids.add(id); }   // Linien über Gebietsgrenzen nur einmal
     if (art === "l" || art === "s") {
@@ -58,6 +60,7 @@ function einsortieren(art, j, K, ids) {
     if (el.type !== "way" || !el.geometry || el.geometry.length < 2) continue;
     let code = 0;
     if (art === "t") { code = seite(el.tags || {}); if (!code) continue; }
+    if (art === "e") code = 1;
     if (art === "b") code = (el.tags || {}).barrier === "jersey_barrier" ? 2 : 1;
     const pts = el.geometry.filter(g => g && g.lat != null).map(g => lv95(g.lat, g.lon).map(v => Math.round(v * 10))); if (pts.length < 2) continue;
     const flach = [code, pts[0][0], pts[0][1]]; for (let i = 1; i < pts.length; i++) flach.push(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);

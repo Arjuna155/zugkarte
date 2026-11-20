@@ -29,6 +29,7 @@ import { an } from "./util.js";
 import { feedbackStarten, ortAusAdresse } from "./ui/feedback.js";
 import { quellenStarten } from "./ui/quellen.js";
 import { strassen3dStarten } from "./karte/strassen3d.js";
+import { fahrleitungStarten } from "./karte/fahrleitung.js";
 
 let takt = 0, sek = -1;
 function bild(now) {
@@ -45,7 +46,7 @@ function bild(now) {
   fpBrauche(S.simMs);
   seiteStarten(); karteStarten(); feedbackStarten(); if (window.ZK_LOCAL && window.ZK_LOCAL.mode === "server") quellenStarten();
   an("karte", () => ortAusAdresse(K.map));
-  an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); strassen3dStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); if (!K.ersatzStil) schneeStarten(); verkehrStarten(); baustellenStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); folgenStarten(); if (!K.ersatzStil) lichterStarten(); K.fz = true; });
+  an("karte", () => { if (!K.ersatzStil) try { tageszeitStarten(); } catch (e) { console.error(e); } welt3dStarten(); strassen3dStarten(); fahrleitungStarten(); baeumeStarten(); wasserStarten(); daecherStarten(); bahnhoefeStarten(); wetterStarten(); if (!K.ersatzStil) schneeStarten(); verkehrStarten(); baustellenStarten(); gleiseStarten(); strassenStarten(K.map); zuege3dSchalter(); fahrzeugeStarten(); folgenStarten(); if (!K.ersatzStil) lichterStarten(); K.fz = true; });
   bauwerkeLaden(); echtzeitStart(); sperrLaden(); setInterval(sperrLaden, 30 * 60000);
   requestAnimationFrame(bild);
   // für Tests und Messungen

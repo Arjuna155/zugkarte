@@ -15,15 +15,16 @@ export const S3 = { n: 0, ms: 0, lampen: 0, trottoir: 0, streifen: 0, leitplanke
 
 // ---- Ausstattung aus OpenStreetMap (/api/ausstattung): nur, was dort erfasst ist ----
 // je Kachel {l: [[E, N]], s: [[E, N]], t: [{c, pts}], g: [{pts}], b: [{c, pts}]} in LV95-Metern
-const AU = new Map(); let auNeu = null;
+export const AU = new Map(); const auHoerer = new Set();
+export const ausstattungHoeren = fn => auHoerer.add(fn);
 const auLinien = L => L.map(f => { const pts = [[f[1] / 10, f[2] / 10]]; for (let i = 3; i + 1 < f.length; i += 2) pts.push([pts[pts.length - 1][0] + f[i] / 10, pts[pts.length - 1][1] + f[i + 1] / 10]); return { c: f[0], pts }; });
 const auPunkte = A => { const o = []; for (let i = 0; i + 1 < A.length; i += 2) o.push([A[i] / 10, A[i + 1] / 10]); return o; };
-function ausstattungLaden(ks) {
+export function ausstattungLaden(ks) {
   const fehlt = ks.filter(k => { const a = AU.get(k); return !a || (a.fehler && Date.now() - a.t > 10 * 60000); }); if (!fehlt.length) return;
   for (const k of fehlt) AU.set(k, { lauf: true });
   fetch("/api/ausstattung?k=" + fehlt.join(",")).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(j => {
-    for (const k of fehlt) { const d = j.k[k] || {}; AU.set(k, { l: auPunkte(d.l || []), s: auPunkte(d.s || []), t: auLinien(d.t || []), g: auLinien(d.g || []), b: auLinien(d.b || []) }); }
-    S3.kacheln = AU.size; if (auNeu) auNeu();
+    for (const k of fehlt) { const d = j.k[k] || {}; AU.set(k, { l: auPunkte(d.l || []), s: auPunkte(d.s || []), t: auLinien(d.t || []), g: auLinien(d.g || []), b: auLinien(d.b || []), e: auLinien(d.e || []) }); }
+    S3.kacheln = AU.size; for (const fn of auHoerer) fn();
   }).catch(() => { for (const k of fehlt) AU.set(k, { fehler: true, t: Date.now() }); });
 }
 const Z_AB = 16.2, SCHRITT = 5;
@@ -240,6 +241,6 @@ export function strassen3dStarten() {
     if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = ebene3d(); map.addLayer(schicht, VOR_3D()); }
     schicht.setze(bauen(map, W3.quelle)); map.triggerRepaint();
   }, 250, 4);
-  auNeu = neu; beiRuhe(map, neu); map.on("terrain", neu); map.on("sourcedata", e => { if (W3.quelle && e.sourceId === W3.quelle && e.isSourceLoaded) neu(); });
+  ausstattungHoeren(neu); beiRuhe(map, neu); map.on("terrain", neu); map.on("sourcedata", e => { if (W3.quelle && e.sourceId === W3.quelle && e.isSourceLoaded) neu(); });
   window.__s3 = S3; neu();
 }
