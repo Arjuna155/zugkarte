@@ -44,7 +44,8 @@ function karteBauen(stil) {
   try { K.mit3d = localStorage.getItem("zk3d") !== "aus"; } catch (e) { }
   if (K.map) { try { K.map.remove(); } catch (e) { } K.map = null; }
   const map = K.map = new maplibregl.Map({
-    container: "map", style: stil, pixelRatio: Math.min(devicePixelRatio || 1, 2),   // Handys mit 3× Auflösung: 2× genügt (halb so viele Bildpunkte zu zeichnen)
+    container: "map", style: stil, pixelRatio: Math.min(devicePixelRatio || 1, 2), canvasContextAttributes: { antialias: true },   // Kantenglättung (MSAA) für Dachkanten, Masten, Leitplanken – Ziel sind Computer, nicht Handys
+      // Handys mit 3× Auflösung: 2× genügt (halb so viele Bildpunkte zu zeichnen)
     bounds: CH_BOX, fitBoundsOptions: { padding: 20 }, maxBounds: GEBIET, renderWorldCopies: false, pitch: K.mit3d ? 35 : 0, maxPitch: 80,
     attributionControl: { compact: true, customAttribution: "Gelände © <a href='https://mapterhorn.com/attribution'>Mapterhorn</a> · Fahrplan opentransportdata.swiss · Tram/Schiff/Perrons © OpenStreetMap" }
   });

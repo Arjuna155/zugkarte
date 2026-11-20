@@ -57,9 +57,13 @@ export function tageszeitAktualisieren() {
   // Himmel: Zielfarbe ÷ Tönung (die Abdunkelung multipliziert den Himmel mit), bei grauem Wetter Richtung Grau
   const g = K.himmelGrau ? .75 * Math.max(0, Math.min(1, (hoehe + 4) / 10)) : 0, T = st.toenung;
   const vor = c => zuHex(c.map((v, i) => v / T[i]));
+  // Dunst am Tag leicht bläulich (Luftperspektive), bei grauem Wetter grau
+  const dunst = K.dunst == null ? .4 : K.dunst, blau = hex("#c3d2e0");
+  st.dunst = mische(st.dunst, blau, .45 * Math.max(0, Math.min(1, (hoehe + 2) / 10)) * (1 - g));
   try {
     map.setSky({ "sky-color": vor(mische(st.himmel, GRAU.himmel, g)), "horizon-color": vor(mische(st.horizont, GRAU.horizont, g)), "fog-color": vor(mische(st.dunst, GRAU.dunst, g)),
-      "sky-horizon-blend": .6, "horizon-fog-blend": K.himmelGrau ? .25 : .4, "fog-ground-blend": K.himmelGrau ? .35 : .6, "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 12, .6, 14, 0] });
+      // Fernsicht: der Dunst beginnt je nach Luft (K.dunst aus Feuchte/Wetter, 0 klar … 1 trüb) näher oder weiter weg
+      "sky-horizon-blend": .6, "horizon-fog-blend": .3 + .35 * dunst, "fog-ground-blend": .72 - .42 * dunst, "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 12, .6, 14, 0] });
   } catch (e) { }
   // Licht der Gebäude (fill-extrusion): aus Richtung der Sonne, flach am Abend
   const hl = Math.max(12, hoehe);

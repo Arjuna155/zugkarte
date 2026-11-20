@@ -16,7 +16,7 @@ export const ZD = 15;
 // dieselbe Formel als Ausdruck), das Dach endet genau auf der Gesamthöhe. Gilt für Häuser H_MIN … H_MAX ohne Unterbau.
 export const H_MIN = 3.5, H_MAX = 22, DACH_ANTEIL = .32, DACH_MIN = 1.8, DACH_MAX = 6;
 export const dachH = H => Math.max(DACH_MIN, Math.min(DACH_MAX, DACH_ANTEIL * H));
-const N_MAX = istHandy() ? 4000 : 15000, N_FENSTER_TAG = istHandy() ? 5000 : 20000;
+const N_MAX = istHandy() ? 4000 : 35000, N_FENSTER_TAG = istHandy() ? 5000 : 45000, WEIT = istHandy() ? 1 : 1.5;   // Computer: weiter (Ziel 20.11.)
 export const DA = { n: 0, fertig: 0, liste: null };
 // Fassadenfarben: gleiche Liste und Wahl (Kennung % Anzahl) wie die Gebäude-Ebene in welt3d.js
 export const FASSADE = ["#ebe6dc", "#e3ddd0", "#efece6", "#e6dccb", "#dcd8d1", "#e9e1d3", "#e8dcbf", "#d8dcd5", "#ead8cf", "#f1efe9"];
@@ -51,7 +51,7 @@ const flaeche = P => { let s = 0; for (let i = 0; i < P.length; i++) { const p =
 function bauen() {
   const map = K.map; if (!map || !W3.gebaeudeAn || map.getZoom() < ZD) { DA.liste = null; DA.n = 0; version++; return; }
   if (!quelle) { for (const l of map.getStyle().layers) if (l["source-layer"] === "building") { quelle = l.source; break; } } if (!quelle) return;
-  const z = map.getZoom(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = z >= 17 ? 700 : z >= 16 ? 1100 : 1600;
+  const z = map.getZoom(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = (z >= 17 ? 700 : z >= 16 ? 1100 : 1600) * WEIT;
   const liste = [], gesehen = new Set();
   // genau die Gebäude, die die Karte zeichnet (sonst kommen beim Zoomen vereinfachte Umrisse gröberer Kacheln dazu)
   if (!map.getLayer("gebaeude-3d")) return;
@@ -220,7 +220,7 @@ function schicht() {
     // Fenster als leuchtende Rechtecke vor den Mauern (nur die, die nachts höchstens brennen; welche brennen, entscheidet
     // der Zufallswert gegen den Anteil der Uhrzeit im Shader)
     fensterBauen() {
-      const pos = [], col = [], rnd = []; let n = 0; const MAX = istHandy() ? 15000 : 60000;
+      const pos = [], col = [], rnd = []; let n = 0; const MAX = istHandy() ? 15000 : 120000;
       const FARBEN = ["#ffd58f", "#ffe3a8", "#ffcc7a", "#fff0cf", "#dfe7ff"].map(c => new THREE.Color(c));
       for (let i = 0; i < DA.fertig && n < MAX; i++) {
         const b = DA.liste[i]; if (isNaN(b.z)) continue;

@@ -103,6 +103,10 @@ aside{background:var(--panel);border-left:1px solid var(--line);overflow:auto;mi
   padding-block:16px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px))}
 .eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
 .legend{display:flex;flex-direction:column;gap:4px}
+.quellensum{cursor:pointer;list-style:revert}.quellensum span{font-weight:500;letter-spacing:0;text-transform:none;margin-left:6px}
+.quellen{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:13px}
+.quellen li{display:grid;grid-template-columns:12px 1fr;gap:8px;align-items:start}.quellen b{font-weight:600;display:block}.quellen small{color:var(--muted)}
+.quellen i{width:9px;height:9px;border-radius:50%;margin-top:5px;background:#2f9e44}.quellen i.warn{background:#e08e0b}.quellen i.aus{background:#d64545}
 .legend button{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;font:inherit;text-align:left;padding:8px 8px;border:1px solid transparent;border-radius:6px;background:none;color:var(--ink);cursor:pointer}
 .legend button:hover{background:var(--ground)}
 .legend button[aria-pressed="false"]{opacity:.4}
@@ -255,6 +259,7 @@ ol.stops li{display:flex;justify-content:space-between;gap:8px}
       <p class="sperrinfo" id="sperrInfo" hidden></p>
     </section>
     <section id="detail"></section>
+    <section><details id="quellenBox"><summary class="eyebrow quellensum">Datenquellen <span id="quellenSum"></span></summary><ul class="quellen" id="quellen"></ul></details></section>
     <p class="note">Gleisverlauf aus dem Schienennetz des Bundesamts für Verkehr (BAV) über geo.admin.ch, Bahnhofskoordinaten aus offenen Daten. Koordinaten im Schweizer Landeskoordinatensystem LV95. Grundkarte © swisstopo, Gelände © Mapterhorn (offene Höhendaten, u. a. swisstopo), dargestellt mit MapLibre GL. Züge nach dem offiziellen Fahrplan der Schweiz (GTFS, opentransportdata.swiss), den der Server zweimal pro Woche neu lädt und für jeden Tag einzeln aufbereitet – mit Feiertagen, Baustellen und dem Fahrplanwechsel im Dezember; Zeiten in Schweizer Zeit. Auf der Website fahren auch Trams, Metro und Schiffe mit (Tramgleise und Schiffslinien © OpenStreetMap-Mitwirkende, ODbL). Ist der Fahrplan nicht erreichbar, gilt ein Ersatzfahrplan je für Montag–Freitag, Samstag und Sonntag. Gesperrte Abschnitte (Bahnersatz) ermittelt der Server jeden Morgen aus dem Tagesfahrplan; dort fahren dann keine Züge. Verspätungen und Ausfälle kommen aus dem Echtzeitfeed SIRI-ET von opentransportdata.swiss, alle 60 Sekunden über den Server.</p>
   </aside>
 </main>

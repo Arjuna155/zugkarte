@@ -11,15 +11,17 @@
 const fs = require("fs"), path = require("path"), zlib = require("zlib");
 
 const URL_OVERPASS = process.env.ZK_OVERPASS_URL || "https://overpass-api.de/api/interpreter";
-const KOPF = `[out:json][timeout:900][maxsize:1073741824];area["ISO3166-1"="CH"][admin_level=2]->.ch;`;
+// Die ganze Schweiz in einer Abfrage war Overpass zu viel (504) → je Art 20 Gebiete (5 × 4 über die Schweiz) nacheinander.
+const KOPF = `[out:json][timeout:300][maxsize:536870912];`;
 const ABFRAGEN = {
-  l: `node["highway"="street_lamp"](area.ch);out skel qt;`,
-  s: `node["highway"="crossing"](area.ch);out qt;`,
-  t: `(way["highway"]["sidewalk"~"^(both|left|right|yes)$"](area.ch);way["highway"]["sidewalk:both"="yes"](area.ch);way["highway"]["sidewalk:left"="yes"](area.ch);way["highway"]["sidewalk:right"="yes"](area.ch););out geom qt;`,
-  g: `way["footway"="sidewalk"](area.ch);out skel geom qt;`,
-  b: `way["barrier"~"^(guard_rail|jersey_barrier)$"](area.ch);out geom qt;`,
+  l: b => `node["highway"="street_lamp"](${b});out skel qt;`,
+  s: b => `node["highway"="crossing"](${b});out qt;`,
+  t: b => `(way["highway"]["sidewalk"~"^(both|left|right|yes)$"](${b});way["highway"]["sidewalk:both"="yes"](${b});way["highway"]["sidewalk:left"="yes"](${b});way["highway"]["sidewalk:right"="yes"](${b}););out geom qt;`,
+  g: b => `way["footway"="sidewalk"](${b});out skel geom qt;`,
+  b: b => `way["barrier"~"^(guard_rail|jersey_barrier)$"](${b});out geom qt;`,
 };
-const ALTER = 30 * 86400e3;
+const GEBIETE = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 5; i++) { const w = 5.9 + i * .93, s = 45.8 + j * .52; GEBIETE.push([s, w, s + .52, w + .93].map(v => +v.toFixed(3)).join(",")); }
+const ALTER = 30 * 86400e3, PAUSE = +(process.env.ZK_AUSSTATTUNG_PAUSE_MS || 8000);
 
 function lv95(lat, lon) {   // WGS84 → LV95 (Näherung swisstopo)
   const p = (lat * 3600 - 169028.66) / 10000, l = (lon * 3600 - 26782.5) / 10000;
@@ -44,9 +46,10 @@ function seite(t) {
 }
 
 // eine Overpass-Antwort einer Art → in die Kacheln K einsortieren; gibt die Anzahl zurück
-function einsortieren(art, j, K) {
+function einsortieren(art, j, K, ids) {
   const neu = k => K[k] || (K[k] = { l: [], s: [], t: [], g: [], b: [] }); let n = 0;
   for (const el of j.elements || []) {
+    if (ids) { const id = el.type + el.id; if (el.id != null && ids.has(id)) continue; ids.add(id); }   // Linien über Gebietsgrenzen nur einmal
     if (art === "l" || art === "s") {
       if (el.type !== "node" || el.lat == null) continue;
       if (art === "s" && !markiert(el.tags)) continue;
@@ -65,23 +68,39 @@ function einsortieren(art, j, K) {
 }
 
 function start({ DATA_DIR, log }) {
-  const DATEI = path.join(DATA_DIR, "ausstattung.json");
+  const DATEI = path.join(DATA_DIR, "ausstattung.json"), TEIL = DATEI + ".teil";
   let D = null, fehler = null, letzte = null, laeuft = false, schritt = null;
   try { D = JSON.parse(fs.readFileSync(DATEI, "utf8")); } catch { }
   async function laden() {
     if (laeuft) return; laeuft = true;
     try {
-      const K = {}, n = {};
+      // Zwischenstand nach jedem Gebiet sichern – ein Neustart (neue Version) macht dort weiter, statt von vorne
+      let T = null; try { T = JSON.parse(fs.readFileSync(TEIL, "utf8")); if (Date.now() - T.start > 86400e3) T = null; } catch { }
+      const K = T ? T.K : {}, n = T ? T.n : {}, fehlend = T ? T.fehlend : [], fertig = new Set(T ? T.fertig : []), start = T ? T.start : Date.now(), warte = ms => new Promise(ok => setTimeout(ok, ms));
+      const idsAlle = T ? Object.fromEntries(Object.entries(T.ids).map(([a, l]) => [a, new Set(l)])) : {};
+      if (T) log("Ausstattung: mache beim Zwischenstand weiter (" + fertig.size + " Abfragen fertig)");
       for (const art of Object.keys(ABFRAGEN)) {
-        schritt = art;
-        const r = await fetch(URL_OVERPASS, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "ZugKarte (privat; Strassenausstattung 1x pro Monat)" }, body: "data=" + encodeURIComponent(KOPF + ABFRAGEN[art]), signal: AbortSignal.timeout(1000e3) });
-        if (!r.ok) throw new Error("Overpass HTTP " + r.status + " (" + art + ")");
-        n[art] = einsortieren(art, await r.json(), K);
+        const ids = idsAlle[art] || (idsAlle[art] = new Set()); if (n[art] == null) n[art] = 0;
+        for (let g = 0; g < GEBIETE.length; g++) {
+          if (fertig.has(art + g)) continue;
+          schritt = art + " " + (g + 1) + "/" + GEBIETE.length; let ok = false;
+          for (let versuch = 0; versuch < 3 && !ok; versuch++) {
+            try {
+              const r = await fetch(URL_OVERPASS, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "ZugKarte (privat; Strassenausstattung 1x pro Monat)" }, body: "data=" + encodeURIComponent(KOPF + ABFRAGEN[art](GEBIETE[g])), signal: AbortSignal.timeout(400e3) });
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              n[art] += einsortieren(art, await r.json(), K, ids); ok = true;
+            } catch (e) { log("Ausstattung:", art, "Gebiet", g + 1, e.message, versuch < 2 ? "– neuer Versuch" : "– übersprungen"); await warte(60e3 * (versuch + 1)); }
+          }
+          if (!ok) fehlend.push(art + g);
+          fertig.add(art + g);
+          try { fs.writeFileSync(TEIL, JSON.stringify({ start, K, n, fehlend, fertig: [...fertig], ids: Object.fromEntries(Object.entries(idsAlle).map(([a, st]) => [a, a === "l" || a === "s" ? [] : [...st]])) })); } catch (e) { log("Ausstattung: Zwischenstand:", e.message); }
+          await warte(PAUSE);   // Overpass schonen
+        }
         log("Ausstattung:", art, n[art]);
-        await new Promise(ok => setTimeout(ok, 30e3));   // Overpass schonen
       }
       if (!n.l && !n.s && !n.t) throw new Error("keine Daten erhalten");
-      D = { zeit: Date.now(), n, k: K }; fs.writeFileSync(DATEI + ".tmp", JSON.stringify(D)); fs.renameSync(DATEI + ".tmp", DATEI);
+      try { fs.unlinkSync(TEIL); } catch { }
+      D = { zeit: fehlend.length ? Date.now() - ALTER + 2 * 86400e3 : Date.now(), n, k: K, fehlend };   // Lücken → in 2 Tagen nochmals fs.writeFileSync(DATEI + ".tmp", JSON.stringify(D)); fs.renameSync(DATEI + ".tmp", DATEI);
       fehler = null; letzte = Date.now(); log("Ausstattung aus OpenStreetMap:", JSON.stringify(n));
     } catch (e) { fehler = e.message; letzte = Date.now(); log("Ausstattung:", e.message); }
     laeuft = false; schritt = null;
@@ -91,7 +110,7 @@ function start({ DATA_DIR, log }) {
   setInterval(() => { if (faellig()) laden(); }, 6 * 3600e3).unref();
   return {
     kacheln(ks) { if (!D) return null; const k = {}; for (const x of ks) if (D.k[x]) k[x] = D.k[x]; return zlib.gzipSync(JSON.stringify({ zeit: D.zeit, k })); },
-    status: () => ({ stand: D ? new Date(D.zeit).toISOString() : null, anzahl: D ? D.n : null, fehler, laeuft, schritt }),
+    status: () => ({ stand: D ? new Date(D.zeit).toISOString() : null, anzahl: D ? D.n : null, fehlendeGebiete: D ? (D.fehlend || []).length : null, fehler, laeuft, schritt }),
   };
 }
 module.exports = { start, einsortieren, markiert, seite };

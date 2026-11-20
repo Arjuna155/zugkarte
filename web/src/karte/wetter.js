@@ -113,10 +113,14 @@ function lageBeiMitte() {
   const map = K.map; if (!map || !WE.stationen.length) return;
   const c = map.getCenter();
   const nah = WE.stationen.map(s => { const ll = wgs(s.x, s.y), dx = (ll[0] - c.lng) * 75500, dy = (ll[1] - c.lat) * 111000; return { s, d: Math.hypot(dx, dy) }; }).sort((a, b) => a.d - b.d).slice(0, 4);
-  let w = 0, ff = 0, ux = 0, uy = 0;
+  let w = 0, ff = 0, ux = 0, uy = 0, wr = 0, rf = 0;
+  for (const { s, d } of nah) if (s.rf != null) { const g = 1 / Math.max(500, d) ** 2; wr += g; rf += g * s.rf; }
   for (const { s, d } of nah) { if (s.ff === null) continue; const g = 1 / Math.max(500, d) ** 2; w += g; ff += g * s.ff; const a = (s.dd || 0) * Math.PI / 180; ux += g * Math.sin(a); uy += g * Math.cos(a); }
   WE.jetzt = { ff: w ? ff / w : 0, dd: Math.atan2(ux, uy), regen: feldBei(c.lng, c.lat, "regen"), wolken: feldBei(c.lng, c.lat, "wolken"), nebel: feldBei(c.lng, c.lat, "nebel") };
-  himmel(false);
+  // Dunst für die Fernsicht: trockene Luft (Föhn, Bise) → klare Sicht, feucht → dunstig, Regen/Nebel/bedeckt → stark
+  const feucht = wr ? rf / wr : 70, J = WE.jetzt;
+  K.dunst = Math.max(0, Math.min(1, (feucht - 45) / 50)) * .75 + (J.regen > .2 || J.nebel > .6 ? .25 : J.wolken > .6 ? .15 : 0);
+  himmel(false); if (K.himmelNeu) K.himmelNeu();
 }
 function himmel(immer) {
   const J = WE.jetzt, grau = WE.an && !!J && (J.wolken > .6 || J.regen > .2 || J.nebel > .6);

@@ -36,7 +36,7 @@ const STADT = ["primary", "secondary", "tertiary", "minor", "service"];   // Kla
 
 function bauen(map, quelle) {
   const z = map.getZoom(); if (z < Z_AB || !map.getTerrain() || !quelle) return null;
-  const t0 = performance.now(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = (z >= 18 ? 320 : z >= 17 ? 480 : 700) * (istHandy() ? .7 : 1);
+  const t0 = performance.now(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = (z >= 18 ? 320 : z >= 17 ? 480 : 700) * (istHandy() ? .7 : 1.5);   // Computer: weiter (Ziel 20.11.)
   const lokal = ll => { const m = mc(ll); return [(m.x - o.x) / ms, (m.y - o.y) / ms]; };
   const hoehe = q => { const e = map.queryTerrainElevation(new maplibregl.MercatorCoordinate(o.x + q[0] * ms, o.y + q[1] * ms).toLngLat()); return e == null ? null : e; };
   const ASPHALT = hex(STRASSENFARBE.haupt), KANTE = hex(STRASSENFARBE.rand), BANKETT = hex(STRASSENFARBE.bankett), WEISS = hex(STRASSENFARBE.linie);

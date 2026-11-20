@@ -299,6 +299,22 @@ function fahrplanFenster(d, buf, f) {
   return gz;
 }
 // Feedback der Besucher (Knopf auf der Karte), siehe feedback.js; Übersicht unter /feedback
+// Zustand aller Datenquellen in Kürze für die Seitenleiste: [{n: Name, s: "ok" | "warn" | "aus", t: Text}]
+function zustand() {
+  const q = [], gesperrt = f => /403|freigeschaltet/.test(String(f || "")), d = t => t ? new Date(t).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", timeZone: "Europe/Zurich" }) : "";
+  const neu = (n, f) => { try { q.push({ n, ...f() }); } catch (e) { q.push({ n, s: "warn", t: "Status nicht lesbar" }); } };
+  neu("Fahrplan", () => { const s = FP.status(); return s.erzeugt ? { s: s.fehler ? "warn" : "ok", t: "Tagesfahrplan bis " + s.erzeugt.bis.slice(8, 10) + "." + s.erzeugt.bis.slice(5, 7) + "." + (s.fehler ? " · " + s.fehler : "") } : { s: s.laeuft ? "warn" : "aus", t: s.laeuft ? "wird geladen" : (s.fehler || "noch nicht geladen") }; });
+  neu("Echtzeit (Verspätungen)", () => { const ok = !!KEY && !isPlaceholder(KEY); if (!ok) return { s: "aus", t: "kein Schlüssel" }; if (lastErr && (!cache || Date.now() - cache.abgerufen > 5 * 60e3)) return { s: "warn", t: lastErr.message }; return cache ? { s: "ok", t: "Stand " + new Date(cache.abgerufen).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" }) } : { s: "ok", t: "bereit (lädt bei Bedarf)" }; });
+  neu("Zugzusammensetzung", () => { const s = FO.status(); if (gesperrt(s.letzterFehler)) return { s: "aus", t: "Schlüssel nicht freigeschaltet (Formation)" }; return { s: s.mitDaten ? "ok" : "warn", t: s.mitDaten ? s.mitDaten + " Züge mit echter Zusammensetzung" : (s.letzterFehler || "noch keine Daten") }; });
+  neu("Verkehr Autobahn", () => { const s = VK.status(); if (s.http === 403 || gesperrt(s.fehler)) return { s: "aus", t: "Schlüssel nicht freigeschaltet (Traffic Counters)" }; return { s: s.messstellen ? "ok" : "warn", t: s.messstellen ? s.messstellen + " Messstellen" : (s.fehler || "noch keine Daten") }; });
+  neu("Baustellen Autobahn", () => { const s = BS.status(); if (s.http === 403 || gesperrt(s.fehler)) return { s: "aus", t: "Schlüssel nicht freigeschaltet (Traffic Situations)" }; if (!s.stand) return { s: "warn", t: s.fehler || "noch keine Daten" }; return { s: s.fehler ? "warn" : "ok", t: s.fehler || s.baustellenJetzt + " Baustellen jetzt" }; });
+  neu("Wetter", () => { const s = WE.status(); return { s: s.fehler ? "warn" : s.mitWerten ? "ok" : "aus", t: s.fehler || s.mitWerten + " Stationen" }; });
+  neu("Perrons (OSM)", () => { const s = PE.status(); return { s: s.perrons ? (s.fehler ? "warn" : "ok") : "aus", t: s.perrons ? s.perrons + " Perrons · Stand " + d(s.stand) : (s.fehler || (s.laeuft ? "wird geladen" : "noch nicht geladen")) }; });
+  neu("Strassenausstattung (OSM)", () => { const s = AU.status(); if (s.laeuft) return { s: "warn", t: "wird geladen (" + (s.schritt || "") + ")" }; if (!s.anzahl) return { s: "aus", t: s.fehler || "noch nicht geladen" }; const a = s.anzahl; return { s: s.fehlendeGebiete ? "warn" : "ok", t: a.l + " Lampen, " + a.s + " Fussgängerstreifen, " + (a.t + a.g) + " Trottoirs · Stand " + d(s.stand) }; });
+  neu("Sektoren (SBB)", () => { const s = SK.status(); return { s: s.tafeln ? "ok" : (s.fehler ? "warn" : "aus"), t: s.tafeln ? s.bahnhoefe + " Bahnhöfe" : (s.fehler || "noch nicht geladen") }; });
+  neu("Tunnel und Brücken", () => { const s = BW.status(); return { s: s.bereit ? "ok" : s.laeuft ? "warn" : "aus", t: s.bereit ? "bereit" : s.laeuft ? "wird berechnet" : "noch nicht berechnet" }; });
+  return { zeit: Date.now(), quellen: q };
+}
 const FB = require("./feedback.js").start({ DATA_DIR, log, version: VERSION });
 let FB_SEITE = null; try { const raw = fs.readFileSync(path.join(__dirname, "public", "feedback.html")); FB_SEITE = { raw, gz: zlib.gzipSync(raw) }; } catch {}
 const server = http.createServer(async (req, res) => {
@@ -346,6 +362,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { ...SEC, "Content-Type": "image/jpeg", "Content-Length": RELIEF.length, "Cache-Control": "public, max-age=604800" }); return res.end(req.method === "HEAD" ? undefined : RELIEF);
   }
   if (url.pathname === "/api/ping") return json(req, res, 200, { app: "ZugKarte", version: VERSION });
+  if (url.pathname === "/api/zustand") return json(req, res, 200, zustand());
   if (url.pathname === "/api/status") return json(req, res, 200, { version: VERSION, schluessel: !!KEY && !isPlaceholder(KEY), letzteAbfrage: cache ? cache.abgerufen : null, fehler: lastErr ? lastErr.message : null });
   if (url.pathname === "/api/sperrungen") { const p = zhParts(), d = `${p.year}-${p.month}-${p.day}`;
     return json(req, res, 200, sperr && sperr.datum === d ? { datum: sperr.datum, erstellt: sperr.erstellt, teile: sperr.teile } : { datum: null, teile: [] }); }

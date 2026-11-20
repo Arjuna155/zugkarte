@@ -11,7 +11,7 @@ import { istHandy, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
 import { DECK, deckHoehe } from "./decks.js";
 
 export const ZB = 14;
-const RASTER = 7, N_MAX = istHandy() ? 12000 : 40000;
+const RASTER = 7, N_MAX = istHandy() ? 12000 : 90000, WEIT = istHandy() ? 1 : 1.5;   // Computer: weiter und dichter (Ziel 20.11.: Laptops/PCs, nicht Handys)
 export const BA = { an: true, n: 0, fertig: 0, liste: null };
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 let msFest = 0; const MS_FEST = () => msFest || (msFest = mc([8.23, 46.8]).meterInMercatorCoordinateUnits());
@@ -35,7 +35,7 @@ function bauen() {
   if (!quelle) quelle = quelleSuchen(map); if (!quelle) return;
   const z = map.getZoom(), c = map.getCenter(), o = mc(c), ms = o.meterInMercatorCoordinateUnits();
   // Umkreis (m) und Anteil nach Zoom: nah alles, weiter draussen eine feste Teilmenge
-  const R = z >= 16 ? 1300 : z >= 15 ? 2200 : 3200, anteil = z >= 16 ? 1 : z >= 15 ? .55 : .28;
+  const R = (z >= 16 ? 1300 : z >= 15 ? 2200 : 3200) * WEIT, anteil = z >= 16 ? 1 : z >= 15 ? (WEIT > 1 ? .8 : .55) : (WEIT > 1 ? .45 : .28);
   // Raster fest im Raum: Zellgrösse aus einem festen Bezugspunkt (Mitte der Schweiz), nicht aus der Bildmitte – sonst
   // verschiebt sich das Raster beim Verschieben der Karte und jede Zelle bekäme einen anderen Baum
   const zelle = RASTER * MS_FEST(), kand = [], gesehen = new Set();
