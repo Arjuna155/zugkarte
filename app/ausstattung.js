@@ -103,7 +103,8 @@ function start({ DATA_DIR, log }) {
       }
       if (!n.l && !n.s && !n.t) throw new Error("keine Daten erhalten");
       try { fs.unlinkSync(TEIL); } catch { }
-      D = { zeit: fehlend.length ? Date.now() - ALTER + 2 * 86400e3 : Date.now(), n, k: K, fehlend };   // Lücken → in 2 Tagen nochmals fs.writeFileSync(DATEI + ".tmp", JSON.stringify(D)); fs.renameSync(DATEI + ".tmp", DATEI);
+      D = { zeit: fehlend.length ? Date.now() - ALTER + 2 * 86400e3 : Date.now(), n, k: K, fehlend };   // Lücken → in 2 Tagen nochmals
+      fs.writeFileSync(DATEI + ".tmp", JSON.stringify(D)); fs.renameSync(DATEI + ".tmp", DATEI);
       fehler = null; letzte = Date.now(); log("Ausstattung aus OpenStreetMap:", JSON.stringify(n));
     } catch (e) { fehler = e.message; letzte = Date.now(); log("Ausstattung:", e.message); }
     laeuft = false; schritt = null;
