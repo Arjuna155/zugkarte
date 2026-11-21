@@ -54,6 +54,11 @@ function bauen(map, quelle) {
       if (ll.length < 2) continue; const roh0 = ll.map(lokal), roh = [roh0[0]];
       // fast gleiche Punkte weg (sonst kippt die Querrichtung am Ende → Striche quer über die Strasse)
       for (let i = 1; i < roh0.length; i++) { const a = roh[roh.length - 1], b = roh0[i]; if (Math.hypot(b[0] - a[0], b[1] - a[1]) >= .8) roh.push(b); else if (i === roh0.length - 1 && roh.length > 1) roh[roh.length - 1] = b; }
+      // Kehrtwenden auf kurzem Stück weg (Daten enden oft mit einem Rücksprung um ~1 m, z. B. Zufahrt auf einen Kreisel):
+      // an einer Kehre schiesst die Gehrung als Spitze aus (Keil in der Kreiselinsel, Feedback Nr. 8). Endpunkte bleiben (Knoten).
+      for (let weg = true; weg && roh.length > 2;) { weg = false;
+        for (let i = 1; i < roh.length - 1; i++) { const a = roh[i - 1], b = roh[i], c = roh[i + 1], ux = b[0] - a[0], uy = b[1] - a[1], vx = c[0] - b[0], vy = c[1] - b[1], l1 = Math.hypot(ux, uy), l2 = Math.hypot(vx, vy);
+          if ((ux * vx + uy * vy) / (l1 * l2 || 1) < -.5 && Math.min(l1, l2) < 4) { roh.splice(i, 1); weg = true; break; } } }
       if (roh.length < 2 || !roh.some(q => Math.hypot(q[0], q[1]) < R + 60)) continue;
       const key = art + "|" + ek(roh[0]) + "|" + ek(roh[roh.length - 1]) + "|" + roh.length; if (gesehen.has(key)) continue; gesehen.add(key);
       stuecke.push({ roh, art, w, einweg: p.oneway === 1, rampe: p.ramp === 1 });
