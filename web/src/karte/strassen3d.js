@@ -122,15 +122,14 @@ function bauen(map, quelle) {
     G.streifen(P, N, -w / 2, zq(-w / 2, ZA), 0, ZA, ASPHALT, "auf"); G.streifen(P, N, 0, ZA, w / 2, zq(w / 2, ZA), ASPHALT, "auf");
     // runde Enden (wie line-cap round der gemalten Bänder): an Kreuzungen, Einmündungen und Kachelrändern stehen sonst
     // die gerade abgeschnittenen Enden als Ecken über bzw. es bleiben Kerben, wo zwei Stücke im Winkel zusammenstossen
-    // nicht an durchgehenden Stössen (genau zwei Stücke, z. B. Kreisel aus mehreren Stücken): dort stünde der Halbkreis
-    // in Kurven nach innen über
-    const durch0 = t0 === 0 && S[0] === 0, durch1 = t1 === lang && S[M - 1] === lang;
-    for (const [i, j] of [[0, 1], [M - 1, M - 2]]) { if (j < 0 || j >= M || (i === 0 ? durch0 : durch1)) continue;
+    // ganze Scheibe um den Endpunkt (Radius = halbe Breite): füllt Kerben und Ecken, reicht aber nirgends weiter als das Band
+    // selbst – ein Halbkreis nach vorne stand z. B. von der Zufahrt aus in die Mittelinsel eines Kreisels (Feedback Nr. 8)
+    for (const [i, j] of [[0, 1], [M - 1, M - 2]]) { if (j < 0 || j >= M) continue;
       const c = P[i], ux0 = c[0] - P[j][0], uy0 = c[1] - P[j][1], ul = Math.hypot(ux0, uy0); if (ul < .01) continue;
       const ux = ux0 / ul, uy = uy0 / ul, nx = -uy, ny = ux;
-      const scheibe = (G, rad, dz, col) => { const K_ = 10; let a = null;
-        for (let k = 0; k <= K_; k++) { const t = Math.PI * k / K_, cx = Math.cos(t), sx = Math.sin(t), seit = (cx >= 0) === (i === M - 1) ? ZL[i] : ZR[i],
-            b = [c[0] + (nx * cx + ux * sx) * rad, c[1] + (ny * cx + uy * sx) * rad, c[2] + dz + seit * Math.abs(cx) * rad / Q];
+      const scheibe = (G, rad, dz, col) => { const K_ = 20; let a = null;
+        for (let k = 0; k <= K_; k++) { const t = 2 * Math.PI * k / K_, cx = Math.cos(t), sx = Math.sin(t), seit = (cx >= 0) === (i === M - 1) ? ZL[i] : ZR[i],
+            b = [c[0] + (nx * cx + ux * sx) * rad, c[1] + (ny * cx + uy * sx) * rad, c[2] + dz + seit * Math.abs(cx) * rad / Q];   // seitlich wie das Band geneigt
           if (a) G.quad([c[0], c[1], c[2] + dz], a, b, [c[0], c[1], c[2] + dz], col, [0, 0, 1]); a = b; } };
       if (rb) scheibe(GR, Q, ZR_, auto ? BANKETT : KANTE); scheibe(G, w / 2, ZA, ASPHALT); }
     // Markierungen nur im Bereich [t0, t1] des ganzen Stücks (mindestens 15 m lang)
