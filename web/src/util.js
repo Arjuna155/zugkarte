@@ -58,12 +58,17 @@ export function nachLaden(map, name, fn, warte = 300, vorrang = 5) {
   auftraege.set(name, { fn, vorrang });
   if (!abLaeuft) { clearTimeout(abTimer); abTimer = setTimeout(() => abarbeiten(map), warte); }
 }
+const NL = (typeof window !== "undefined" && (window.__nl = {})) || {};
 function abarbeiten(map) {
   if (map.isMoving()) { abTimer = setTimeout(() => abarbeiten(map), 150); return; }
   let best = null; for (const [n, a] of auftraege) if (!best || a.vorrang < best[1].vorrang) best = [n, a];
   if (!best) { abLaeuft = false; return; }
   abLaeuft = true; auftraege.delete(best[0]);
-  try { best[1].fn(); } catch (e) { console.error(best[0], e); }
+  const t0 = performance.now(); let r;
+  try { r = best[1].fn(); } catch (e) { console.error(best[0], e); }
+  // Messung (window.__nl): Dauer je Neuaufbau, bei async bis zum Ende
+  const fertig = () => { const L = NL[best[0]] || (NL[best[0]] = []); L.push(Math.round(performance.now() - t0)); if (L.length > 20) L.shift(); NL.zuletzt = performance.now(); };
+  if (r && r.then) r.then(fertig, fertig); else fertig();
   requestAnimationFrame(() => setTimeout(() => abarbeiten(map), 0));   // erst ein Bild zeichnen lassen
 }
 // Merkmale einer Kartenquelle (querySourceFeatures) einmal lesen und teilen, bis neue Kacheln kommen oder die Karte bewegt wird
