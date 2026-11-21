@@ -63,14 +63,50 @@ function abarbeiten(map) {
   if (map.isMoving()) { abTimer = setTimeout(() => abarbeiten(map), 150); return; }
   let best = null; for (const [n, a] of auftraege) if (!best || a.vorrang < best[1].vorrang) best = [n, a];
   if (!best) { abLaeuft = false; return; }
-  abLaeuft = true; auftraege.delete(best[0]);
+  abLaeuft = true; auftraege.delete(best[0]); NL.laeuft = best[0]; NL.warten = [...auftraege.keys()];
   const t0 = performance.now(); let r;
   try { r = best[1].fn(); } catch (e) { console.error(best[0], e); }
   // Messung (window.__nl): Dauer je Neuaufbau, bei async bis zum Ende
   const fertig = () => { const L = NL[best[0]] || (NL[best[0]] = []); L.push(Math.round(performance.now() - t0)); if (L.length > 20) L.shift(); NL.zuletzt = performance.now(); };
-  if (r && r.then) r.then(fertig, fertig); else fertig();
-  requestAnimationFrame(() => setTimeout(() => abarbeiten(map), 0));   // erst ein Bild zeichnen lassen
+  const weiter = () => requestAnimationFrame(() => setTimeout(() => abarbeiten(map), 0));   // erst ein Bild zeichnen lassen
+  if (r && r.then) r.then(fertig, fertig).then(weiter); else { fertig(); weiter(); }   // in Häppchen gebaute Aufträge (haeppchen) erst fertig
 }
+// Aufbau in Häppchen (Leistung 21.11.): einen Generator (function* mit «yield» in den Schleifen) höchstens ms Millisekunden
+// pro Bild laufen lassen, dazwischen zeichnet die Karte; solange sie bewegt wird, ruht er. Ergebnis = Rückgabewert.
+const MK = typeof MessageChannel !== "undefined" ? new MessageChannel() : null, mkWarten = [];
+if (MK) MK.port1.onmessage = () => { const f = mkWarten.shift(); if (f) f(); };
+const pause = () => new Promise(ok => { if (MK) { mkWarten.push(ok); MK.port2.postMessage(0); } else setTimeout(ok, 0); });
+export async function haeppchen(map, gen, ms = 8) {
+  for (;;) {
+    while (map.isMoving()) await new Promise(ok => setTimeout(ok, 80));
+    const t = performance.now();
+    do { const r = gen.next(); if (r.done) return r.value; } while (performance.now() - t < ms);
+    await pause();   // kurz abgeben (der Browser zeichnet dazwischen, wenn ein Bild fällig ist) – nicht aufs nächste Bild warten
+  }
+}
+// Neuaufbau mit Schwelle (Leistung 21.11.): Ebenen mit festem Umkreis R bauen nach dem Verschieben nur neu, wenn die Mitte
+// mehr als R/3 gewandert ist, der Zoom sich um ≥ 0,5 geändert oder eine Zoomgrenze der Ebene überschritten hat. Neue Kacheln
+// lösen nur aus, wenn beim letzten Bau noch Kacheln fehlten. «zwang» (neue Daten, Ebene ein/aus) baut immer.
+//   const N = neuBau(map, "baeume", fn, 400, 6, { R: () => Meter, grenzen: [14, 15, 16] });  N.bewegt(); N.kacheln(); N.zwang();
+const RANG = { bewegt: 1, kacheln: 2, zwang: 3 };
+export function neuBau(map, name, fn, warte, vorrang, o) {
+  let offen = null, letzt = null;
+  const lauf = () => {
+    const art = offen; offen = null;
+    const z = map.getZoom(), c = map.getCenter(), m = MC.fromLngLat(c), R = o.R();
+    if (art !== "zwang" && letzt) {
+      const d = Math.hypot(m.x - letzt.x, m.y - letzt.y) / m.meterInMercatorCoordinateUnits(), dz = Math.abs(z - letzt.z);
+      const grenze = (o.grenzen || []).some(g => (g - z) * (g - letzt.z) < 0);
+      const fertigGebaut = letzt.komplett || art === "bewegt";
+      if (d < letzt.R / 3 && dz < .5 && !grenze && fertigGebaut) { NL.gespart = (NL.gespart || 0) + 1; return; }
+    }
+    letzt = { x: m.x, y: m.y, z, R, komplett: map.areTilesLoaded() };
+    return fn();
+  };
+  const wunsch = art => { if (!offen || RANG[art] > RANG[offen]) offen = art; nachLaden(map, name, lauf, warte, vorrang); };
+  return { bewegt: () => wunsch("bewegt"), kacheln: () => wunsch("kacheln"), zwang: () => wunsch("zwang") };
+}
+const MC = { fromLngLat: c => (typeof maplibregl !== "undefined" ? maplibregl.MercatorCoordinate.fromLngLat(c) : { x: 0, y: 0, meterInMercatorCoordinateUnits: () => 1 }) };
 // Merkmale einer Kartenquelle (querySourceFeatures) einmal lesen und teilen, bis neue Kacheln kommen oder die Karte bewegt wird
 const mStand = {}; let mBewegt = 0; const mSpeicher = new Map(); let mGebunden = null;
 export function quellMerkmale(map, quelle, schicht) {

@@ -54,6 +54,13 @@ function karteBauen(stil) {
     map.on("error", e => { if (!geladen && !K.ersatzStil && /layers\[|style|Style/.test(String(e && e.error && e.error.message))) { K.ersatzStil = true; console.warn("Landschaftsstil fehlerhaft, nehme Karte:", e.error.message); setTimeout(() => karteBauen(STIL_URL), 0); } }); }
   // kein Massstab: MapLibre rechnet ihn mit Gelände bei jeder Bewegung über readPixels (bremst die Grafikkarte aus)
   try { new ResizeObserver(() => map.resize()).observe($("map")); } catch (e) { }
+  // Beim Ziehen/Zoomen von Hand mit Auflösung 1 zeichnen (bei hochauflösendem Bildschirm halb so viele Bildpunkte oder weniger),
+  // 250 ms nach dem Loslassen wieder scharf (Leistung 21.11.). Kamera folgen (folgen.js) bewegt ohne Hand → bleibt scharf.
+  const PR = Math.min(devicePixelRatio || 1, 2); let prTimer = 0, prTief = false;
+  if (PR > 1.05) {
+    map.on("movestart", e => { if (!e || !e.originalEvent) return; clearTimeout(prTimer); if (!prTief) { prTief = true; map.setPixelRatio(1); } });
+    map.on("moveend", () => { if (!prTief) return; clearTimeout(prTimer); prTimer = setTimeout(() => { if (map.isMoving()) return; prTief = false; map.setPixelRatio(PR); }, 250); });
+  }
   // MapLibre 5.6 friert mit Gelände bei easeTo/flyTo/fitBounds (auch Knöpfe +/−) die Höhe der Bildmitte ein und gibt sie
   // erst nach dem nächsten Ziehen mit der Hand wieder frei. Danach mit jumpTo (Kamera folgen, Suche) an einen höheren Ort →
   // Kamera rechnet mit der alten Höhe und landet im Boden (St. Gallen, 870 m: nur graue Flächen). Nach jeder Bewegung lösen.

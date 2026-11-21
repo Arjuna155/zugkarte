@@ -12,7 +12,7 @@ import { huelle, rechteck } from "./daecher.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
-import { wgs, nachLaden, beiRuhe } from "../util.js";
+import { wgs, nachLaden, neuBau, beiRuhe, quellMerkmale } from "../util.js";
 
 export const ZBF = 14.5;
 export const BF = { an: true, perrons: 0, osm: 0, ersatz: 0, kacheln: 0 };
@@ -42,6 +42,20 @@ function bauen() {
   const hoehe = (x, y) => { if (!ex) return 0; const e = map.queryTerrainElevation(new maplibregl.MercatorCoordinate(o.x + x * ms, o.y + y * ms).toLngLat()); return e === null || e === undefined ? NaN : e; };
   const merc = (x, y) => ({ x: o.x + x * ms, y: o.y + y * ms });
   const osm = [], ersatz = [], gesehen = new Set();
+  // überbaute Gebäude (render_min_height > 1, z. B. Bahnhofshallen, Überbauungen) als Umrisse in lokalen Metern – einmal je Aufbau,
+  // statt je Perron queryRenderedFeatures (liess mit Gelände jedes Mal die Grafikkarte anhalten, Leistung 21.11.)
+  let hoch = null;
+  const ueberbaut = (x, y) => {
+    if (!hoch) { hoch = []; const q = map.getLayer("gebaeude-3d") && map.getLayer("gebaeude-3d").source;
+      if (q) for (const f of quellMerkmale(map, q, "building")) { if (!(+(f.properties.render_min_height || 0) > 1) || f.geometry.type !== "Polygon") continue;
+        const P = f.geometry.coordinates[0].map(c => { const m = maplibregl.MercatorCoordinate.fromLngLat(c); return [(m.x - o.x) / ms, (m.y - o.y) / ms]; });
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; for (const [a, b] of P) { x0 = Math.min(x0, a); x1 = Math.max(x1, a); y0 = Math.min(y0, b); y1 = Math.max(y1, b); }
+        if (Math.hypot((x0 + x1) / 2, (y0 + y1) / 2) < R + 500) hoch.push({ P, x0, x1, y0, y1 }); } }
+    for (const h of hoch) { if (x < h.x0 || x > h.x1 || y < h.y0 || y > h.y1) continue; let innen = false;
+      for (let i = 0, j = h.P.length - 1; i < h.P.length; j = i++) { const a = h.P[i], b = h.P[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) innen = !innen; }
+      if (innen) return true; }
+    return false;
+  };
   // OSM-Perrons im Umkreis
   for (const [, liste] of KA) {
     if (!Array.isArray(liste)) continue;
@@ -61,8 +75,7 @@ function bauen() {
       const kanten = P.map((a, i) => { const b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 4) return false; const g = gleisNah(merc((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), 3); return !!g && Math.abs(g.ux * (b[0] - a[0]) + g.uy * (b[1] - a[1])) / L > .85; });
       // Dach: in OSM überdacht und kein Dach-Gebäude von swisstopo darüber (sonst doppelt)
       let dach = p.dach === 1;
-      if (dach) { const c = P.reduce((s, q) => [s[0] + q[0] / P.length, s[1] + q[1] / P.length], [0, 0]), ll = new maplibregl.MercatorCoordinate(o.x + c[0] * ms, o.y + c[1] * ms).toLngLat(), px = map.project(ll), cv = map.getCanvas();
-        if (px.x > 0 && px.y > 0 && px.x < cv.clientWidth && px.y < cv.clientHeight && map.getLayer("gebaeude-3d") && map.queryRenderedFeatures(px, { layers: ["gebaeude-3d"] }).some(f => +(f.properties.render_min_height || 0) > 1)) dach = false; }
+      if (dach) { const c = P.reduce((s, q) => [s[0] + q[0] / P.length, s[1] + q[1] / P.length], [0, 0]); if (ueberbaut(c[0], c[1])) dach = false; }
       osm.push({ P, z, sg, kanten, dach });
     }
   }
@@ -154,10 +167,10 @@ function schicht() {
 }
 export function bahnhoefeStarten() {
   const map = K.map; let geladen = false, t = 0;
-  const neu = () => nachLaden(map, "bahnhoefe", () => { if (!GL.bereit && map.getZoom() >= ZBF && BF.an) { setTimeout(neu, 300); return; } bauen(); map.triggerRepaint(); }, 500, 2);   // nach den Gleisen (gleise.js baut nach 200 ms)
+  const N = neuBau(map, "bahnhoefe", () => { if (!GL.bereit && map.getZoom() >= ZBF && BF.an) { setTimeout(neu, 300); return; } bauen(); map.triggerRepaint(); }, 500, 2, { R: () => R, grenzen: [ZBF, 15.5] }), neu = N.zwang;   // nach den Gleisen (gleise.js baut nach 200 ms)
   neuBauen = neu;
   const laden = () => { if (geladen || map.getZoom() < ZBF - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), map.getLayer("zuege3d") ? "zuege3d" : VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
-  beiRuhe(map, () => { laden(); neu(); });
+  beiRuhe(map, () => { laden(); N.bewegt(); });
   map.on("terrain", neu);
   ebene({ id: "bahnhoefe", name: "Bahnhöfe (Perrons, 3D)", an: true, setze: an => { BF.an = an; if (an) { laden(); neu(); } else { daten = null; version++; } map.triggerRepaint(); } });
   laden();

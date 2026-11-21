@@ -7,7 +7,7 @@ import { K } from "./karte.js";
 import { ladeThree, szeneMitLicht, gemeinsamerZeichner, schattenWerfer } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
-import { istHandy, nachLaden, quellMerkmale, beiRuhe } from "../util.js";
+import { istHandy, nachLaden, neuBau, haeppchen, quellMerkmale, beiRuhe } from "../util.js";
 import { DECK, deckHoehe } from "./decks.js";
 
 export const ZB = 14;
@@ -30,7 +30,7 @@ function art(p) {
   if (s === "park" || s === "recreation_ground") return { dichte: .06, typ: "laub" };
   return null;
 }
-function bauen() {
+function* bauen() {
   const map = K.map; if (!BA.an || !map || map.getZoom() < ZB) { BA.liste = null; BA.n = 0; return; }
   if (!quelle) quelle = quelleSuchen(map); if (!quelle) return;
   const z = map.getZoom(), c = map.getCenter(), o = mc(c), ms = o.meterInMercatorCoordinateUnits();
@@ -39,7 +39,7 @@ function bauen() {
   // Raster fest im Raum: Zellgrösse aus einem festen Bezugspunkt (Mitte der Schweiz), nicht aus der Bildmitte – sonst
   // verschiebt sich das Raster beim Verschieben der Karte und jede Zelle bekäme einen anderen Baum
   const zelle = RASTER * MS_FEST(), kand = [], gesehen = new Set();
-  for (const f of quellMerkmale(map, quelle, "landcover")) {
+  for (const f of quellMerkmale(map, quelle, "landcover")) { yield;
     const a = art(f.properties); if (!a) continue; const g = f.geometry;
     const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
     for (const poly of polys) {
@@ -149,10 +149,10 @@ function schicht() {
 }
 export function baeumeStarten() {
   const map = K.map; let geladen = false, t = 0;
-  const neu = () => nachLaden(map, "baeume", () => { bauen(); map.triggerRepaint(); }, 400, 6);
+  const N = neuBau(map, "baeume", async () => { await haeppchen(map, bauen()); map.triggerRepaint(); }, 400, 6, { R: () => { const z = map.getZoom(); return (z >= 16 ? 1300 : z >= 15 ? 2200 : 3200) * WEIT; }, grenzen: [ZB, 15, 16] }), neu = N.zwang;
   const laden = () => { if (geladen || map.getZoom() < ZB - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
-  beiRuhe(map, () => { laden(); neu(); });
-  map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZB) neu(); });
+  beiRuhe(map, () => { laden(); N.bewegt(); });
+  map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZB) N.kacheln(); });
   ebene({ id: "baeume", name: "Bäume (3D, beim Hineinzoomen)", an: true, setze: an => { BA.an = an; if (an) { laden(); neu(); } else { BA.liste = null; } map.triggerRepaint(); } });
   laden();
 }

@@ -13,14 +13,14 @@ import { Geo, W3 } from "./welt3d.js";
 import { deckHoehe, DECK } from "./decks.js";
 import { AU, ausstattungLaden, ausstattungHoeren } from "./strassen3d.js";
 import { ebene } from "../ui/ebenen.js";
-import { nachLaden, beiRuhe, quellMerkmale, istHandy, wgs, lv95, an } from "../util.js";
+import { nachLaden, neuBau, haeppchen, beiRuhe, quellMerkmale, istHandy, wgs, lv95, an } from "../util.js";
 
 export const FL = { an: true, gleise: 0, elektrisch: 0, masten: 0, joche: 0, ms: 0 };
 const Z_AB = 15, SCHRITT = 4;
 const lin = c => c.map(v => v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4)), hex = h => lin([1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255));
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 
-function bauen(map, quelle) {
+function* bauen(map, quelle) {
   const z = map.getZoom(); if (!FL.an || z < Z_AB || !map.getTerrain() || !quelle) return null;
   const t0 = performance.now(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = (z >= 17 ? 700 : 1200) * (istHandy() ? .7 : 1.5);
   const lokal = ll => { const m = mc(ll); return [(m.x - o.x) / ms, (m.y - o.y) / ms]; };
@@ -43,7 +43,7 @@ function bauen(map, quelle) {
   // Kartengleise (feinste Kachelstufe, ohne Tunnel), alle 4 m, mit Höhe (Brücke: Fahrbahn der 3D-Brücke)
   const F = quellMerkmale(map, quelle, "transportation"); let zmax = 0; for (const f of F) if (f.tile && f.tile.z > zmax) zmax = f.tile.z;
   const gleise = [], gesehen = new Set(), rk = q => Math.round(q[0]) + "," + Math.round(q[1]);
-  for (const f of F) {
+  for (const f of F) { yield;
     const p = f.properties; if ((p.class !== "rail" && p.class !== "transit") || p.brunnel === "tunnel" || (f.tile && f.tile.z !== zmax)) continue;
     if (/funicular|rack|cable/.test(p.subclass || "")) continue;
     const g = f.geometry, linien = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
@@ -80,7 +80,7 @@ function bauen(map, quelle) {
   const linie = (a, b) => DRAHT.push(a[0], a[1], a[2], b[0], b[1], b[2]);
   const mast = (x, y, z0, h, ux, uy) => { const w = .14; G.balken([x - ux * w, y - uy * w], [x + ux * w, y + uy * w], .28, z0 - .3, z0 + h, z0 - .3, z0 + h, MAST, MAST_D); };
   let masten = 0, joche = 0;
-  for (const g of gleise) {
+  for (const g of gleise) { yield;
     const P = g.P, SP = g.tram ? 35 : 55;
     // Fahrdraht (Zickzack ±20 cm zwischen den Masten) und Tragseil
     const hD = g.tram ? 5.8 : 5.5;
@@ -150,13 +150,13 @@ function ebene3d() {
 
 export function fahrleitungStarten() {
   const map = K.map; let schicht = null, laedt = false;
-  const neu = () => nachLaden(map, "fahrleitung", async () => {
+  const N = neuBau(map, "fahrleitung", async () => {
     if (!FL.an || map.getZoom() < Z_AB || !map.getTerrain() || !W3.quelle) { if (schicht) { schicht.setze(null); map.triggerRepaint(); } return; }
     if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = ebene3d(); map.addLayer(schicht, VOR_3D()); }
-    schicht.setze(bauen(map, W3.quelle)); map.triggerRepaint();
-  }, 300, 6);
-  ebene({ id: "fahrleitung", name: "Fahrleitungen (nach OpenStreetMap)", an: true, setze: an => { FL.an = an; neu(); } });
-  ausstattungHoeren(neu); beiRuhe(map, neu); map.on("terrain", neu); an("decks", neu);
-  map.on("sourcedata", e => { if (W3.quelle && e.sourceId === W3.quelle && e.isSourceLoaded) neu(); });
-  window.__fl = FL; neu();
+    schicht.setze(await haeppchen(map, bauen(map, W3.quelle))); map.triggerRepaint();
+  }, 300, 6, { R: () => (map.getZoom() >= 17 ? 700 : 1200) * (istHandy() ? .7 : 1.5), grenzen: [Z_AB, 17] });
+  ebene({ id: "fahrleitung", name: "Fahrleitungen (nach OpenStreetMap)", an: true, setze: an => { FL.an = an; N.zwang(); } });
+  ausstattungHoeren(N.zwang); beiRuhe(map, N.bewegt); map.on("terrain", N.zwang); an("decks", N.kacheln);
+  map.on("sourcedata", e => { if (W3.quelle && e.sourceId === W3.quelle && e.isSourceLoaded) N.kacheln(); });
+  window.__fl = FL; N.zwang();
 }

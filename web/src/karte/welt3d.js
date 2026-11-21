@@ -8,7 +8,7 @@ import { deckSetzen } from "./decks.js";
 import { VOR_3D } from "./tageszeit.js";
 import { ebene } from "../ui/ebenen.js";
 import { FASSADE, ZD, H_MIN, H_MAX, DACH_ANTEIL, DACH_MIN, DACH_MAX } from "./daecher.js";
-import { quellMerkmale, nachLaden, beiRuhe } from "../util.js";
+import { quellMerkmale, nachLaden, beiRuhe, haeppchen } from "../util.js";
 
 export const W3 = { an: true, gebaeudeAn: true, gebaeude: false, bauwerke: 0, quelle: null };
 const ZOOM_GEBAEUDE = 14, ZOOM_BAUWERKE = 14;
@@ -90,7 +90,7 @@ Geo.prototype.streifen = function (P, N, qa, za, qb, zb, col, nach, von = 0, bis
 const mc = ll => maplibregl.MercatorCoordinate.fromLngLat(ll);
 // Kacheln liefern Linien in Stücken (an Kachelgrenzen geschnitten, mit Überlappung). Für die Höhe einer Brücke zählt nur,
 // wo sie wirklich beginnt und endet: ein echtes Ende hat eine gleichartige Strasse/Bahn ohne Brücke als Fortsetzung.
-function bauwerkeBauen(map, g) {
+function* bauwerkeBauen(map, g) {
   const feats = quellMerkmale(map, g.quelle, "transportation");
   const c = map.getCenter(), o = mc(c), ms = o.meterInMercatorCoordinateUnits();
   const lokal = ([lng, lat]) => { const m = mc([lng, lat]); return [(m.x - o.x) / ms, (m.y - o.y) / ms]; };
@@ -99,7 +99,7 @@ function bauwerkeBauen(map, g) {
   // normale (Nicht-Brücken-)Strecken je Art in einem Raster (für «echtes Ende?»)
   const raster = new Map(), R = 20, rk = (x, y) => Math.floor(x / R) + "," + Math.floor(y / R);
   const stuecke = [], punkte = [];
-  for (const f of feats) {
+  for (const f of feats) { yield;
     const p = f.properties, art = p.class; if (!BREITE[art]) continue;
     const linien = f.geometry.type === "LineString" ? [f.geometry.coordinates] : f.geometry.type === "MultiLineString" ? f.geometry.coordinates : [];
     for (const ll of linien) {
@@ -124,7 +124,7 @@ function bauwerkeBauen(map, g) {
   const fortsetzung = (q, art) => { for (let dx = -1; dx <= 1; dx++)for (let dy = -1; dy <= 1; dy++) { const a = raster.get((Math.floor(q[0] / R) + dx) + "," + (Math.floor(q[1] / R) + dy)); if (a && a.includes(art)) return true; } return false; };
   // doppelte Stücke (Überlappung an Kachelgrenzen) nur einmal
   const gesehen = new Set(); const G = new Geo(), GF = new Geo(); let n = 0; const decks = [], brl = [];   // G beleuchtet (Beton), GF unbeleuchtet (Belag, Markierung, Schienen)
-  for (const [si, s] of stuecke.entries()) {
+  for (const [si, s] of stuecke.entries()) { yield;
     const key = s.typ + s.art + s.xy.map(q => Math.round(q[0]) + ":" + Math.round(q[1])).join("|"); if (gesehen.has(key)) continue; gesehen.add(key);
     const w = strassenBreite(s.art, s.einweg, s.rampe);
     if (s.typ === "tunnel") {   // Portal an echten Enden: Rahmen quer zur Fahrrichtung, dunkle Öffnung
@@ -179,7 +179,7 @@ function bauwerkeBauen(map, g) {
         if (Math.abs(r[2] - q[2]) > 3) continue;   // andere Ebene (Brücke über Brücke)
         if (quer > 0) bestL = Math.min(bestL, Math.abs(quer)); else bestR = Math.min(bestR, Math.abs(quer)); zMax = Math.max(zMax, r[2]); }
       b.nb[1][i] = bestL < 99 ? Math.max(b.wa / 2, bestL / 2 + .05) : 0; b.nb[-1][i] = bestR < 99 ? Math.max(b.wa / 2, bestR / 2 + .05) : 0; if (runde < 2 && b.HB[i]) q[2] = zMax; }); }
-  for (const { s, P, HB, e0, e1, wa, ws, nb } of brl) {
+  for (const { s, P, HB, e0, e1, wa, ws, nb } of brl) { yield;
     const M = P.length, N = [], D = [0];
     for (let i = 0; i < M; i++) {   // Normale je Punkt auf Gehrung
       const a = P[Math.max(0, i - 1)], b = P[i], c = P[Math.min(M - 1, i + 1)]; let u1 = [b[0] - a[0], b[1] - a[1]], u2 = [c[0] - b[0], c[1] - b[1]]; const l1 = Math.hypot(u1[0], u1[1]);
@@ -272,7 +272,7 @@ export function welt3dStarten() {
       brueckenLinien(map);
       if (!W3.an || map.getZoom() < ZOOM_BAUWERKE || !map.getTerrain() || !g.verkehr) return;
       if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = bauwerkEbene(); map.addLayer(schicht, VOR_3D()); }
-      const { G, GF, o, n } = bauwerkeBauen(map, g); schicht.setze(G, o, GF); W3.bauwerke = n; brueckenLinien(map); map.triggerRepaint();
+      const { G, GF, o, n } = await haeppchen(map, bauwerkeBauen(map, g)); schicht.setze(G, o, GF); W3.bauwerke = n; brueckenLinien(map); map.triggerRepaint();
     }, 250, 6);
   };
   beiRuhe(map, neu); map.on("terrain", neu);

@@ -78,11 +78,16 @@ void main(){
       // Lichtkamera: Mercator, Mitte = Empfänger-Mitte, Richtung = Sonne (mindestens 12° hoch)
       const s = this.o.meterInMercatorCoordinateUnits(), [dx, dy, dz] = LICHT.dir, f = new THREE.Vector3(-dx, -dy, -dz).normalize();
       const up = Math.abs(f.z) > .99 ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, 1), r = new THREE.Vector3().crossVectors(f, up).normalize(), u = new THREE.Vector3().crossVectors(r, f);
-      const c = new THREE.Vector3(this.o.x, this.o.y, (map.queryTerrainElevation(map.getCenter()) || 0) * s), sx = 1 / (W * s), sz = 1 / (TIEFE * s);
+      // Höhe der Lichtmitte fest je Empfänger-Mitte (vorher die Bildmitte → beim Verschieben änderte sich die Lichtkamera in jedem Bild)
+      if (this.ozFuer !== this.o) { this.ozFuer = this.o; this.oz = map.queryTerrainElevation(this.o.toLngLat()) || 0; }
+      const c = new THREE.Vector3(this.o.x, this.o.y, this.oz * s), sx = 1 / (W * s), sz = 1 / (TIEFE * s);
       this.lvp.set(r.x * sx, r.y * sx, r.z * sx, -r.dot(c) * sx, u.x * sx, u.y * sx, u.z * sx, -u.dot(c) * sx, f.x * sz, f.y * sz, f.z * sz, -f.dot(c) * sz, 0, 0, 0, 1);
-      // 1. Schattenkarte
-      const R = this.r; R.resetState(); R.setRenderTarget(this.rt); R.setClearColor(0xffffff, 1); R.clear(true, true, false);
-      const jetzt = performance.now(), versteckt = [];
+      // 1. Schattenkarte – nur neu, wenn sich Licht oder Mitte geändert haben, sonst höchstens 4×/s (fahrende Züge, Autos)
+      // und nicht während die Karte bewegt wird (die Karte vom letzten Mal passt, die Lichtkamera hängt nicht an der Bildmitte)
+      const jetzt = performance.now(), R = this.r, schluessel = this.lvp.elements.join(","), neuL = schluessel !== this.lvpAlt;
+      if (neuL || (!map.isMoving() && jetzt - (this.kZeit || 0) > 250)) { this.lvpAlt = schluessel; this.kZeit = jetzt; SCHATTEN.karten = (SCHATTEN.karten || 0) + 1;
+      R.resetState(); R.setRenderTarget(this.rt); R.setClearColor(0xffffff, 1); R.clear(true, true, false);
+      const versteckt = [];
       for (const [szene, e] of SCHATTEN.werfer) {
         if (jetzt - e.t > 1000) { SCHATTEN.werfer.delete(szene); continue; }
         szene.traverse(x => { if (x.visible && (x.isPoints || x.isLine || (x.material && x.material.transparent))) { x.visible = false; versteckt.push(x); } });   // Lichtpunkte, Drähte, weiche Flecken werfen keinen Schatten
@@ -92,10 +97,12 @@ void main(){
       this.haeuserBauen();
       if (this.haeuser) { const hl = new THREE.Matrix4().makeTranslation(this.hAnker.x, this.hAnker.y, 0).scale(new THREE.Vector3(this.hMs, this.hMs, this.hMs)); this.lcam.projectionMatrix.multiplyMatrices(this.lvp, hl); R.render(this.hSzene, this.lcam); }
       R.setRenderTarget(null); R.setClearColor(0x000000, 0); gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight); R.resetState();   // Bildgrösse von MapLibre, nicht die beim Anlegen des Zeichners
+      }
       // 2. Empfänger
       const l = new THREE.Matrix4().makeTranslation(this.o.x, this.o.y, 0).scale(new THREE.Vector3(s, s, s)), m = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix);
       this.uL.value.multiplyMatrices(this.lvp, l); this.cam.projectionMatrix = m.multiply(l); R.render(this.bSzene, this.cam);
-      if (map.isMoving() || jetzt - (this.letzt || 0) > 100) { this.letzt = jetzt; map.triggerRepaint(); }   // Züge und Autos bewegen sich: Schatten laufend nachführen
+      // kein eigenes Dauer-Neuzeichnen mehr (vorher alle 100 ms → die ganze Karte zeichnete auch in Ruhe 10×/s): fahrende
+      // Züge und Autos fordern ihre Bilder selbst an, ihre Schatten kommen dabei mit
     },
   };
 }

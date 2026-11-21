@@ -9,7 +9,7 @@ import { VOR_3D } from "./tageszeit.js";
 import { Geo, W3 } from "./welt3d.js";
 import { STRASSENFARBE, MARKE, strassenBreite } from "./landschaft.js";
 import { lichtAnmelden } from "./lichter.js";
-import { nachLaden, beiRuhe, quellMerkmale, istHandy, wgs, lv95 } from "../util.js";
+import { nachLaden, neuBau, haeppchen, beiRuhe, quellMerkmale, istHandy, wgs, lv95 } from "../util.js";
 
 export const S3 = { n: 0, ms: 0, lampen: 0, trottoir: 0, streifen: 0, leitplanken: 0, gehwege: 0, kacheln: 0 };
 
@@ -36,7 +36,7 @@ const RAND = { motorway: .8, trunk: .8, primary: 1.2, secondary: 1.2, tertiary: 
 const BREIT = { service: 3.6 };
 const STADT = ["primary", "secondary", "tertiary", "minor", "service"];   // Klassen, die ein Trottoir haben können (Seiten aus OSM)
 
-function bauen(map, quelle) {
+function* bauen(map, quelle) {
   const z = map.getZoom(); if (z < Z_AB || !map.getTerrain() || !quelle) return null;
   const t0 = performance.now(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = (z >= 18 ? 320 : z >= 17 ? 480 : 700) * (istHandy() ? .7 : 1.5);   // Computer: weiter (Ziel 20.11.)
   const lokal = ll => { const m = mc(ll); return [(m.x - o.x) / ms, (m.y - o.y) / ms]; };
@@ -45,7 +45,7 @@ function bauen(map, quelle) {
   const F = quellMerkmale(map, quelle, "transportation"); let zmax = 0; for (const f of F) if (f.tile && f.tile.z > zmax) zmax = f.tile.z;
   const G = new Geo(), GR = new Geo(), gesehen = new Set(), stuecke = [], enden = new Map(); let n = 0;
   const ek = q => Math.round(q[0]) + "," + Math.round(q[1]);
-  for (const f of F) {
+  for (const f of F) { yield;
     const p = f.properties, art = p.class; if (art === "rail" || art === "transit") continue;   // Gleise nicht als Asphalt
     const w = BREIT[art] || strassenBreite(art, p.oneway === 1, p.ramp === 1); if (!w || p.brunnel === "tunnel" || p.brunnel === "bridge") continue;
     if (f.tile && f.tile.z !== zmax) continue;   // gröbere Kacheln (weiter weg geladen) haben dieselben Strassen nochmals, vereinfacht
@@ -99,7 +99,7 @@ function bauen(map, quelle) {
   // Randlinien enden vor Verzweigungen, Einmündungen und offenen Enden (dort kreuzen sich sonst die Linien der Fahrbahnen);
   // nur wo genau zwei Stücke zusammenstossen (Kachelrand, gewöhnlicher Knick), laufen sie durch
   const KUERZ = 14;
-  for (const s of stuecke) {
+  for (const s of stuecke) { yield;
     const { roh, art, w } = s;
     const pts = [roh[0]], D = [0]; for (let i = 1; i < roh.length; i++) { const a = roh[i - 1], b = roh[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(l / SCHRITT)); for (let j = 1; j <= k; j++) { pts.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); D.push(D[D.length - 1] + l / k); } }
     for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < .1 || Math.hypot(a[0], a[1]) > R + 40) continue; const k = sk((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); if (!SP.has(k)) SP.set(k, []); SP.get(k).push({ a, l, ux: (b[0] - a[0]) / l, uy: (b[1] - a[1]) / l, w }); }
@@ -165,18 +165,18 @@ function bauen(map, quelle) {
   const linieBand = (P0, schritt) => { const P = []; for (let i = 1; i < P0.length; i++) { const a = P0[i - 1], b = P0[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(l / schritt)); for (let j = i === 1 ? 0 : 1; j <= k; j++) P.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); }
     const Q = []; for (const q of P) { if (Math.hypot(q[0], q[1]) > R) { Q.push(null); continue; } const z = hz(q); Q.push(z == null ? null : [q[0], q[1], z]); } return Q; };
   const laeufe = (Q, fn) => { let L = []; for (const q of Q.concat([null])) { if (q) { L.push(q); continue; } if (L.length > 1) { const N = L.map((b, i) => { const a = L[Math.max(0, i - 1)], c = L[Math.min(L.length - 1, i + 1)], l = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1; return [-(c[1] - a[1]) / l, (c[0] - a[0]) / l]; }); fn(L, N); } L = []; } };
-  for (const f of AUS.g) laeufe(linieBand(f.P, 4), (L, N) => { gehwege++;
+  for (const f of AUS.g) { yield; laeufe(linieBand(f.P, 4), (L, N) => { gehwege++;
     G.streifen(L, N, -.9, .12, .9, .12, TROTTOIR, "auf");
-    for (const sg of [1, -1]) G.streifen(L, N, sg * .9, .12, sg * .9, -.05, STEIN_SEITE, sg); });
+    for (const sg of [1, -1]) G.streifen(L, N, sg * .9, .12, sg * .9, -.05, STEIN_SEITE, sg); }); }
   // Leitplanken (barrier=guard_rail) und Betonelemente (jersey_barrier)
-  for (const f of AUS.b) laeufe(linieBand(f.P, 4), (L, N) => { leitplanken++;
+  for (const f of AUS.b) { yield; laeufe(linieBand(f.P, 4), (L, N) => { leitplanken++;
     if (f.c === 2) { for (let i = 1; i < L.length; i++) G.balken(L[i - 1], L[i], .5, L[i - 1][2], L[i - 1][2] + .8, L[i][2], L[i][2] + .8, BETON, BETON_D); return; }
     for (const sg of [1, -1]) G.streifen(L, N, sg * .04, .48, sg * .04, .8, METALL, sg);
     G.streifen(L, N, -.04, .8, .04, .8, METALL_D, "auf");
     let s0 = -99, sl = 0; for (let i = 0; i < L.length; i++) { if (i) sl += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]); if (sl - s0 < 4) continue; s0 = sl;
-      const n0 = N[i], px = L[i][0] - n0[0] * .1, py = L[i][1] - n0[1] * .1, z0 = L[i][2]; G.balken([px - .05 * n0[1], py + .05 * n0[0]], [px + .05 * n0[1], py - .05 * n0[0]], .1, z0, z0 + .74, z0, z0 + .74, METALL_D, METALL_D); } });
+      const n0 = N[i], px = L[i][0] - n0[0] * .1, py = L[i][1] - n0[1] * .1, z0 = L[i][2]; G.balken([px - .05 * n0[1], py + .05 * n0[0]], [px + .05 * n0[1], py - .05 * n0[0]], .1, z0, z0 + .74, z0, z0 + .74, METALL_D, METALL_D); } }); }
   // Fussgängerstreifen (gelb, wie in der Schweiz): Balken 0,5 m breit, 4 m lang, längs zur Strasse, quer über die Fahrbahn verteilt
-  for (const q of AUS.s) {
+  for (const q of AUS.s) { yield;
     const r = strasseNah(q[0], q[1], 6); if (!r) continue; streifen++;
     const ux = r.ux, uy = r.uy, nx = -uy, ny = ux, n = Math.max(2, Math.floor((r.w - .6) / 1)), start = -(n - 1) / 2;
     for (let k = 0; k < n; k++) { const o = (start + k) * 1, cx = r.x + nx * o, cy = r.y + ny * o, z = hz([cx, cy]); if (z == null) continue;
@@ -184,7 +184,7 @@ function bauen(map, quelle) {
       G.quad(A(-2, -.25), A(2, -.25), A(2, .25), A(-2, .25), GELB, [0, 0, 1]); }
   }
   // Strassenlampen an ihrer OSM-Lage: Ausleger zur nächsten Strasse (≤ 15 m), sonst Mastleuchte
-  for (const q of AUS.l) {
+  for (const q of AUS.l) { yield;
     if (lampen.length >= LAMPEN_MAX * 4) break;
     const z0 = hz(q); if (z0 == null) continue; const r = strasseNah(q[0], q[1], 15), h = r ? 7 : 4.5;
     G.balken([q[0] - .07, q[1]], [q[0] + .07, q[1]], .14, z0, z0 + h, z0, z0 + h, MAST, MAST);
@@ -263,11 +263,11 @@ float zr(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
 
 export function strassen3dStarten() {
   const map = K.map; let schicht = null, laedt = false;
-  const neu = () => nachLaden(map, "strassen3d", async () => {
+  const N = neuBau(map, "strassen3d", async () => {
     if (map.getZoom() < Z_AB || !map.getTerrain() || !W3.quelle) { if (schicht) { schicht.setze(null); map.triggerRepaint(); } return; }
     if (!schicht) { if (laedt) return; laedt = true; await ladeThree(); schicht = ebene3d(); map.addLayer(schicht, VOR_3D()); }
-    schicht.setze(bauen(map, W3.quelle)); map.triggerRepaint();
-  }, 250, 4);
-  ausstattungHoeren(neu); beiRuhe(map, neu); map.on("terrain", neu); map.on("sourcedata", e => { if (W3.quelle && e.sourceId === W3.quelle && e.isSourceLoaded) neu(); });
-  window.__s3 = S3; neu();
+    schicht.setze(await haeppchen(map, bauen(map, W3.quelle))); map.triggerRepaint();
+  }, 250, 4, { R: () => { const z = map.getZoom(); return (z >= 18 ? 320 : z >= 17 ? 480 : 700) * (istHandy() ? .7 : 1.5); }, grenzen: [Z_AB, 17, 18] });
+  ausstattungHoeren(N.zwang); beiRuhe(map, N.bewegt); map.on("terrain", N.zwang); map.on("sourcedata", e => { if (W3.quelle && e.sourceId === W3.quelle && e.isSourceLoaded) N.kacheln(); });
+  window.__s3 = S3; N.zwang();
 }

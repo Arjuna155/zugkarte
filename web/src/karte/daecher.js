@@ -9,7 +9,7 @@ import { ladeThree, szeneMitLicht, gemeinsamerZeichner } from "./drei.js";
 import { VOR_3D } from "./tageszeit.js";
 import { lichtAnmelden, fensterAnteil } from "./lichter.js";
 import { W3 } from "./welt3d.js";
-import { istHandy, nachLaden, beiRuhe, an } from "../util.js";
+import { istHandy, nachLaden, neuBau, quellMerkmale, beiRuhe, an } from "../util.js";
 
 export const ZD = 15;
 // Dachhöhe aus der Gesamthöhe (render_height = bis zum First): Mauern ab Zoom ZD nur bis zur Traufe (welt3d.js nutzt
@@ -53,15 +53,20 @@ function bauen() {
   if (!quelle) { for (const l of map.getStyle().layers) if (l["source-layer"] === "building") { quelle = l.source; break; } } if (!quelle) return;
   const z = map.getZoom(), o = mc(map.getCenter()), ms = o.meterInMercatorCoordinateUnits(), R = (z >= 17 ? 700 : z >= 16 ? 1100 : 1600) * WEIT;
   const liste = [], gesehen = new Set();
-  // genau die Gebäude, die die Karte zeichnet (sonst kommen beim Zoomen vereinfachte Umrisse gröberer Kacheln dazu)
+  // Gebäude direkt aus den Kacheln (queryRenderedFeatures liess mit Gelände die Grafikkarte ~10× anhalten, Leistung 21.11.).
+  // Je Stelle nur die feinste geladene Kachel – gröbere Kacheln haben dieselben Häuser nochmals, vereinfacht (Dächer versetzt).
   if (!map.getLayer("gebaeude-3d")) return;
-  for (const f of map.queryRenderedFeatures({ layers: ["gebaeude-3d"] })) {
+  const F = quellMerkmale(map, quelle, "building"), da = new Set(); let zmax = 0;
+  for (const f of F) if (f.tile) { da.add(f.tile.z + "/" + f.tile.x + "/" + f.tile.y); if (f.tile.z > zmax) zmax = f.tile.z; }
+  const feiner = (t, lng, lat) => { for (let zz = t.z + 1; zz <= zmax; zz++) { const n = 2 ** zz, x = Math.floor((lng + 180) / 360 * n), y = Math.floor((1 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / Math.PI) / 2 * n); if (da.has(zz + "/" + x + "/" + y)) return true; } return false; };
+  for (const f of F) {
     const p = f.properties, H = +(p.render_height ?? p.height ?? 8), H0 = +(p.render_min_height ?? p.min_height ?? 0);
     if (!(H >= 3)) continue; const nurFenster = !(H >= H_MIN && H <= H_MAX) || H0 > 0;   // Dach nur für Häuser bis ~6 Geschosse ohne Überbauten; grössere Gebäude nur Fenster (Lichter)
     const g = f.geometry; if (g.type !== "Polygon") continue; const ring = g.coordinates[0]; if (!ring || ring.length < 4 || ring.length > 60) continue;
     // Mitte wie MapLibre (Mittel der Eckpunkte) – darauf bezieht sich die Geländehöhe des ganzen Gebäudes
     let sx = 0, sy = 0; const n = ring.length - 1; for (let i = 0; i < n; i++) { sx += ring[i][0]; sy += ring[i][1]; }
     const ml = [sx / n, sy / n], m = mc(ml), dx = (m.x - o.x) / ms, dy = (m.y - o.y) / ms; if (Math.hypot(dx, dy) > R) continue;
+    if (f.tile && f.tile.z < zmax && feiner(f.tile, ml[0], ml[1])) continue;
     const key = Math.round(dx * 2) + "," + Math.round(dy * 2) + "," + H; if (gesehen.has(key)) continue; gesehen.add(key);   // gleiches Haus aus mehreren Kacheln
     const P = []; for (let i = 0; i < n; i++) { const q = mc(ring[i]); P.push([(q.x - m.x) / ms, (q.y - m.y) / ms]); }
     const Hu = huelle(P); if (Hu.length < 3) continue; const r = rechteck(Hu); if (!r) continue;
@@ -267,11 +272,11 @@ function schicht() {
 }
 export function daecherStarten() {
   const map = K.map; let geladen = false, t = 0;
-  const neu = () => nachLaden(map, "daecher", () => { bauen(); map.triggerRepaint(); }, 400, 5);
+  const N = neuBau(map, "daecher", () => { bauen(); map.triggerRepaint(); }, 400, 5, { R: () => { const z = map.getZoom(); return (z >= 17 ? 700 : z >= 16 ? 1100 : 1600) * WEIT; }, grenzen: [ZD, 15.6, 16, 17] }), neu = N.zwang;
   an("schnee", () => { version++; map.triggerRepaint(); });   // Dachfarben neu (Geometrie bleibt)
   const laden = () => { if (geladen || map.getZoom() < ZD - .5) return; geladen = true; ladeThree().then(() => { try { map.addLayer(schicht(), VOR_3D()); } catch (e) { console.error(e); } neu(); }); };
-  beiRuhe(map, () => { laden(); neu(); });
-  map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZD) neu(); });
+  beiRuhe(map, () => { laden(); N.bewegt(); });
+  map.on("sourcedata", e => { if (quelle && e.sourceId === quelle && e.isSourceLoaded && map.getZoom() >= ZD) N.kacheln(); });
   map.on("terrain", neu);
   laden();
 }
