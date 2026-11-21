@@ -131,7 +131,7 @@ function bauen(map, quelle) {
         for (let k = 0; k <= K_; k++) { const t = 2 * Math.PI * k / K_, cx = Math.cos(t), sx = Math.sin(t), seit = (cx >= 0) === (i === M - 1) ? ZL[i] : ZR[i],
             b = [c[0] + (nx * cx + ux * sx) * rad, c[1] + (ny * cx + uy * sx) * rad, c[2] + dz + seit * Math.abs(cx) * rad / Q];   // seitlich wie das Band geneigt
           if (a) G.quad([c[0], c[1], c[2] + dz], a, b, [c[0], c[1], c[2] + dz], col, [0, 0, 1]); a = b; } };
-      if (rb) scheibe(GR, Q, ZR_, auto ? BANKETT : KANTE); scheibe(G, w / 2, ZA, ASPHALT); }
+      scheibe(G, w / 2, ZA, ASPHALT); }   // nur Asphalt: eine Randscheibe stünde am Kreisel 1,2 m in die Insel
     // Markierungen nur im Bereich [t0, t1] des ganzen Stücks (mindestens 15 m lang)
     let i0 = 0, i1 = M - 1; while (i0 < M - 1 && S[i0] < t0) i0++; while (i1 > 0 && S[i1] > t1) i1--;
     const mark = t1 - t0 >= 15 && i1 > i0;
